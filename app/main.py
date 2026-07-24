@@ -5,6 +5,8 @@ from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
 from app.routes.video_routes import router as video_router
 from app.routes.playlist_routes import router as playlist_router
+from app.routes.subscriber_routes import router as subscriber_router
+from app.routes.plan_routes import router as plan_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +25,8 @@ app.add_middleware(PeeweeDBMiddleware)
 
 app.include_router(video_router)
 app.include_router(playlist_router)
+app.include_router(subscriber_router)
+app.include_router(plan_router)
 
 
 @app.get("/health", tags=["Health"])

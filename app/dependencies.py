@@ -16,6 +16,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     static_key = settings.STATIC_API_KEY or "talentsea_secret_api_key_2026"
 
     # Static API Key & Dev token override for Frontend testing
+    # This block implemented just for testing(not the final thing)
     if token in (static_key, "test_token"):
         user = User.get_or_none(User.username == "default_creator")
         if not user:
