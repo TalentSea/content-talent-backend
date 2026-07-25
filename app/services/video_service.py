@@ -28,7 +28,6 @@ from app.utils.bunny_client import (
     create_bunny_video,
     get_bunny_video_status,
     delete_bunny_video,
-    upload_bunny_stream_thumbnail,
     upload_bunny_storage_file,
     delete_bunny_storage_file
 )
@@ -164,16 +163,16 @@ class VideoService:
         expiration_timestamp = int(time.time()) + 86400
         signature = generate_tus_signature(
             library_id=library_id,
-            api_key=api_key,
+            bunny_api_key=api_key,
             expiration_time=expiration_timestamp,
             video_id=bunny_video_id
         )
 
-        pull_zone = settings.BUNNY_PULL_ZONE_URL.rstrip("/")
-        main_thumbnail_url = f"{pull_zone}/{bunny_video_id}/thumbnail.jpg"
+        storage_pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
+        main_thumbnail_url = f"{storage_pull_zone}/{bunny_video_id}/thumbnail.jpg"
         alt_thumbnail_urls = [
-            f"{pull_zone}/{bunny_video_id}/thumb_2.jpg",
-            f"{pull_zone}/{bunny_video_id}/thumb_3.jpg"
+            f"{storage_pull_zone}/{bunny_video_id}/thumb_2.jpg",
+            f"{storage_pull_zone}/{bunny_video_id}/thumb_3.jpg"
         ]
 
         video_record_data = {
@@ -285,7 +284,7 @@ class VideoService:
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
 
-        if video.status in ("ENCODING", "PROCESSING"):
+        if video.status in ("PENDING", "ENCODING", "PROCESSING"):
             try:
                 status_data = get_bunny_video_status(video.bunny_video_id)
                 if status_data and "status" in status_data:
@@ -337,11 +336,8 @@ class VideoService:
         ext = "png" if "png" in content_type else ("webp" if "webp" in content_type else "jpg")
         filename = f"thumb_{slot + 1}.{ext}" if slot > 0 else "thumbnail.jpg"
 
-        if slot == 0:
-            upload_bunny_stream_thumbnail(video.bunny_video_id, file_bytes, content_type)
-        else:
-            file_path = f"{video.bunny_video_id}/{filename}"
-            upload_bunny_storage_file(file_path, file_bytes, content_type)
+        file_path = f"{video.bunny_video_id}/{filename}"
+        upload_bunny_storage_file(file_path, file_bytes, content_type)
 
         return ActionSuccessResponse(status="success")
 

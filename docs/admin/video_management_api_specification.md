@@ -12,8 +12,8 @@ The creator identity (`user_id`) is extracted directly from the authenticated se
 ### Architecture Overview
 - **Backend Service**: FastAPI (Python) handles authentication, state persistence, authorization, and cloud handshakes.
 - **Database**: Relational Database stores video metadata and cloud asset mappings.
-- **Cloud Video Service**: Bunny Stream API handles video containers, transcoding, HLS streaming, and thumbnail hosting.
-- **Cloud Storage Service**: Bunny Storage API stores alternative backup thumbnails.
+- **Cloud Video Service**: Bunny Stream API handles video containers, encoding, and HLS streaming.
+- **Cloud Storage Service**: Bunny Storage API stores and serves all primary (Slot 0) and alternative (Slots 1 & 2) thumbnails via public Storage Pull Zone.
 ### Standard HTTP Error Responses
 
 All error responses across all endpoints follow the standard FastAPI JSON error envelope:
@@ -377,7 +377,7 @@ Content-Type: application/json
 
 ### 6. `POST /api/v1/admin/videos/{video_id}/thumbnails/upload` — Upload Thumbnail Image (Proxy Upload)
 
-Uploads a thumbnail image binary (`slot: 0` for main cover, `slot: 1` or `2` for alternative backup thumbnails) securely through the backend proxy.
+Uploads a thumbnail image binary (`slot: 0` for main cover, `slot: 1` or `2` for alternative backup thumbnails) securely to Bunny Storage Zone through the backend proxy.
 
 #### Request Headers
 ```http

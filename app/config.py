@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     BUNNY_STORAGE_PASSWORD: str
     BUNNY_STORAGE_ZONE_NAME: str
     BUNNY_PULL_ZONE_URL: str
+    BUNNY_STORAGE_PULL_ZONE_URL: str = "https://talentsea77999.b-cdn.net"
     
     JWT_SECRET_KEY: str = "talentsea_jwt_secret_key_2026"
     JWT_ALGORITHM: str = "HS256"
