@@ -6,23 +6,23 @@ class SubscriberItemResponse(BaseModel):
     id: int
     name: str
     email: str
-    plan: str
+    plan: str = "none"
     status: str
     revenue: float
     joined_at: datetime
-    avatar: Optional[str] = None
+    avatar: str = "none"
 
 class SubscriberProfileResponse(BaseModel):
     id: int
     name: str
     email: str
-    plan: str
+    plan: str = "none"
     status: str
     total_revenue: float
     revenue: float
     joined_at: datetime
     last_active_at: datetime
-    avatar: Optional[str] = None
+    avatar: str = "none"
 
 class SubscriberStatsResponse(BaseModel):
     total_subscribers: int

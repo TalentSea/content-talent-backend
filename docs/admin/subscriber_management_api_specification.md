@@ -54,6 +54,18 @@ All error responses follow the standard FastAPI JSON error envelope:
 
 ---
 
+## 2. Subscriber Default Field Values
+
+New subscriber records are created with default values that reflect a logged-in user who has not yet purchased any subscription:
+
+- `plan`: `"none"`
+- `status`: `"passive"`
+- `avatar`: `"none"`
+
+This means the platform will treat the subscriber as a passive user until they choose a paid plan or update their profile.
+
+---
+
 ## 📬 Admin Subscriber Management Endpoints
 
 ### 1. `GET /api/v1/subscribers/stats` — Subscriber Analytics Summary
