@@ -164,6 +164,26 @@ class VideoRepository:
             video.save()
         return video
 
+    def update_thumbnail_url(self, video_id: int, user_id: int, slot: int, new_url: str) -> Optional[Video]:
+        """
+        Updates main_thumbnail_url (slot 0) or alt_thumbnail_urls list (slot 1 or 2) in DB.
+        """
+        video = self.get_video_by_id(video_id, user_id)
+        if not video:
+            return None
+        if slot == 0:
+            video.main_thumbnail_url = new_url
+        else:
+            alts = list(video.alt_thumbnail_urls or [])
+            idx = slot - 1
+            if idx < len(alts):
+                alts[idx] = new_url
+            else:
+                alts.append(new_url)
+            video.alt_thumbnail_urls = alts
+        video.save()
+        return video
+
     def delete_video(self, video_id: int, user_id: int) -> bool:
         """
         Deletes a video record from DB and cascades playlist association cleanup.

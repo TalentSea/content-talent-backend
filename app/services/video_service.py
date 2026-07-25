@@ -168,12 +168,8 @@ class VideoService:
             video_id=bunny_video_id
         )
 
-        storage_pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
-        main_thumbnail_url = f"{storage_pull_zone}/{bunny_video_id}/thumbnail.jpg"
-        alt_thumbnail_urls = [
-            f"{storage_pull_zone}/{bunny_video_id}/thumb_2.jpg",
-            f"{storage_pull_zone}/{bunny_video_id}/thumb_3.jpg"
-        ]
+        main_thumbnail_url = None
+        alt_thumbnail_urls = []
 
         video_record_data = {
             "bunny_video_id": bunny_video_id,
@@ -334,10 +330,15 @@ class VideoService:
 
         file_bytes = file.file.read()
         ext = "png" if "png" in content_type else ("webp" if "webp" in content_type else "jpg")
-        filename = f"thumb_{slot + 1}.{ext}" if slot > 0 else "thumbnail.jpg"
+        filename = f"thumb_{slot + 1}.{ext}"
 
         file_path = f"{video.bunny_video_id}/{filename}"
         upload_bunny_storage_file(file_path, file_bytes, content_type)
+
+        settings = get_settings()
+        storage_pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
+        new_url = f"{storage_pull_zone}/{video.bunny_video_id}/{filename}"
+        self.repo.update_thumbnail_url(video_id, user_id, slot, new_url)
 
         return ActionSuccessResponse(status="success")
 
