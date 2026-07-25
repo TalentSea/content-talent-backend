@@ -193,7 +193,7 @@ Content-Type: application/json
 
 ### 5. `POST /api/v1/admin/playlists/{playlist_id}/thumbnail/upload` — Upload Playlist Banner Image (Proxy Upload)
 
-Uploads a playlist cover banner image (`assets/playlists/playlist_{id}.jpg`) securely through the backend proxy.
+Uploads a playlist cover banner image (`assets/playlists/pl_{playlist_id}_{timestamp}.{ext}`) with timestamp CDN cache-busting to Bunny Storage Zone.
 
 #### Request Headers
 ```http
