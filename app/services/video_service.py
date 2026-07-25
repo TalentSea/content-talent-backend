@@ -368,39 +368,43 @@ class VideoService:
         self.repo.delete_alt_thumbnail_url(video_id, user_id, target_url)
         return ActionSuccessResponse(status="success")
 
-    def delete_video_asset(self, user_id: int, video_id: int) -> ActionSuccessResponse:
+    def _purge_cloud_video_assets(self, video) -> None:
         """
-        Issues HTTP DELETE to Bunny Stream API to remove cloud video container and drops video record from DB.
+        Helper method to purge Bunny Stream container and all Bunny Storage thumbnails for a video asset.
         """
-        video = self.repo.get_video_by_id(video_id, user_id)
-        if not video:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
-
         try:
             delete_bunny_video(video.bunny_video_id)
         except Exception as e:
             logger.warning(f"Failed to delete Bunny Stream container for video {video.bunny_video_id}: {str(e)}")
 
-        for url in (video.alt_thumbnail_urls or []):
-            try:
-                file_path = f"{video.bunny_video_id}/{url.split('/')[-1]}"
-                delete_bunny_storage_file(file_path)
-            except Exception as e:
-                logger.warning(f"Failed to delete Bunny Storage thumbnail {url}: {str(e)}")
+        all_thumb_urls = ([video.main_thumbnail_url] if video.main_thumbnail_url else []) + list(video.alt_thumbnail_urls or [])
+        for url in all_thumb_urls:
+            if url and "b-cdn.net" in url:
+                try:
+                    file_path = f"{video.bunny_video_id}/{url.split('/')[-1]}"
+                    delete_bunny_storage_file(file_path)
+                except Exception as e:
+                    logger.warning(f"Failed to delete Bunny Storage thumbnail {url}: {str(e)}")
 
+    def delete_video_asset(self, user_id: int, video_id: int) -> ActionSuccessResponse:
+        """
+        Issues HTTP DELETE to Bunny Stream API to remove cloud video container, deletes all storage thumbnails, and drops video record from DB.
+        """
+        video = self.repo.get_video_by_id(video_id, user_id)
+        if not video:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
+
+        self._purge_cloud_video_assets(video)
         self.repo.delete_video(video_id, user_id)
         return ActionSuccessResponse(status="success")
 
     def bulk_delete_videos(self, user_id: int, payload: BulkDeleteVideosRequest) -> ActionSuccessResponse:
         """
-        Bulk deletes multiple video assets by ID array owned by creator.
+        Bulk deletes multiple video assets by ID array owned by creator along with cloud video containers and storage thumbnails.
         """
         deleted_videos = self.repo.bulk_delete_videos(payload.video_ids, user_id)
         for video in deleted_videos:
-            try:
-                delete_bunny_video(video.bunny_video_id)
-            except Exception as e:
-                logger.warning(f"Failed to bulk delete Bunny container {video.bunny_video_id}: {str(e)}")
+            self._purge_cloud_video_assets(video)
 
         return ActionSuccessResponse(status="success")
 
