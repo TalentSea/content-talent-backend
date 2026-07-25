@@ -294,10 +294,10 @@ Authorization: Bearer <creator_access_token>
   "views": 0,
   "duration": null,
   "playback_url": null,
-  "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumbnail.jpg",
+  "main_thumbnail_url": "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_1.jpg",
   "alt_thumbnail_urls": [
-    "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
-    "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
+    "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
+    "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
   ],
   "published_at": null,
   "scheduled_at": null,
@@ -319,10 +319,10 @@ Authorization: Bearer <creator_access_token>
   "views": 12400,
   "duration": "18:42",
   "playback_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1719825600",
-  "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumbnail.jpg",
+  "main_thumbnail_url": "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_1.jpg",
   "alt_thumbnail_urls": [
-    "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
-    "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
+    "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
+    "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
   ],
   "published_at": "2024-06-01T00:00:00Z",
   "scheduled_at": null,
@@ -377,7 +377,7 @@ Content-Type: application/json
 
 ### 6. `POST /api/v1/admin/videos/{video_id}/thumbnails/upload` — Upload Thumbnail Image (Proxy Upload)
 
-Uploads a thumbnail image binary (`slot: 0` for main cover, `slot: 1` or `2` for alternative backup thumbnails) securely to Bunny Storage Zone through the backend proxy.
+Uploads a thumbnail image binary (`slot: 0` for main cover `thumb_1.{ext}`, `slot: 1` for `thumb_2.{ext}`, `slot: 2` for `thumb_3.{ext}`) securely to Bunny Storage Zone through the backend proxy. Dynamically detects image extension (`.png`, `.jpg`, `.webp`) and updates the database record.
 
 #### Request Headers
 ```http
