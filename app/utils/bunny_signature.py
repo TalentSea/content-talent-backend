@@ -14,15 +14,9 @@ def generate_signed_playback_url(bunny_pull_zone_url: str, bunny_video_id: str, 
     Generates a time-bound, presigned HLS playback URL (playlist.m3u8?token=...&expires=...).
     Prevents unauthorized hotlinking, stream piracy, and permanent URL sharing.
     """
-    if not bunny_pull_zone_url:
-        bunny_pull_zone_url = "https://your-pull-zone.b-cdn.net"
-    
     expires_timestamp = int(time.time()) + expires_in_seconds
     path = f"/{bunny_video_id}/playlist.m3u8"
     
-    if not token_security_key:
-        token_security_key = "default_token_key"
-        
     to_hash = f"{token_security_key}{path}{expires_timestamp}"
     token_hash = hashlib.md5(to_hash.encode("utf-8")).hexdigest()
     

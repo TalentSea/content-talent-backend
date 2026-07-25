@@ -1,9 +1,6 @@
 from datetime import datetime
 from peewee import CharField, TextField, IntegerField, BooleanField, DateTimeField, ForeignKeyField
-try:
-    from playhouse.sqlite_ext import JSONField
-except ImportError:
-    from peewee import TextField as JSONField
+from playhouse.sqlite_ext import JSONField
 
 from app.models.base import BaseModel
 from app.models.user import User
@@ -31,6 +28,10 @@ class Video(BaseModel):
     caption_language = CharField(max_length=20, default="en", null=True)
     tags = JSONField(default=list)
     alt_thumbnail_urls = JSONField(default=list)
+    scheduled_at = DateTimeField(null=True)
+    published_at = DateTimeField(null=True)
+    views = IntegerField(default=0)
+    duration = CharField(max_length=50, null=True)
     created_at = DateTimeField(default=datetime.now)
 
     class Meta:

@@ -1,18 +1,15 @@
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
-
-class ThumbnailSlotInput(BaseModel):
-    slot: int = Field(..., description="0: Main Cover, 1: Alt 1, 2: Alt 2")
-    filename: str
+from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
 
 class VideoInitiateRequest(BaseModel):
-    """Request payload for initiating a video upload."""
+    """Request payload for initiating a video upload session."""
     title: str
     description: Optional[str] = None
     category: Optional[str] = None
     tags: Optional[List[str]] = []
-    thumbnails: Optional[List[ThumbnailSlotInput]] = []
+    status: Optional[str] = "draft"
 
 class VideoInitiateResponse(BaseModel):
     """Response payload returned after video upload initiation."""
@@ -22,13 +19,10 @@ class VideoInitiateResponse(BaseModel):
     status: str
     signature: str
     expiration_time: int
-    main_thumbnail_url: Optional[str] = None
-    alt_thumbnail_urls: List[str] = []
 
-class VideoResponse(BaseModel):
-    """Canonical DTO for returning video asset details."""
+class VideoListItemResponse(BaseModel):
+    """Lightweight DTO for video items in paginated list response matching spec doc API 3."""
     id: int
-    bunny_video_id: str
     title: str
     description: Optional[str] = None
     category: Optional[str] = None
@@ -36,41 +30,80 @@ class VideoResponse(BaseModel):
     status: str
     encode_progress: int
     is_playable: bool
+    views: int = 0
+    duration: Optional[str] = None
+    main_thumbnail_url: Optional[str] = None
+    published_at: Optional[datetime] = None
+    scheduled_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+class VideoResponse(BaseModel):
+    """Canonical DTO for single video details matching spec doc API 4."""
+    id: int
+    title: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: List[str] = []
+    status: str
+    encode_progress: int
+    is_playable: bool
+    views: int = 0
+    duration: Optional[str] = None
     playback_url: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
-    caption_url: Optional[str] = None
-    caption_language: Optional[str] = "en"
     alt_thumbnail_urls: List[str] = []
+    published_at: Optional[datetime] = None
+    scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
 class VideoUpdateRequest(BaseModel):
-    """Request payload for updating video textual metadata."""
+    """Request payload for updating video textual metadata matching spec doc API 5."""
     title: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
     tags: Optional[List[str]] = None
 
-class ThumbnailUploadUrlRequest(BaseModel):
-    """Request payload for requesting a presigned thumbnail upload URL."""
-    slot: int = Field(..., description="0: Main Cover, 1: Alt 1, 2: Alt 2")
-    filename: str
-
-class ThumbnailUploadUrlResponse(BaseModel):
-    """Response payload containing presigned thumbnail upload URL."""
-    slot: int
-    thumbnail_url: str
-    image_upload_url: str
+class VideoUpdateResponse(BaseModel):
+    """Pure text-only response for PATCH /api/v1/admin/videos/{video_id} matching spec doc API 5."""
+    id: int
+    title: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: List[str] = []
+    status: str
 
 class SelectMainThumbnailRequest(BaseModel):
-    """Request payload for selecting a new main cover thumbnail."""
+    """Request payload for selecting a new main cover thumbnail matching spec doc API 7."""
     selected_main_thumbnail: str
 
 class DeleteThumbnailRequest(BaseModel):
-    """Request payload for deleting an alternative backup thumbnail."""
+    """Request payload for deleting an alternative backup thumbnail matching spec doc API 8."""
     thumbnail_url: str
 
+class VideoPublishResponse(BaseModel):
+    """Response payload returned when a video is published immediately matching spec doc API 10."""
+    id: int
+    status: str = "published"
+    published_at: Optional[datetime] = None
+
+class VideoScheduleRequest(BaseModel):
+    """Request payload for scheduling video publication matching spec doc API 11."""
+    date: str = Field(..., description="Target publication date in YYYY-MM-DD format")
+    time: str = Field(..., description="Target publication time in HH:MM format")
+    timezone: str = Field("UTC", description="Target timezone string, e.g. America/Los_Angeles")
+
+class VideoScheduleResponse(BaseModel):
+    """Response payload returned when a video is scheduled matching spec doc API 11."""
+    id: int
+    status: str = "scheduled"
+    scheduled_at: Optional[datetime] = None
+
+class BulkDeleteVideosRequest(BaseModel):
+    """Request payload for bulk deleting multiple video assets matching spec doc API 12."""
+    video_ids: List[int]
+
 class BunnyWebhookPayload(BaseModel):
-    """Payload envelope sent by Bunny Stream webhook events."""
+    """Payload envelope sent by Bunny Stream webhook events matching spec doc API 2."""
     VideoLibraryId: int
     VideoGuid: str
     Status: int

@@ -1,10 +1,4 @@
 from peewee import DatabaseProxy, SqliteDatabase
-
-try:
-    from playhouse.sqlite_ext import SqliteExtDatabase
-except ImportError:
-    SqliteExtDatabase = SqliteDatabase
-
 from app.config import get_settings
 
 # Global database proxy for Peewee ORM
@@ -15,7 +9,7 @@ def init_db():
     Initializes Peewee SQLite database connection with foreign key enforcement and JSON support.
     """
     settings = get_settings()
-    db = SqliteExtDatabase(
+    db = SqliteDatabase(
         settings.SQLITE_DB_PATH,
         pragmas={
             'foreign_keys': 1,

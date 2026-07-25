@@ -19,6 +19,7 @@ class Playlist(BaseModel):
     description = TextField(null=True)
     thumbnail_url = CharField(max_length=500, null=True)
     created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
 
     class Meta:
         table_name = "playlists"
@@ -42,6 +43,7 @@ class PlaylistVideo(BaseModel):
         on_delete="CASCADE",
     )
     order = IntegerField(default=0)
+    added_at = DateTimeField(default=datetime.now)
 
     class Meta:
         table_name = "playlist_videos"

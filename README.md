@@ -27,8 +27,9 @@ content-talent-backend/
 │   │   ├── video_repository.py
 │   │   └── playlist_repository.py
 │   ├── routes/                   # FastAPI Endpoint Route Handlers
-│   │   ├── video_routes.py       # Video lifecycle endpoints
-│   │   └── playlist_routes.py    # Playlist management endpoints
+│   │   └── admin/                # Admin Panel Creator Endpoints
+│   │       ├── video_routes.py   # Admin Video management endpoints (/api/v1/admin/videos)
+│   │       └── playlist_routes.py# Admin Playlist management endpoints (/api/v1/admin/playlists)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
 │   │   ├── common_schemas.py     # Generic pagination envelopes
 │   │   ├── video_schemas.py      # Video request and response DTOs
@@ -45,9 +46,9 @@ content-talent-backend/
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
 │       └── bunny_signature.py    # TUS and HLS presigned token signature helpers
 ├── docs/                         # Domain Architecture Specifications
-│   ├── video_management_api_specification.md
-│   ├── playlist_management_api_specification.md
-│   └── backend_architecture_blueprint.md
+│   └── admin/                    # Creator Admin API Specifications
+│       ├── video_management_api_specification.md
+│       └── playlist_management_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template

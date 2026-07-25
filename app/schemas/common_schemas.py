@@ -12,3 +12,9 @@ class PaginatedResponse(BaseModel, Generic[T]):
     limit: int
     total_pages: int
     items: List[T]
+
+class ActionSuccessResponse(BaseModel):
+    """
+    Generic status success response payload used across action and mutation endpoints.
+    """
+    status: str = "success"
