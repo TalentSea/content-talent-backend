@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 from typing import Optional, List
 from fastapi import HTTPException, UploadFile, status
 
@@ -146,10 +147,11 @@ class PlaylistService:
 
         file_bytes = file.file.read()
         settings = get_settings()
-        pull_zone = settings.BUNNY_PULL_ZONE_URL.rstrip("/")
+        pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
 
+        timestamp = int(time.time())
         ext = "png" if "png" in content_type else ("webp" if "webp" in content_type else "jpg")
-        banner_path = f"assets/playlists/playlist_{playlist_id}.{ext}"
+        banner_path = f"assets/playlists/pl_{playlist_id}_{timestamp}.{ext}"
         thumbnail_url = f"{pull_zone}/{banner_path}"
 
         upload_bunny_storage_file(banner_path, file_bytes, content_type)
