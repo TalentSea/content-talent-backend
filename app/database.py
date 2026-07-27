@@ -23,11 +23,12 @@ def init_db():
     from app.models.user import User
     from app.models.video import Video
     from app.models.playlist import Playlist, PlaylistVideo
+    from app.models.category import Category
 
     if db_proxy.is_closed():
         db_proxy.connect()
 
-    db_proxy.create_tables([User, Video, Playlist, PlaylistVideo], safe=True)
+    db_proxy.create_tables([User, Video, Playlist, PlaylistVideo, Category], safe=True)
 
     # Ensure at least one default test user exists for development/auth testing
     if User.select().count() == 0:

@@ -6,6 +6,7 @@ from app.database import init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
 from app.routes.admin import admin_video_router, admin_playlist_router
+from app.routes.category_routes import router as category_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,9 +25,10 @@ app = FastAPI(
 setup_cors_middleware(app)
 app.add_middleware(PeeweeDBMiddleware)
 
-# Register Admin Video & Playlist routers cleanly
+# Register routers cleanly
 app.include_router(admin_video_router)
 app.include_router(admin_playlist_router)
+app.include_router(category_router)
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
