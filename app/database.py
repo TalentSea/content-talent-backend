@@ -23,17 +23,27 @@ def init_db():
     from app.models.user import User
     from app.models.video import Video
     from app.models.playlist import Playlist, PlaylistVideo
+    from app.models.comment import Comment, CommentLike
 
     if db_proxy.is_closed():
         db_proxy.connect()
 
-    db_proxy.create_tables([User, Video, Playlist, PlaylistVideo], safe=True)
+    db_proxy.create_tables([User, Video, Playlist, PlaylistVideo, Comment, CommentLike], safe=True)
 
     # Ensure at least one default test user exists for development/auth testing
     if User.select().count() == 0:
         User.create(
             username="default_creator",
-            email="creator@example.com"
+            email="creator@example.com",
+            first_name="Creator",
+            last_name="Name",
+            bio="Content creator and educator",
+            website="https://example.com",
+            phone="+1 (555) 123-4567",
+            location="San Francisco, CA",
+            twitter_url="https://twitter.com/username",
+            youtube_url="https://youtube.com/@username",
+            instagram_url="https://instagram.com/username"
         )
 
     if not db_proxy.is_closed():
