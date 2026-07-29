@@ -1,6 +1,6 @@
 # Creator OTT & Video Streaming Backend API
 
-A production-grade RESTful API built with **FastAPI**, **Peewee ORM**, **SQLite**, and **Bunny.net Cloud Infrastructure** (Bunny Stream, Bunny Storage, and Bunny CDN). Designed following clean architecture principles for video asset management, resumable TUS uploads, webhook state processing, and playlist curation.
+A production-grade RESTful API built with **FastAPI**, **Peewee ORM**, **SQLite**, and **Bunny.net Cloud Infrastructure** (Bunny Stream, Bunny Storage, and Bunny CDN). Designed following clean architecture principles for video asset management, resumable TUS uploads, webhook state processing, playlist curation, creator profile management, and comment moderation.
 
 ---
 
@@ -20,27 +20,32 @@ content-talent-backend/
 │   │   └── db_middleware.py      # Database connection lifecycle management
 │   ├── models/                   # Peewee ORM Entity Definitions
 │   │   ├── base.py               # Base model bound to database proxy
-│   │   ├── user.py               # User authentication entity
+│   │   ├── user.py               # Creator profile identity & settings entity
 │   │   ├── video.py              # Video asset metadata entity
-│   │   └── playlist.py           # Playlist and junction entities
+│   │   ├── playlist.py           # Playlist and junction entities
+│   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
 │   │   ├── video_repository.py
-│   │   └── playlist_repository.py
+│   │   ├── playlist_repository.py
+│   │   ├── profile_repository.py
+│   │   └── comment_repository.py
 │   ├── routes/                   # FastAPI Endpoint Route Handlers
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── video_routes.py   # Admin Video management endpoints (/api/v1/admin/videos)
-│   │       └── playlist_routes.py# Admin Playlist management endpoints (/api/v1/admin/playlists)
+│   │       ├── playlist_routes.py# Admin Playlist management endpoints (/api/v1/admin/playlists)
+│   │       ├── profile_routes.py # Admin Creator profile & social links (/api/v1/admin/profile)
+│   │       └── comment_routes.py # Admin Comment & moderation endpoints (/api/v1/admin/comments)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
 │   │   ├── common_schemas.py     # Generic pagination envelopes
 │   │   ├── video_schemas.py      # Video request and response DTOs
-│   │   └── playlist_schemas.py   # Playlist DTOs
+│   │   ├── playlist_schemas.py   # Playlist DTOs
+│   │   ├── profile_schemas.py    # Profile & avatar upload DTOs
+│   │   └── comment_schemas.py    # Comment & thread reply DTOs
 │   ├── services/                 # Business Logic & Cloud Orchestration
 │   │   ├── video_service.py      # Video orchestration service
-│   │   └── playlist_service.py   # Playlist curation service
-│   ├── skills/                   # Standard Operating Procedures & Skill Docs
-│   │   ├── bunny-stream-orchestration/
-│   │   ├── fastapi-peewee-clean-architecture/
-│   │   └── ott-playlist-curation/
+│   │   ├── playlist_service.py   # Playlist curation service
+│   │   ├── profile_service.py    # Profile & Bunny Storage avatar service
+│   │   └── comment_service.py    # Comment moderation service
 │   └── utils/                    # Cloud Helper Utilities & Cryptography
 │       ├── auth.py               # JWT token encoding and decoding
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
@@ -48,7 +53,9 @@ content-talent-backend/
 ├── docs/                         # Domain Architecture Specifications
 │   └── admin/                    # Creator Admin API Specifications
 │       ├── video_management_api_specification.md
-│       └── playlist_management_api_specification.md
+│       ├── playlist_management_api_specification.md
+│       ├── settings_profile_api_specification.md
+│       └── comments_management_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template
@@ -62,7 +69,10 @@ content-talent-backend/
 - **Resumable TUS Video Uploads**: Computes SHA-256 HMAC presigned signatures allowing client applications to stream video chunks directly to Bunny Stream TUS infrastructure without exposing server credentials.
 - **Webhook State Machine**: Handles automated status updates (codes 0–10) sent by Bunny Stream background encoding servers for real-time state tracking (`ENCODING`, `PLAYABLE`, `READY`, `FAILED`, Captions).
 - **Dedicated 0-Indexed Thumbnail Management**: Implements dedicated sub-resource upload paths (`slot: 0, 1, 2`) supporting primary cover swaps without accidental asset deletion.
-- **Playlist Curation & Deterministic Cover Overrides**: Enables multi-video collection management with deterministic cloud banner overrides (`assets/playlists/playlist_{id}.jpg`).
+- **Playlist Curation & Deterministic Cover Overrides**: Enables multi-video collection management with deterministic cloud banner overrides (`assets/playlists/pl_{id}_{timestamp}.jpg`).
+- **Creator Profile & Bunny CDN Avatar Management**: Manages creator metadata, social links (Twitter, YouTube, Instagram), and avatar photo uploads to Bunny Storage Zone (`assets/avatars/avatar_{id}_{timestamp}.jpg`) with CDN cache-busting URLs.
+- **Comments & On-Demand Thread Replies**: Provides high-performance top-level comment listing with `reply_count`, search, video/category filtering, and on-demand paginated reply thread fetching (`GET /comments/{id}/replies?sort=oldest`).
+- **Unified `CommentLike` Model**: Manages unique user comment likes/hearts via database-indexed junction table (`comment_likes`).
 - **Presigned HLS Stream Security**: Generates time-bound tokenized streaming URLs (`playlist.m3u8?token=...&expires=...`) to prevent unauthorized hotlinking and stream piracy.
 - **Standardized Pagination Envelopes**: Wraps list queries inside a generic `PaginatedResponse[T]` structure (`total`, `page`, `limit`, `total_pages`, `items`).
 - **Insecure Direct Object Reference (IDOR) Protection**: User identity is strictly derived from validated JWT Bearer tokens.
@@ -140,12 +150,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Technical specifications and architecture documentation:
 
-- [Video Management API Specification](docs/video_management_api_specification.md)
-- [Playlist Management API Specification](docs/playlist_management_api_specification.md)
-- [Backend Architecture Blueprint](docs/backend_architecture_blueprint.md)
-
-Standard operating procedures:
-
-- [Bunny Stream Orchestration Skill](app/skills/bunny-stream-orchestration/SKILL.md)
-- [FastAPI and Peewee Clean Architecture Skill](app/skills/fastapi-peewee-clean-architecture/SKILL.md)
-- [OTT Playlist Curation Skill](app/skills/ott-playlist-curation/SKILL.md)
+- [Video Management API Specification](docs/admin/video_management_api_specification.md)
+- [Playlist Management API Specification](docs/admin/playlist_management_api_specification.md)
+- [Settings Profile API Specification](docs/admin/settings_profile_api_specification.md)
+- [Comments Management API Specification](docs/admin/comments_management_api_specification.md)
