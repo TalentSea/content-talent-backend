@@ -345,10 +345,11 @@ class VideoService:
             limit=limit
         )
 
-        # Sync live status/duration/published_at for videos in PENDING/ENCODING or missing duration
+        # Sync live status/duration/published_at for videos in PENDING/ENCODING/UPLOAD_FINISHED or missing duration
         updated_videos = []
+        pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
         for v in videos:
-            if v.status in ("PENDING", "ENCODING", "PROCESSING") or (v.is_playable and (not v.duration or not v.published_at)):
+            if v.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (v.is_playable and (not v.duration or not v.published_at or not v.captions_data)):
                 try:
                     status_data = get_bunny_video_status(v.bunny_video_id)
                     if status_data:
@@ -356,6 +357,21 @@ class VideoService:
                         prog = status_data.get("encodeProgress")
                         length = status_data.get("length")
                         duration_str = format_duration(length)
+                        captions_list = status_data.get("captions") or []
+                        captions_data = []
+                        if captions_list:
+                            for idx, track in enumerate(captions_list):
+                                srclang = track.get("srclang")
+                                if not srclang:
+                                    continue
+                                label = track.get("label", srclang)
+                                captions_data.append({
+                                    "srclang": srclang,
+                                    "label": label,
+                                    "is_default": (idx == 0),
+                                    "url": f"{pull_zone}/{v.bunny_video_id}/captions/{srclang}.vtt"
+                                })
+
                         state = resolve_bunny_status(code, live_progress=prog) if code is not None else None
                         if state:
                             v = self.repo.update_video_status(
@@ -363,6 +379,7 @@ class VideoService:
                                 status=state.db_status,
                                 encode_progress=state.progress,
                                 is_playable=state.is_playable,
+                                captions_data=captions_data if captions_data else None,
                                 duration=duration_str
                             ) or v
                 except Exception as e:
@@ -388,7 +405,7 @@ class VideoService:
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
 
-        if video.status in ("PENDING", "ENCODING", "PROCESSING") or (video.is_playable and (not video.duration or not video.published_at)):
+        if video.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (video.is_playable and (not video.duration or not video.published_at or not video.captions_data)):
             try:
                 status_data = get_bunny_video_status(video.bunny_video_id)
                 if status_data and "status" in status_data:
@@ -396,6 +413,22 @@ class VideoService:
                     prog = status_data.get("encodeProgress")
                     length = status_data.get("length")
                     duration_str = format_duration(length)
+                    captions_list = status_data.get("captions") or []
+                    captions_data = []
+                    if captions_list:
+                        pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
+                        for idx, track in enumerate(captions_list):
+                            srclang = track.get("srclang")
+                            if not srclang:
+                                continue
+                            label = track.get("label", srclang)
+                            captions_data.append({
+                                "srclang": srclang,
+                                "label": label,
+                                "is_default": (idx == 0),
+                                "url": f"{pull_zone}/{video.bunny_video_id}/captions/{srclang}.vtt"
+                            })
+
                     state = resolve_bunny_status(code, live_progress=prog)
                     if state:
                         video = self.repo.update_video_status(
@@ -403,6 +436,7 @@ class VideoService:
                             status=state.db_status,
                             encode_progress=state.progress,
                             is_playable=state.is_playable,
+                            captions_data=captions_data if captions_data else None,
                             duration=duration_str
                         ) or video
             except Exception as e:
