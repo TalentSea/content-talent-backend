@@ -345,10 +345,10 @@ class VideoService:
             limit=limit
         )
 
-        # Sync live status/duration/published_at for videos missing duration or published_at
+        # Sync live status/duration/published_at for videos in PENDING/ENCODING or missing duration
         updated_videos = []
         for v in videos:
-            if v.is_playable and (not v.duration or not v.published_at):
+            if v.status in ("PENDING", "ENCODING", "PROCESSING") or (v.is_playable and (not v.duration or not v.published_at)):
                 try:
                     status_data = get_bunny_video_status(v.bunny_video_id)
                     if status_data:
@@ -357,15 +357,14 @@ class VideoService:
                         length = status_data.get("length")
                         duration_str = format_duration(length)
                         state = resolve_bunny_status(code, live_progress=prog) if code is not None else None
-                        db_status = state.db_status if state else v.status
-                        db_prog = state.progress if state else v.encode_progress
-                        v = self.repo.update_video_status(
-                            bunny_video_id=v.bunny_video_id,
-                            status=db_status,
-                            encode_progress=db_prog,
-                            is_playable=True,
-                            duration=duration_str
-                        ) or v
+                        if state:
+                            v = self.repo.update_video_status(
+                                bunny_video_id=v.bunny_video_id,
+                                status=state.db_status,
+                                encode_progress=state.progress,
+                                is_playable=state.is_playable,
+                                duration=duration_str
+                            ) or v
                 except Exception as e:
                     logger.warning(f"Failed auto-sync duration for video {v.bunny_video_id}: {str(e)}")
             updated_videos.append(v)
