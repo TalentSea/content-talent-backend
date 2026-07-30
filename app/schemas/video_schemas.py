@@ -21,7 +21,7 @@ class VideoInitiateResponse(BaseModel):
     expiration_time: int
 
 class VideoListItemResponse(BaseModel):
-    """Lightweight DTO for video items in paginated list response matching spec doc API 3."""
+    """Canonical DTO for item summary in paginated list matching spec doc API 3."""
     id: int
     title: str
     description: Optional[str] = None
@@ -33,6 +33,7 @@ class VideoListItemResponse(BaseModel):
     views: int = 0
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
+    captions_data: List[dict] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -52,6 +53,7 @@ class VideoResponse(BaseModel):
     playback_url: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
     alt_thumbnail_urls: List[str] = []
+    captions_data: List[dict] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -90,7 +92,6 @@ class VideoScheduleRequest(BaseModel):
     """Request payload for scheduling video publication matching spec doc API 11."""
     date: str = Field(..., description="Target publication date in YYYY-MM-DD format")
     time: str = Field(..., description="Target publication time in HH:MM format")
-    timezone: str = Field("UTC", description="Target timezone string, e.g. America/Los_Angeles")
 
 class VideoScheduleResponse(BaseModel):
     """Response payload returned when a video is scheduled matching spec doc API 11."""

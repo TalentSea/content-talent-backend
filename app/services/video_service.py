@@ -1,6 +1,8 @@
 import logging
 import math
 import time
+import base64
+import requests
 from datetime import datetime, timezone
 from typing import Optional, List
 from zoneinfo import ZoneInfo
@@ -29,7 +31,8 @@ from app.utils.bunny_client import (
     get_bunny_video_status,
     delete_bunny_video,
     upload_bunny_storage_file,
-    delete_bunny_storage_file
+    delete_bunny_storage_file,
+    add_bunny_video_caption
 )
 from app.utils.bunny_signature import generate_tus_signature, generate_signed_playback_url
 
@@ -69,6 +72,33 @@ def resolve_bunny_status(status_code: int, live_progress: Optional[int] = None) 
     return BunnyVideoState(db_status, progress, is_playable)
 
 
+def format_duration(seconds: Optional[int]) -> Optional[str]:
+    """Formats integer seconds into MM:SS or HH:MM:SS string."""
+    if not seconds or seconds <= 0:
+        return None
+    mins, secs = divmod(seconds, 60)
+    hours, mins = divmod(mins, 60)
+    if hours > 0:
+        return f"{hours:02d}:{mins:02d}:{secs:02d}"
+    return f"{mins:02d}:{secs:02d}"
+
+def normalize_tags(tags: Optional[List[str]]) -> List[str]:
+    """
+    Cleans and splits space-separated tags into individual hashtag items.
+    Example: ['#GodOfWar #Marvel'] -> ['#GodOfWar', '#Marvel']
+    """
+    if not tags:
+        return []
+    clean_tags = []
+    for tag in tags:
+        if isinstance(tag, str):
+            words = tag.strip().split()
+            for word in words:
+                word_clean = word.strip()
+                if word_clean and word_clean not in clean_tags:
+                    clean_tags.append(word_clean)
+    return clean_tags
+
 class VideoService:
     """
     Business logic and cloud orchestration layer for Video operations (Peewee ORM).
@@ -104,6 +134,7 @@ class VideoService:
             playback_url=playback_url,
             main_thumbnail_url=video.main_thumbnail_url,
             alt_thumbnail_urls=list(video.alt_thumbnail_urls or []),
+            captions_data=list(video.captions_data or []),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -125,6 +156,7 @@ class VideoService:
             views=video.views or 0,
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
+            captions_data=list(video.captions_data or []),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -176,7 +208,7 @@ class VideoService:
             "title": payload.title,
             "description": payload.description,
             "category": payload.category,
-            "tags": payload.tags or [],
+            "tags": normalize_tags(payload.tags),
             "status": "PENDING",
             "encode_progress": 0,
             "is_playable": False,
@@ -206,17 +238,66 @@ class VideoService:
             logger.warning(f"Unrecognized Bunny webhook status code {status_code} for video {payload.VideoGuid}")
             return ActionSuccessResponse(status="success")
 
-        caption_url = None
-        if status_code in (9, 10):
+        # Sync video duration and captions metadata from Bunny Stream API
+        duration_str = None
+        captions_list = []
+        try:
+            status_data = get_bunny_video_status(payload.VideoGuid)
+            if status_data:
+                if "length" in status_data:
+                    duration_str = format_duration(status_data.get("length"))
+                captions_list = status_data.get("captions") or []
+        except Exception as e:
+            logger.warning(f"Failed to fetch Bunny Stream status for {payload.VideoGuid}: {str(e)}")
+
+        # Build clean captions_data array
+        captions_data = []
+        if captions_list:
             pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
-            caption_url = f"{pull_zone}/{payload.VideoGuid}/captions/en.vtt"
+            for idx, track in enumerate(captions_list):
+                srclang = track.get("srclang")
+                if not srclang:
+                    continue
+                label = track.get("label", srclang)
+                captions_data.append({
+                    "srclang": srclang,
+                    "label": label,
+                    "is_default": (idx == 0),
+                    "url": f"{pull_zone}/{payload.VideoGuid}/captions/{srclang}.vtt"
+                })
+
+        if status_code == 9 and captions_list:
+            existing_video = self.repo.get_video_by_bunny_id(payload.VideoGuid)
+            if existing_video and existing_video.captions_data:
+                logger.info(f"Captions already processed for video {payload.VideoGuid}. Skipping duplicate registration.")
+            else:
+                settings = get_settings()
+                stream_headers = {
+                    "AccessKey": settings.BUNNY_STREAM_API_KEY,
+                    "accept": "application/json"
+                }
+                for track in captions_list:
+                    srclang = track.get("srclang")
+                    if not srclang:
+                        continue
+                    label = track.get("label", srclang)
+                    try:
+                        stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{srclang}"
+                        vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
+                        if vtt_resp.status_code == 200 and vtt_resp.text:
+                            vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
+                            add_bunny_video_caption(payload.VideoGuid, srclang=srclang, label=label, caption_vtt_base64=vtt_b64)
+                            logger.info(f"Successfully auto-registered '{label}' ({srclang}) caption into playlist.m3u8 for video {payload.VideoGuid}")
+                    except Exception as e:
+                        logger.warning(f"Failed to auto-register '{srclang}' caption for video {payload.VideoGuid}: {str(e)}")
 
         self.repo.update_video_status(
             bunny_video_id=payload.VideoGuid,
             status=state.db_status,
             encode_progress=state.progress,
             is_playable=state.is_playable,
-            caption_url=caption_url
+            captions_data=captions_data,
+            duration=duration_str
         )
 
         return ActionSuccessResponse(status="success")
@@ -249,6 +330,9 @@ class VideoService:
             except ValueError:
                 pass
 
+        # Auto-publish any due scheduled videos whose release date/time has passed
+        self.repo.publish_due_scheduled_videos()
+
         videos, total = self.repo.get_all_videos_by_user(
             user_id=user_id,
             status=status_filter,
@@ -261,7 +345,32 @@ class VideoService:
             limit=limit
         )
 
-        items = [self._to_video_list_item_response(v) for v in videos]
+        # Sync live status/duration/published_at for videos missing duration or published_at
+        updated_videos = []
+        for v in videos:
+            if v.is_playable and (not v.duration or not v.published_at):
+                try:
+                    status_data = get_bunny_video_status(v.bunny_video_id)
+                    if status_data:
+                        code = status_data.get("status")
+                        prog = status_data.get("encodeProgress")
+                        length = status_data.get("length")
+                        duration_str = format_duration(length)
+                        state = resolve_bunny_status(code, live_progress=prog) if code is not None else None
+                        db_status = state.db_status if state else v.status
+                        db_prog = state.progress if state else v.encode_progress
+                        v = self.repo.update_video_status(
+                            bunny_video_id=v.bunny_video_id,
+                            status=db_status,
+                            encode_progress=db_prog,
+                            is_playable=True,
+                            duration=duration_str
+                        ) or v
+                except Exception as e:
+                    logger.warning(f"Failed auto-sync duration for video {v.bunny_video_id}: {str(e)}")
+            updated_videos.append(v)
+
+        items = [self._to_video_list_item_response(v) for v in updated_videos]
         total_pages = math.ceil(total / limit) if total > 0 else 1
 
         return PaginatedResponse(
@@ -280,19 +389,22 @@ class VideoService:
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
 
-        if video.status in ("PENDING", "ENCODING", "PROCESSING"):
+        if video.status in ("PENDING", "ENCODING", "PROCESSING") or (video.is_playable and (not video.duration or not video.published_at)):
             try:
                 status_data = get_bunny_video_status(video.bunny_video_id)
                 if status_data and "status" in status_data:
                     code = status_data.get("status")
                     prog = status_data.get("encodeProgress")
+                    length = status_data.get("length")
+                    duration_str = format_duration(length)
                     state = resolve_bunny_status(code, live_progress=prog)
                     if state:
                         video = self.repo.update_video_status(
                             bunny_video_id=video.bunny_video_id,
                             status=state.db_status,
                             encode_progress=state.progress,
-                            is_playable=state.is_playable
+                            is_playable=state.is_playable,
+                            duration=duration_str
                         ) or video
             except Exception as e:
                 logger.warning(f"Live status sync skipped for video {video.bunny_video_id}: {str(e)}")
@@ -304,6 +416,9 @@ class VideoService:
         Validates ownership and applies partial textual metadata updates (title, description, category, tags) in DB.
         """
         update_data = payload.model_dump(exclude_unset=True)
+        if "tags" in update_data:
+            update_data["tags"] = normalize_tags(update_data["tags"])
+
         video = self.repo.update_video_metadata(video_id, user_id, update_data)
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
@@ -425,24 +540,22 @@ class VideoService:
 
     def schedule_video_publication(self, user_id: int, video_id: int, payload: VideoScheduleRequest) -> VideoScheduleResponse:
         """
-        Schedules a video asset for future publication, parsing local date/time/timezone into UTC datetime.
+        Schedules a video asset for future publication, parsing local date/time as-is.
         """
         video = self.repo.get_video_by_id(video_id, user_id)
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
 
         try:
-            local_tz = ZoneInfo(payload.timezone)
-            local_dt_str = f"{payload.date} {payload.time}"
-            local_dt = datetime.strptime(local_dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=local_tz)
-            utc_dt = local_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            scheduled_dt_str = f"{payload.date} {payload.time}"
+            scheduled_dt = datetime.strptime(scheduled_dt_str, "%Y-%m-%d %H:%M")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid date, time, or timezone specification: {str(e)}"
+                detail=f"Invalid date or time specification: {str(e)}"
             )
 
-        updated_video = self.repo.schedule_video(video_id, user_id, utc_dt)
+        updated_video = self.repo.schedule_video(video_id, user_id, scheduled_dt)
         return VideoScheduleResponse(
             id=updated_video.id,
             status=updated_video.status,

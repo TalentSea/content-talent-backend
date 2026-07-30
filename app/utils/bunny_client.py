@@ -136,5 +136,38 @@ def upload_bunny_storage_file(file_path: str, file_bytes: bytes, content_type: s
             detail="Bunny Storage service is currently unreachable"
         )
 
+def add_bunny_video_caption(bunny_video_id: str, srclang: str = "en", label: str = "English", caption_vtt_base64: str = "") -> dict:
+    """
+    Issues an HTTP POST request to Bunny Stream API to register/embed a caption VTT file into the video's playlist.m3u8 manifest.
+    """
+    settings = get_settings()
+    url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{bunny_video_id}/captions/{srclang}"
+    headers = {
+        "AccessKey": settings.BUNNY_STREAM_API_KEY,
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "srclang": srclang,
+        "label": label,
+        "captionsFile": caption_vtt_base64
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            return response.json()
+        logger.error(f"Bunny Stream Add Caption POST Error ({response.status_code}): {response.text}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to register captions on Bunny Stream (HTTP {response.status_code})"
+        )
+    except requests.RequestException as e:
+        logger.error(f"Bunny Stream Add Caption exception: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Bunny Stream service is currently unreachable"
+        )
+
 
 
