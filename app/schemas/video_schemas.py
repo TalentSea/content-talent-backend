@@ -33,7 +33,7 @@ class VideoListItemResponse(BaseModel):
     views: int = 0
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
-    captions_data: List[dict] = []
+    available_captions: List[str] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -53,7 +53,7 @@ class VideoResponse(BaseModel):
     playback_url: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
     alt_thumbnail_urls: List[str] = []
-    captions_data: List[dict] = []
+    available_captions: List[str] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None

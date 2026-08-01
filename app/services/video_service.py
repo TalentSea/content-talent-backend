@@ -99,6 +99,38 @@ def normalize_tags(tags: Optional[List[str]]) -> List[str]:
                     clean_tags.append(word_clean)
     return clean_tags
 
+def normalize_caption_track(track: dict):
+    """
+    Normalizes AI auto-generated caption language codes (e.g. 'en-auto' -> 'en')
+    and returns (raw_srclang, clean_srclang, clean_label).
+    """
+    if not isinstance(track, dict):
+        return None, None, None
+    raw_srclang = str(track.get("srclang", "")).strip()
+    if not raw_srclang:
+        return None, None, None
+    clean_srclang = raw_srclang.lower().replace("-auto", "").replace("_auto", "").strip()
+    raw_label = str(track.get("label", "")).strip()
+    clean_label = raw_label.replace("-auto", "").replace("(auto)", "").replace("(en-auto)", "").strip()
+    if not clean_label:
+        clean_label = clean_srclang.upper()
+    return raw_srclang, clean_srclang, clean_label
+
+def extract_available_captions(captions_data: Optional[list]) -> List[str]:
+    """
+    Extracts a list of clean, unique caption labels from raw DB captions_data JSON.
+    Example: [{"label": "EN"}, {"label": "HI"}] -> ["EN", "HI"]
+    """
+    if not captions_data or not isinstance(captions_data, list):
+        return []
+    labels = []
+    for c in captions_data:
+        if isinstance(c, dict):
+            lbl = c.get("label") or c.get("srclang")
+            if lbl and lbl not in labels:
+                labels.append(lbl)
+    return labels
+
 class VideoService:
     """
     Business logic and cloud orchestration layer for Video operations (Peewee ORM).
@@ -134,7 +166,7 @@ class VideoService:
             playback_url=playback_url,
             main_thumbnail_url=video.main_thumbnail_url,
             alt_thumbnail_urls=list(video.alt_thumbnail_urls or []),
-            captions_data=list(video.captions_data or []),
+            available_captions=extract_available_captions(video.captions_data),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -156,7 +188,7 @@ class VideoService:
             views=video.views or 0,
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
-            captions_data=list(video.captions_data or []),
+            available_captions=extract_available_captions(video.captions_data),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -255,15 +287,14 @@ class VideoService:
         if captions_list:
             pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
             for idx, track in enumerate(captions_list):
-                srclang = track.get("srclang")
-                if not srclang:
+                raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
+                if not clean_srclang:
                     continue
-                label = track.get("label", srclang)
                 captions_data.append({
-                    "srclang": srclang,
-                    "label": label,
+                    "srclang": clean_srclang,
+                    "label": clean_label,
                     "is_default": (idx == 0),
-                    "url": f"{pull_zone}/{payload.VideoGuid}/captions/{srclang}.vtt"
+                    "url": f"{pull_zone}/{payload.VideoGuid}/captions/{clean_srclang}.vtt"
                 })
 
         if status_code == 9 and captions_list:
@@ -277,19 +308,18 @@ class VideoService:
                     "accept": "application/json"
                 }
                 for track in captions_list:
-                    srclang = track.get("srclang")
-                    if not srclang:
+                    raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
+                    if not raw_srclang or not clean_srclang:
                         continue
-                    label = track.get("label", srclang)
                     try:
-                        stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{srclang}"
+                        stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{raw_srclang}"
                         vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
                         if vtt_resp.status_code == 200 and vtt_resp.text:
                             vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
-                            add_bunny_video_caption(payload.VideoGuid, srclang=srclang, label=label, caption_vtt_base64=vtt_b64)
-                            logger.info(f"Successfully auto-registered '{label}' ({srclang}) caption into playlist.m3u8 for video {payload.VideoGuid}")
+                            add_bunny_video_caption(payload.VideoGuid, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
+                            logger.info(f"Successfully auto-registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {payload.VideoGuid}")
                     except Exception as e:
-                        logger.warning(f"Failed to auto-register '{srclang}' caption for video {payload.VideoGuid}: {str(e)}")
+                        logger.warning(f"Failed to auto-register '{clean_srclang}' caption for video {payload.VideoGuid}: {str(e)}")
 
         self.repo.update_video_status(
             bunny_video_id=payload.VideoGuid,
@@ -361,15 +391,14 @@ class VideoService:
                         captions_data = []
                         if captions_list:
                             for idx, track in enumerate(captions_list):
-                                srclang = track.get("srclang")
-                                if not srclang:
+                                raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
+                                if not clean_srclang:
                                     continue
-                                label = track.get("label", srclang)
                                 captions_data.append({
-                                    "srclang": srclang,
-                                    "label": label,
+                                    "srclang": clean_srclang,
+                                    "label": clean_label,
                                     "is_default": (idx == 0),
-                                    "url": f"{pull_zone}/{v.bunny_video_id}/captions/{srclang}.vtt"
+                                    "url": f"{pull_zone}/{v.bunny_video_id}/captions/{clean_srclang}.vtt"
                                 })
 
                         state = resolve_bunny_status(code, live_progress=prog) if code is not None else None
@@ -418,15 +447,14 @@ class VideoService:
                     if captions_list:
                         pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
                         for idx, track in enumerate(captions_list):
-                            srclang = track.get("srclang")
-                            if not srclang:
+                            raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
+                            if not clean_srclang:
                                 continue
-                            label = track.get("label", srclang)
                             captions_data.append({
-                                "srclang": srclang,
-                                "label": label,
+                                "srclang": clean_srclang,
+                                "label": clean_label,
                                 "is_default": (idx == 0),
-                                "url": f"{pull_zone}/{video.bunny_video_id}/captions/{srclang}.vtt"
+                                "url": f"{pull_zone}/{video.bunny_video_id}/captions/{clean_srclang}.vtt"
                             })
 
                     state = resolve_bunny_status(code, live_progress=prog)

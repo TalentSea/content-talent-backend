@@ -303,14 +303,7 @@ GET /api/v1/admin/videos?status=published&search=FastAPI&sort=newest&page=1&limi
       "views": 12400,
       "duration": "18:42",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumbnail.jpg",
-      "captions_data": [
-        {
-          "srclang": "en",
-          "label": "English",
-          "is_default": true,
-          "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en.vtt"
-        }
-      ],
+      "available_captions": ["English"],
       "published_at": "2024-06-01T00:00:00Z",
       "scheduled_at": null,
       "created_at": "2024-05-20T00:00:00Z"
@@ -362,7 +355,7 @@ Authorization: Bearer <creator_access_token>
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
   ],
-  "captions_data": [],
+  "available_captions": [],
   "published_at": null,
   "scheduled_at": null,
   "created_at": "2024-05-20T00:00:00Z"
@@ -388,14 +381,7 @@ Authorization: Bearer <creator_access_token>
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
   ],
-  "captions_data": [
-    {
-      "srclang": "en",
-      "label": "English",
-      "is_default": true,
-      "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en.vtt"
-    }
-  ],
+  "available_captions": ["English"],
   "published_at": "2024-06-01T00:00:00Z",
   "scheduled_at": null,
   "created_at": "2024-05-20T00:00:00Z"
