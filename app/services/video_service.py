@@ -297,29 +297,26 @@ class VideoService:
                     "url": f"{pull_zone}/{payload.VideoGuid}/captions/{clean_srclang}.vtt"
                 })
 
-        if status_code == 9 and captions_list:
-            existing_video = self.repo.get_video_by_bunny_id(payload.VideoGuid)
-            if existing_video and existing_video.captions_data:
-                logger.info(f"Captions already processed for video {payload.VideoGuid}. Skipping duplicate registration.")
-            else:
-                settings = get_settings()
-                stream_headers = {
-                    "AccessKey": settings.BUNNY_STREAM_API_KEY,
-                    "accept": "application/json"
-                }
-                for track in captions_list:
-                    raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
-                    if not raw_srclang or not clean_srclang:
-                        continue
-                    try:
-                        stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{raw_srclang}"
-                        vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
-                        if vtt_resp.status_code == 200 and vtt_resp.text:
-                            vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
-                            add_bunny_video_caption(payload.VideoGuid, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
-                            logger.info(f"Successfully auto-registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {payload.VideoGuid}")
-                    except Exception as e:
-                        logger.warning(f"Failed to auto-register '{clean_srclang}' caption for video {payload.VideoGuid}: {str(e)}")
+        if status_code in (3, 4, 9, 10) and captions_list:
+            settings = get_settings()
+            stream_headers = {
+                "AccessKey": settings.BUNNY_STREAM_API_KEY,
+                "accept": "application/json"
+            }
+            for track in captions_list:
+                raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
+                if not raw_srclang or not clean_srclang:
+                    continue
+                # If Bunny returned an auto-generated track (e.g. en-auto), fetch and re-upload as clean track (e.g. en)
+                try:
+                    stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{raw_srclang}"
+                    vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
+                    if vtt_resp.status_code == 200 and vtt_resp.text:
+                        vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
+                        add_bunny_video_caption(payload.VideoGuid, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
+                        logger.info(f"Successfully auto-registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {payload.VideoGuid}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-register '{clean_srclang}' caption for video {payload.VideoGuid}: {str(e)}")
 
         self.repo.update_video_status(
             bunny_video_id=payload.VideoGuid,
