@@ -312,9 +312,9 @@ class VideoService:
                     continue
                 # If Bunny returned an auto-generated track (e.g. en-auto), fetch and re-upload as clean track (e.g. en)
                 try:
-                    stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{raw_srclang}"
-                    logger.info(f"Fetching VTT file from Bunny Stream REST API: {stream_vtt_url}")
-                    vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
+                    stream_vtt_url = f"{pull_zone}/{payload.VideoGuid}/captions/{raw_srclang}.vtt"
+                    logger.info(f"Fetching VTT file from Bunny CDN: {stream_vtt_url}")
+                    vtt_resp = requests.get(stream_vtt_url, timeout=10)
                     logger.info(f"VTT GET Response Status: {vtt_resp.status_code}, Length: {len(vtt_resp.text) if vtt_resp.text else 0}")
                     if vtt_resp.status_code == 200 and vtt_resp.text:
                         vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
