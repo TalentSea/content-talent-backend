@@ -3,7 +3,7 @@ import requests
 from fastapi import HTTPException, status
 from app.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 def create_bunny_video(title: str) -> dict:
     """

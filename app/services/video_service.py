@@ -36,7 +36,7 @@ from app.utils.bunny_client import (
 )
 from app.utils.bunny_signature import generate_tus_signature, generate_signed_playback_url
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 class BunnyVideoState:
     """Canonical data container for resolved video state machine values."""
