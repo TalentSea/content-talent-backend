@@ -392,11 +392,6 @@ class VideoService:
                         captions_list = status_data.get("captions") or []
                         captions_data = []
                         if captions_list:
-                            settings = get_settings()
-                            stream_headers = {
-                                "AccessKey": settings.BUNNY_STREAM_API_KEY,
-                                "accept": "application/json"
-                            }
                             for idx, track in enumerate(captions_list):
                                 raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
                                 if not clean_srclang:
@@ -407,17 +402,6 @@ class VideoService:
                                     "is_default": (idx == 0),
                                     "url": f"{pull_zone}/{v.bunny_video_id}/captions/{clean_srclang}.vtt"
                                 })
-                                # Re-register auto-generated captions to bake into playlist.m3u8
-                                if raw_srclang and "-auto" in raw_srclang:
-                                    try:
-                                        stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{v.bunny_video_id}/captions/{raw_srclang}"
-                                        vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
-                                        if vtt_resp.status_code == 200 and vtt_resp.text:
-                                            vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
-                                            res = add_bunny_video_caption(v.bunny_video_id, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
-                                            logger.info(f"✅ Live-Sync Auto-Registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {v.bunny_video_id}")
-                                    except Exception as e:
-                                        logger.warning(f"Failed live-sync auto-register for video {v.bunny_video_id}: {str(e)}")
 
                         state = resolve_bunny_status(code, live_progress=prog) if code is not None else None
                         if state:
@@ -464,11 +448,6 @@ class VideoService:
                     captions_data = []
                     if captions_list:
                         pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
-                        settings = get_settings()
-                        stream_headers = {
-                            "AccessKey": settings.BUNNY_STREAM_API_KEY,
-                            "accept": "application/json"
-                        }
                         for idx, track in enumerate(captions_list):
                             raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
                             if not clean_srclang:
@@ -479,17 +458,6 @@ class VideoService:
                                 "is_default": (idx == 0),
                                 "url": f"{pull_zone}/{video.bunny_video_id}/captions/{clean_srclang}.vtt"
                             })
-                            # Re-register auto-generated captions to bake into playlist.m3u8
-                            if raw_srclang and "-auto" in raw_srclang:
-                                try:
-                                    stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{video.bunny_video_id}/captions/{raw_srclang}"
-                                    vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
-                                    if vtt_resp.status_code == 200 and vtt_resp.text:
-                                        vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
-                                        res = add_bunny_video_caption(video.bunny_video_id, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
-                                        logger.info(f"✅ Live-Sync Auto-Registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {video.bunny_video_id}")
-                                except Exception as e:
-                                    logger.warning(f"Failed live-sync auto-register for video {video.bunny_video_id}: {str(e)}")
 
                     state = resolve_bunny_status(code, live_progress=prog)
                     if state:

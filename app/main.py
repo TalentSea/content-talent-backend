@@ -15,6 +15,11 @@ from app.routes.admin import (
 import asyncio
 import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+
 logger = logging.getLogger(__name__)
 
 async def scheduled_video_auto_publisher():
