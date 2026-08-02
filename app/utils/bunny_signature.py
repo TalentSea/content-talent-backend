@@ -1,13 +1,16 @@
 import hashlib
 import time
 
-def generate_tus_signature(library_id: str, bunny_api_key: str, expiration_time: int, video_id: str) -> str:
+def generate_tus_signature(library_id: str, bunny_api_key: str, video_id: str, expires_in_seconds: int = 86400) -> tuple[str, int]:
     """
     Computes a SHA-256 HMAC signature required by Bunny TUS resumable streaming protocol.
     Formula: SHA256(library_id + bunny_api_key + expiration_time + video_id)
+    Returns (signature_hash, expiration_timestamp).
     """
-    to_hash = f"{library_id}{bunny_api_key}{expiration_time}{video_id}"
-    return hashlib.sha256(to_hash.encode("utf-8")).hexdigest()
+    expiration_timestamp = int(time.time()) + expires_in_seconds
+    to_hash = f"{library_id}{bunny_api_key}{expiration_timestamp}{video_id}"
+    signature = hashlib.sha256(to_hash.encode("utf-8")).hexdigest()
+    return signature, expiration_timestamp
 
 def generate_signed_playback_url(bunny_pull_zone_url: str, bunny_video_id: str, token_security_key: str, expires_in_seconds: int = 7200) -> str:
     """

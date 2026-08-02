@@ -31,8 +31,7 @@ from app.utils.bunny_client import (
     get_bunny_video_status,
     delete_bunny_video,
     upload_bunny_storage_file,
-    delete_bunny_storage_file,
-    add_bunny_video_caption
+    delete_bunny_storage_file
 )
 from app.utils.bunny_signature import generate_tus_signature, generate_signed_playback_url
 
@@ -99,38 +98,6 @@ def normalize_tags(tags: Optional[List[str]]) -> List[str]:
                     clean_tags.append(word_clean)
     return clean_tags
 
-def normalize_caption_track(track: dict):
-    """
-    Normalizes AI auto-generated caption language codes (e.g. 'en-auto' -> 'en')
-    and returns (raw_srclang, clean_srclang, clean_label).
-    """
-    if not isinstance(track, dict):
-        return None, None, None
-    raw_srclang = str(track.get("srclang", "")).strip()
-    if not raw_srclang:
-        return None, None, None
-    clean_srclang = raw_srclang.lower().replace("-auto", "").replace("_auto", "").strip()
-    raw_label = str(track.get("label", "")).strip()
-    clean_label = raw_label.replace("-auto", "").replace("(auto)", "").replace("(en-auto)", "").strip()
-    if not clean_label:
-        clean_label = clean_srclang.upper()
-    return raw_srclang, clean_srclang, clean_label
-
-def extract_available_captions(captions_data: Optional[list]) -> List[str]:
-    """
-    Extracts a list of clean, unique caption labels from raw DB captions_data JSON.
-    Example: [{"label": "EN"}, {"label": "HI"}] -> ["EN", "HI"]
-    """
-    if not captions_data or not isinstance(captions_data, list):
-        return []
-    labels = []
-    for c in captions_data:
-        if isinstance(c, dict):
-            lbl = c.get("label") or c.get("srclang")
-            if lbl and lbl not in labels:
-                labels.append(lbl)
-    return labels
-
 class VideoService:
     """
     Business logic and cloud orchestration layer for Video operations (Peewee ORM).
@@ -166,7 +133,7 @@ class VideoService:
             playback_url=playback_url,
             main_thumbnail_url=video.main_thumbnail_url,
             alt_thumbnail_urls=list(video.alt_thumbnail_urls or []),
-            available_captions=extract_available_captions(video.captions_data),
+            captions_data=list(video.captions_data or []),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -188,7 +155,7 @@ class VideoService:
             views=video.views or 0,
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
-            available_captions=extract_available_captions(video.captions_data),
+            captions_data=list(video.captions_data or []),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -203,38 +170,42 @@ class VideoService:
             title=video.title,
             description=video.description,
             category=video.category,
-            tags=list(video.tags or []),
-            status=video.status
+            tags=list(video.tags or [])
         )
 
     def initiate_video_upload(self, user_id: int, payload: VideoInitiateRequest) -> VideoInitiateResponse:
         """
-        Creates video container on Bunny Stream, generates TUS upload signature, and commits initial DB record.
+        Reserves a video container on Bunny Stream, prepares local database record in PENDING state,
+        and generates HMAC SHA256 signature for TUS protocol frontend direct upload.
         """
         settings = get_settings()
-        library_id = str(settings.BUNNY_STREAM_LIBRARY_ID)
-        api_key = settings.BUNNY_STREAM_API_KEY
 
-        bunny_response = create_bunny_video(payload.title)
-        bunny_video_id = bunny_response.get("guid")
+        # Step 1: Call Bunny Stream API to create video container
+        bunny_res = create_bunny_video(payload.title)
+        bunny_video_id = bunny_res.get("guid")
+        library_id = settings.BUNNY_STREAM_LIBRARY_ID
 
         if not bunny_video_id:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to reserve video container on Bunny Stream"
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Bunny Stream API failed to return a valid video GUID"
             )
 
-        expiration_timestamp = int(time.time()) + 86400
-        signature = generate_tus_signature(
-            library_id=library_id,
-            bunny_api_key=api_key,
-            expiration_time=expiration_timestamp,
-            video_id=bunny_video_id
+        # Step 2: Compute TUS signature for frontend direct upload
+        signature, expiration_timestamp = generate_tus_signature(
+            library_id,
+            settings.BUNNY_STREAM_API_KEY,
+            bunny_video_id
         )
 
-        main_thumbnail_url = None
-        alt_thumbnail_urls = []
+        pull_zone = settings.BUNNY_PULL_ZONE_URL.rstrip("/")
+        main_thumbnail_url = f"{pull_zone}/{bunny_video_id}/thumb_1.jpg"
+        alt_thumbnail_urls = [
+            f"{pull_zone}/{bunny_video_id}/thumb_2.jpg",
+            f"{pull_zone}/{bunny_video_id}/thumb_3.jpg"
+        ]
 
+        # Step 3: Insert initial PENDING video record into database
         video_record_data = {
             "bunny_video_id": bunny_video_id,
             "title": payload.title,
@@ -264,64 +235,43 @@ class VideoService:
         Processes status code state machine (0 to 10) from Bunny Stream webhook events using centralized resolver.
         """
         status_code = payload.Status
-        logger.info(f"📥 Received Bunny Stream Webhook Event: Status={status_code}, VideoGuid={payload.VideoGuid}")
+        logger.info(f"Received Bunny Stream Webhook Event: Status={status_code}, VideoGuid={payload.VideoGuid}")
         state = resolve_bunny_status(status_code)
 
         if not state:
             logger.warning(f"Unrecognized Bunny webhook status code {status_code} for video {payload.VideoGuid}")
             return ActionSuccessResponse(status="success")
 
-        # Sync video duration and captions metadata from Bunny Stream API
+        existing_video = self.repo.get_video_by_bunny_id(payload.VideoGuid)
         duration_str = None
-        captions_list = []
-        try:
-            status_data = get_bunny_video_status(payload.VideoGuid)
-            if status_data:
-                if "length" in status_data:
-                    duration_str = format_duration(status_data.get("length"))
-                captions_list = status_data.get("captions") or []
-                logger.info(f"Fetched Bunny Stream status for {payload.VideoGuid}: length={duration_str}, captions={captions_list}")
-        except Exception as e:
-            logger.warning(f"Failed to fetch Bunny Stream status for {payload.VideoGuid}: {str(e)}")
+        captions_data = None
 
-        # Build clean captions_data array
-        captions_data = []
-        if captions_list:
-            pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
-            for idx, track in enumerate(captions_list):
-                raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
-                if not clean_srclang:
-                    continue
-                captions_data.append({
-                    "srclang": clean_srclang,
-                    "label": clean_label,
-                    "is_default": (idx == 0),
-                    "url": f"{pull_zone}/{payload.VideoGuid}/captions/{clean_srclang}.vtt"
-                })
+        should_fetch_duration = bool(existing_video and not existing_video.duration and status_code in (1, 2, 3, 4, 9, 10))
+        should_fetch_captions = bool(status_code == 9 and existing_video and not existing_video.captions_data)
 
-        if status_code in (3, 4, 9, 10) and captions_list:
-            logger.info(f"Triggering HLS Caption Re-Registration for video {payload.VideoGuid} with captions: {captions_list}")
-            settings = get_settings()
-            stream_headers = {
-                "AccessKey": settings.BUNNY_STREAM_API_KEY,
-                "accept": "application/json"
-            }
-            for track in captions_list:
-                raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
-                if not raw_srclang or not clean_srclang:
-                    continue
-                # If Bunny returned an auto-generated track (e.g. en-auto), fetch and re-upload as clean track (e.g. en)
-                try:
-                    stream_vtt_url = f"{pull_zone}/{payload.VideoGuid}/captions/{raw_srclang}.vtt"
-                    logger.info(f"Fetching VTT file from Bunny CDN: {stream_vtt_url}")
-                    vtt_resp = requests.get(stream_vtt_url, timeout=10)
-                    logger.info(f"VTT GET Response Status: {vtt_resp.status_code}, Length: {len(vtt_resp.text) if vtt_resp.text else 0}")
-                    if vtt_resp.status_code == 200 and vtt_resp.text:
-                        vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
-                        res = add_bunny_video_caption(payload.VideoGuid, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
-                        logger.info(f"✅ Successfully auto-registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {payload.VideoGuid} | Result: {res}")
-                except Exception as e:
-                    logger.warning(f"❌ Failed to auto-register '{clean_srclang}' caption for video {payload.VideoGuid}: {str(e)}")
+        if should_fetch_duration or should_fetch_captions:
+            try:
+                status_data = get_bunny_video_status(payload.VideoGuid)
+                if status_data:
+                    if should_fetch_duration and "length" in status_data:
+                        duration_str = format_duration(status_data.get("length"))
+                    if should_fetch_captions:
+                        captions_list = status_data.get("captions") or []
+                        if captions_list:
+                            pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
+                            captions_data = []
+                            for idx, track in enumerate(captions_list):
+                                if isinstance(track, dict) and track.get("srclang"):
+                                    srclang = str(track.get("srclang")).strip()
+                                    label = str(track.get("label") or srclang.upper()).strip()
+                                    captions_data.append({
+                                        "srclang": srclang,
+                                        "label": label,
+                                        "is_default": (idx == 0),
+                                        "url": f"{pull_zone}/{payload.VideoGuid}/captions/{srclang}.vtt"
+                                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch Bunny Stream status for {payload.VideoGuid}: {str(e)}")
 
         self.repo.update_video_status(
             bunny_video_id=payload.VideoGuid,
@@ -393,15 +343,15 @@ class VideoService:
                         captions_data = []
                         if captions_list:
                             for idx, track in enumerate(captions_list):
-                                raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
-                                if not clean_srclang:
-                                    continue
-                                captions_data.append({
-                                    "srclang": clean_srclang,
-                                    "label": clean_label,
-                                    "is_default": (idx == 0),
-                                    "url": f"{pull_zone}/{v.bunny_video_id}/captions/{clean_srclang}.vtt"
-                                })
+                                if isinstance(track, dict) and track.get("srclang"):
+                                    srclang = str(track.get("srclang")).strip()
+                                    label = str(track.get("label") or srclang.upper()).strip()
+                                    captions_data.append({
+                                        "srclang": srclang,
+                                        "label": label,
+                                        "is_default": (idx == 0),
+                                        "url": f"{pull_zone}/{v.bunny_video_id}/captions/{srclang}.vtt"
+                                    })
 
                         state = resolve_bunny_status(code, live_progress=prog) if code is not None else None
                         if state:
@@ -449,15 +399,15 @@ class VideoService:
                     if captions_list:
                         pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
                         for idx, track in enumerate(captions_list):
-                            raw_srclang, clean_srclang, clean_label = normalize_caption_track(track)
-                            if not clean_srclang:
-                                continue
-                            captions_data.append({
-                                "srclang": clean_srclang,
-                                "label": clean_label,
-                                "is_default": (idx == 0),
-                                "url": f"{pull_zone}/{video.bunny_video_id}/captions/{clean_srclang}.vtt"
-                            })
+                            if isinstance(track, dict) and track.get("srclang"):
+                                srclang = str(track.get("srclang")).strip()
+                                label = str(track.get("label") or srclang.upper()).strip()
+                                captions_data.append({
+                                    "srclang": srclang,
+                                    "label": label,
+                                    "is_default": (idx == 0),
+                                    "url": f"{pull_zone}/{video.bunny_video_id}/captions/{srclang}.vtt"
+                                })
 
                     state = resolve_bunny_status(code, live_progress=prog)
                     if state:

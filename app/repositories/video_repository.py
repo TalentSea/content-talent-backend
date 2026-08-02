@@ -1,7 +1,10 @@
+import logging
 from typing import Optional, List, Tuple
 from datetime import datetime
-from peewee import fn
+from peewee import fn, PeeweeException
 from app.models.video import Video
+
+logger = logging.getLogger(__name__)
 
 class VideoRepository:
     """
