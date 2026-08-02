@@ -20,6 +20,12 @@ class VideoInitiateResponse(BaseModel):
     signature: str
     expiration_time: int
 
+class DownloadUrlItem(BaseModel):
+    """Canonical DTO for individual resolution MP4 presigned download link."""
+    resolution: str
+    label: str
+    url: str
+
 class VideoListItemResponse(BaseModel):
     """Canonical DTO for item summary in paginated list matching spec doc API 3."""
     id: int
@@ -34,6 +40,7 @@ class VideoListItemResponse(BaseModel):
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
     captions_data: List[dict] = []
+    download_urls: List[DownloadUrlItem] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -54,6 +61,7 @@ class VideoResponse(BaseModel):
     main_thumbnail_url: Optional[str] = None
     alt_thumbnail_urls: List[str] = []
     captions_data: List[dict] = []
+    download_urls: List[DownloadUrlItem] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None

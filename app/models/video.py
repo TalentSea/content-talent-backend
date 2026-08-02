@@ -25,6 +25,7 @@ class Video(BaseModel):
     is_playable = BooleanField(default=False)
     main_thumbnail_url = CharField(max_length=500, null=True)
     captions_data = JSONField(default=list)
+    available_resolutions = JSONField(default=list)
     tags = JSONField(default=list)
     alt_thumbnail_urls = JSONField(default=list)
     scheduled_at = DateTimeField(null=True)

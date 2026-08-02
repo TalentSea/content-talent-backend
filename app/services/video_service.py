@@ -23,7 +23,8 @@ from app.schemas.video_schemas import (
     VideoScheduleRequest,
     VideoScheduleResponse,
     BulkDeleteVideosRequest,
-    BunnyWebhookPayload
+    BunnyWebhookPayload,
+    DownloadUrlItem
 )
 from app.schemas.common_schemas import PaginatedResponse, ActionSuccessResponse
 from app.utils.bunny_client import (
@@ -33,7 +34,7 @@ from app.utils.bunny_client import (
     upload_bunny_storage_file,
     delete_bunny_storage_file
 )
-from app.utils.bunny_signature import generate_tus_signature, generate_signed_playback_url
+from app.utils.bunny_signature import generate_tus_signature, generate_signed_playback_url, generate_signed_mp4_url
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -106,6 +107,33 @@ class VideoService:
     def __init__(self):
         self.repo = VideoRepository()
 
+    def _generate_download_urls(self, video) -> List[DownloadUrlItem]:
+        """
+        Generates presigned time-bound MP4 download URLs for all available resolutions (play_<resolution>.mp4).
+        """
+        if not video.is_playable or not video.available_resolutions:
+            return []
+        settings = get_settings()
+        pull_zone = settings.BUNNY_PULL_ZONE_URL
+        token_key = settings.BUNNY_STREAM_TOKEN_KEY
+        res_list = list(video.available_resolutions or [])
+        download_items = []
+        for res in res_list:
+            clean_res = str(res).strip()
+            if not clean_res:
+                continue
+            if not clean_res.endswith("p"):
+                clean_res = f"{clean_res}p"
+            label = f"{clean_res} HD" if clean_res in ("720p", "1080p", "1440p", "2160p") else f"{clean_res} SD"
+            url = generate_signed_mp4_url(
+                bunny_pull_zone_url=pull_zone,
+                bunny_video_id=video.bunny_video_id,
+                resolution=clean_res,
+                token_security_key=token_key
+            )
+            download_items.append(DownloadUrlItem(resolution=clean_res, label=label, url=url))
+        return download_items
+
     def _to_video_response(self, video) -> VideoResponse:
         """
         Maps a Video Peewee ORM instance to a canonical VideoResponse DTO.
@@ -134,6 +162,7 @@ class VideoService:
             main_thumbnail_url=video.main_thumbnail_url,
             alt_thumbnail_urls=list(video.alt_thumbnail_urls or []),
             captions_data=list(video.captions_data or []),
+            download_urls=self._generate_download_urls(video),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -156,6 +185,7 @@ class VideoService:
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
             captions_data=list(video.captions_data or []),
+            download_urls=self._generate_download_urls(video),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -245,16 +275,26 @@ class VideoService:
         existing_video = self.repo.get_video_by_bunny_id(payload.VideoGuid)
         duration_str = None
         captions_data = None
+        available_resolutions = None
 
         should_fetch_duration = bool(existing_video and not existing_video.duration and status_code in (1, 2, 3, 4, 9, 10))
         should_fetch_captions = bool(status_code == 9 and existing_video and not existing_video.captions_data)
+        should_fetch_resolutions = bool(status_code in (3, 4) or (existing_video and not existing_video.available_resolutions and status_code in (1, 2, 3, 4, 9, 10)))
 
-        if should_fetch_duration or should_fetch_captions:
+        if should_fetch_duration or should_fetch_captions or should_fetch_resolutions:
             try:
                 status_data = get_bunny_video_status(payload.VideoGuid)
                 if status_data:
                     if should_fetch_duration and "length" in status_data:
                         duration_str = format_duration(status_data.get("length"))
+                    
+                    if "availableResolutions" in status_data:
+                        raw_res = status_data.get("availableResolutions")
+                        if isinstance(raw_res, str):
+                            available_resolutions = [r.strip() for r in raw_res.split(",") if r.strip()]
+                        elif isinstance(raw_res, list):
+                            available_resolutions = [str(r).strip() for r in raw_res if str(r).strip()]
+
                     if should_fetch_captions:
                         captions_list = status_data.get("captions") or []
                         if captions_list:
@@ -279,6 +319,7 @@ class VideoService:
             encode_progress=state.progress,
             is_playable=state.is_playable,
             captions_data=captions_data,
+            available_resolutions=available_resolutions,
             duration=duration_str
         )
 
@@ -327,11 +368,11 @@ class VideoService:
             limit=limit
         )
 
-        # Sync live status/duration/published_at for videos in PENDING/ENCODING/UPLOAD_FINISHED or missing duration
+        # Sync live status/duration/published_at/available_resolutions for videos in PENDING/ENCODING/UPLOAD_FINISHED or missing metadata
         updated_videos = []
         pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
         for v in videos:
-            if v.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (v.is_playable and (not v.duration or not v.published_at or not v.captions_data)):
+            if v.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (v.is_playable and (not v.duration or not v.published_at or not v.available_resolutions)):
                 try:
                     status_data = get_bunny_video_status(v.bunny_video_id)
                     if status_data:
@@ -339,6 +380,15 @@ class VideoService:
                         prog = status_data.get("encodeProgress")
                         length = status_data.get("length")
                         duration_str = format_duration(length)
+                        
+                        available_resolutions = None
+                        if "availableResolutions" in status_data:
+                            raw_res = status_data.get("availableResolutions")
+                            if isinstance(raw_res, str):
+                                available_resolutions = [r.strip() for r in raw_res.split(",") if r.strip()]
+                            elif isinstance(raw_res, list):
+                                available_resolutions = [str(r).strip() for r in raw_res if str(r).strip()]
+
                         captions_list = status_data.get("captions") or []
                         captions_data = []
                         if captions_list:
@@ -361,6 +411,7 @@ class VideoService:
                                 encode_progress=state.progress,
                                 is_playable=state.is_playable,
                                 captions_data=captions_data if captions_data else None,
+                                available_resolutions=available_resolutions,
                                 duration=duration_str
                             ) or v
                 except Exception as e:
@@ -386,7 +437,7 @@ class VideoService:
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video asset {video_id} not found")
 
-        if video.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (video.is_playable and (not video.duration or not video.published_at or not video.captions_data)):
+        if video.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (video.is_playable and (not video.duration or not video.published_at or not video.available_resolutions)):
             try:
                 status_data = get_bunny_video_status(video.bunny_video_id)
                 if status_data and "status" in status_data:
@@ -394,6 +445,15 @@ class VideoService:
                     prog = status_data.get("encodeProgress")
                     length = status_data.get("length")
                     duration_str = format_duration(length)
+                    
+                    available_resolutions = None
+                    if "availableResolutions" in status_data:
+                        raw_res = status_data.get("availableResolutions")
+                        if isinstance(raw_res, str):
+                            available_resolutions = [r.strip() for r in raw_res.split(",") if r.strip()]
+                        elif isinstance(raw_res, list):
+                            available_resolutions = [str(r).strip() for r in raw_res if str(r).strip()]
+
                     captions_list = status_data.get("captions") or []
                     captions_data = []
                     if captions_list:
@@ -417,6 +477,7 @@ class VideoService:
                             encode_progress=state.progress,
                             is_playable=state.is_playable,
                             captions_data=captions_data if captions_data else None,
+                            available_resolutions=available_resolutions,
                             duration=duration_str
                         ) or video
             except Exception as e:

@@ -95,10 +95,11 @@ class VideoRepository:
         encode_progress: int,
         is_playable: bool,
         captions_data: Optional[list] = None,
+        available_resolutions: Optional[list] = None,
         duration: Optional[str] = None
     ) -> Optional[Video]:
         """
-        Updates state machine fields (status, encode_progress, is_playable, captions_data, duration, published_at) of a video record in DB.
+        Updates state machine fields (status, encode_progress, is_playable, captions_data, available_resolutions, duration, published_at) of a video record in DB.
         """
         video = self.get_video_by_bunny_id(bunny_video_id)
         if not video:
@@ -108,6 +109,8 @@ class VideoRepository:
         video.is_playable = is_playable
         if captions_data is not None:
             video.captions_data = captions_data
+        if available_resolutions is not None:
+            video.available_resolutions = available_resolutions
         if duration:
             video.duration = duration
         if is_playable and not video.published_at:
