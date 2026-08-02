@@ -153,17 +153,19 @@ def add_bunny_video_caption(bunny_video_id: str, srclang: str = "en", label: str
         "captionsFile": caption_vtt_base64
     }
 
+    logger.info(f"🚀 Sending POST request to Bunny Stream Caption API: {url} | srclang='{srclang}', label='{label}'")
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=15)
+        logger.info(f"📩 Bunny Stream Caption POST Response ({response.status_code}): {response.text}")
         if response.status_code == 200:
             return response.json()
-        logger.error(f"Bunny Stream Add Caption POST Error ({response.status_code}): {response.text}")
+        logger.error(f"❌ Bunny Stream Add Caption POST Error ({response.status_code}): {response.text}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to register captions on Bunny Stream (HTTP {response.status_code})"
         )
     except requests.RequestException as e:
-        logger.error(f"Bunny Stream Add Caption exception: {str(e)}")
+        logger.error(f"❌ Bunny Stream Add Caption exception: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Bunny Stream service is currently unreachable"

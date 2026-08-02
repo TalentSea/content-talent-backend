@@ -264,6 +264,7 @@ class VideoService:
         Processes status code state machine (0 to 10) from Bunny Stream webhook events using centralized resolver.
         """
         status_code = payload.Status
+        logger.info(f"📥 Received Bunny Stream Webhook Event: Status={status_code}, VideoGuid={payload.VideoGuid}")
         state = resolve_bunny_status(status_code)
 
         if not state:
@@ -279,6 +280,7 @@ class VideoService:
                 if "length" in status_data:
                     duration_str = format_duration(status_data.get("length"))
                 captions_list = status_data.get("captions") or []
+                logger.info(f"Fetched Bunny Stream status for {payload.VideoGuid}: length={duration_str}, captions={captions_list}")
         except Exception as e:
             logger.warning(f"Failed to fetch Bunny Stream status for {payload.VideoGuid}: {str(e)}")
 
@@ -298,6 +300,7 @@ class VideoService:
                 })
 
         if status_code in (3, 4, 9, 10) and captions_list:
+            logger.info(f"Triggering HLS Caption Re-Registration for video {payload.VideoGuid} with captions: {captions_list}")
             settings = get_settings()
             stream_headers = {
                 "AccessKey": settings.BUNNY_STREAM_API_KEY,
@@ -310,13 +313,15 @@ class VideoService:
                 # If Bunny returned an auto-generated track (e.g. en-auto), fetch and re-upload as clean track (e.g. en)
                 try:
                     stream_vtt_url = f"https://video.bunnycdn.com/library/{settings.BUNNY_STREAM_LIBRARY_ID}/videos/{payload.VideoGuid}/captions/{raw_srclang}"
+                    logger.info(f"Fetching VTT file from Bunny Stream REST API: {stream_vtt_url}")
                     vtt_resp = requests.get(stream_vtt_url, headers=stream_headers, timeout=10)
+                    logger.info(f"VTT GET Response Status: {vtt_resp.status_code}, Length: {len(vtt_resp.text) if vtt_resp.text else 0}")
                     if vtt_resp.status_code == 200 and vtt_resp.text:
                         vtt_b64 = base64.b64encode(vtt_resp.text.encode("utf-8")).decode("utf-8")
-                        add_bunny_video_caption(payload.VideoGuid, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
-                        logger.info(f"Successfully auto-registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {payload.VideoGuid}")
+                        res = add_bunny_video_caption(payload.VideoGuid, srclang=clean_srclang, label=clean_label, caption_vtt_base64=vtt_b64)
+                        logger.info(f"✅ Successfully auto-registered '{clean_label}' ({clean_srclang}) caption into playlist.m3u8 for video {payload.VideoGuid} | Result: {res}")
                 except Exception as e:
-                    logger.warning(f"Failed to auto-register '{clean_srclang}' caption for video {payload.VideoGuid}: {str(e)}")
+                    logger.warning(f"❌ Failed to auto-register '{clean_srclang}' caption for video {payload.VideoGuid}: {str(e)}")
 
         self.repo.update_video_status(
             bunny_video_id=payload.VideoGuid,
