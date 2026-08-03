@@ -166,6 +166,27 @@ Content-Type: application/json
   LibraryId: <bunny_library_id>
   ```
 
+#### 🔄 Frontend Client Integration Sequences (Form Submission Workflows)
+
+When building the creator upload form/modal in React/React Native, the frontend calls APIs in these exact step-by-step sequences:
+
+##### Sequence A: Save as Draft Flow
+1. Call `POST /api/v1/admin/videos/initiate` with `"status": "draft"` ➔ Receive `id` (e.g. `101`).
+2. *(Optional)* Call `POST /api/v1/admin/videos/101/thumbnails/upload?slot=0` with cover image binary.
+3. Stream video file chunks directly to Bunny TUS `https://video.bunnycdn.com/tusupload`.
+
+##### Sequence B: Publish Immediately Flow
+1. Call `POST /api/v1/admin/videos/initiate` ➔ Receive `id` (e.g. `101`).
+2. Immediately Call `POST /api/v1/admin/videos/101/publish` ➔ Video status becomes `"published"`.
+3. *(Optional)* Call `POST /api/v1/admin/videos/101/thumbnails/upload?slot=0` with cover image binary.
+4. Stream video file chunks directly to Bunny TUS `https://video.bunnycdn.com/tusupload`.
+
+##### Sequence C: Schedule Publication Flow
+1. Call `POST /api/v1/admin/videos/initiate` ➔ Receive `id` (e.g. `101`).
+2. Immediately Call `POST /api/v1/admin/videos/101/schedule` with `{ "date": "YYYY-MM-DD", "time": "HH:MM" }` ➔ Video status becomes `"scheduled"`.
+3. *(Optional)* Call `POST /api/v1/admin/videos/101/thumbnails/upload?slot=0` with cover image binary.
+4. Stream video file chunks directly to Bunny TUS `https://video.bunnycdn.com/tusupload`.
+
 ---
 
 ### 2. `POST /api/v1/webhooks/bunny` — Transcoding Webhook Handler
@@ -203,6 +224,21 @@ User-Agent: BunnyCDN-Webhook
 | `9` | **CaptionsGenerated** | Automatic captions generated. | Store captions metadata |
 | `10` | **TitleOrDescriptionGenerated** | AI title/description generated. | Update metadata |
 
+#### Internal Backend & State Machine Workflows
+
+##### Sub-Step A: Status Resolution Mapping
+* **Purpose**: Maps Bunny Stream integer status code (0–10) to internal system state (`PENDING`, `ENCODING`, `READY`, `PLAYABLE`, `FAILED`).
+
+##### Sub-Step B: State Machine Persistence
+* **Purpose**: Updates `status`, `encode_progress`, and `is_playable` flags on the `videos` record in SQLite using `VideoGuid` as the lookup key.
+
+##### Sub-Step C: Auto-Population of Duration & Release Date
+* **Purpose**: When status reaches `READY`/`PLAYABLE` (100% encoded), queries Bunny Stream API for raw video `length` in seconds, converts `length` into duration string (`"02:22"`), and sets `published_at = datetime.utcnow()` if not already populated.
+
+##### Sub-Step D: Automated HLS Caption Manifest Embedding
+* **Purpose**: When status code `9` (`CaptionsGenerated`) arrives, fetches the generated `.vtt` content via Bunny Stream REST API (`GET https://video.bunnycdn.com/library/{id}/videos/{guid}/captions/en` using `BUNNY_STREAM_API_KEY`), base64 encodes it, and posts it to `POST https://video.bunnycdn.com/library/{id}/videos/{guid}/captions/en`.
+* **Result**: Bunny Stream bakes `#EXT-X-MEDIA:TYPE=SUBTITLES` directly into `playlist.m3u8`, enabling native CC buttons on mobile players out of the box!
+
 #### Response Specification (`200 OK`)
 ```json
 {
@@ -236,6 +272,17 @@ Authorization: Bearer <creator_access_token>
 GET /api/v1/admin/videos?status=published&search=FastAPI&sort=newest&page=1&limit=20
 ```
 
+#### Internal Backend & Query Execution Workflows
+
+##### Sub-Step A: Auto-Publishing Trigger
+* **Purpose**: Before fetching video items, executes database check `publish_due_scheduled_videos()` to immediately release any scheduled videos whose target date/time has arrived.
+
+##### Sub-Step B: SQL Filter & Pagination Assembly
+* **Purpose**: Constructs Peewee query filtered by `Video.user == user_id`, applying search substrings, category IDs, date bounds, and `paginate(page, limit)`.
+
+##### Sub-Step C: Duration & Metadata Auto-Sync
+* **Purpose**: Inspects retrieved video records. If any playable video is missing `duration` or `published_at`, auto-fetches `length` from Bunny Stream API and persists duration to SQLite.
+
 #### Response Specification (`200 OK`)
 ```json
 {
@@ -256,6 +303,14 @@ GET /api/v1/admin/videos?status=published&search=FastAPI&sort=newest&page=1&limi
       "views": 12400,
       "duration": "18:42",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumbnail.jpg",
+      "captions_data": [
+        {
+          "srclang": "en-auto",
+          "label": "EN",
+          "is_default": true,
+          "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en-auto.vtt"
+        }
+      ],
       "published_at": "2024-06-01T00:00:00Z",
       "scheduled_at": null,
       "created_at": "2024-05-20T00:00:00Z"
@@ -278,6 +333,14 @@ Authorization: Bearer <creator_access_token>
 #### Path Parameters
 - `video_id` (integer, required): Database primary key ID of the video asset.
 
+#### Internal Backend Workflows
+
+##### Sub-Step A: Ownership Verification & Live Cloud Sync
+* **Purpose**: Verifies `Video.user == user_id`. If `status` is `ENCODING` or `PROCESSING`, calls Bunny Stream API (`GET /library/{id}/videos/{guid}`) to query live `encodeProgress` and sync database.
+
+##### Sub-Step B: Tokenized Presigned HLS URL Generation
+* **Purpose**: If video `is_playable == true`, computes time-bound HMAC tokenized streaming URL (`playlist.m3u8?token=...&expires=...`) for authorized preview playback.
+
 #### Response Specification (`200 OK`)
 
 ##### Scenario A: During Transcoding (`status: "ENCODING"`)
@@ -299,6 +362,7 @@ Authorization: Bearer <creator_access_token>
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
   ],
+  "captions_data": [],
   "published_at": null,
   "scheduled_at": null,
   "created_at": "2024-05-20T00:00:00Z"
@@ -323,6 +387,14 @@ Authorization: Bearer <creator_access_token>
   "alt_thumbnail_urls": [
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_2.jpg",
     "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_3.jpg"
+  ],
+  "captions_data": [
+    {
+      "srclang": "en-auto",
+      "label": "EN",
+      "is_default": true,
+      "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en-auto.vtt"
+    }
   ],
   "published_at": "2024-06-01T00:00:00Z",
   "scheduled_at": null,
@@ -391,6 +463,17 @@ Content-Type: multipart/form-data
 #### Request Body (`multipart/form-data`)
 - `file` (binary image, required): Image file stream (`image/jpeg`, `image/png`, or `image/webp`).
 
+#### Internal Backend Workflows
+
+##### Sub-Step A: Target Slot Resolution
+* **Purpose**: Inspects `slot` query parameter (`0` = main cover `thumb_1.{ext}`, `1` = `thumb_2.{ext}`, `2` = `thumb_3.{ext}`).
+
+##### Sub-Step B: Bunny Storage Zone Upload Proxy
+* **Purpose**: Streams binary image to Bunny Storage Zone path `{bunny_video_id}/thumb_{slot+1}.{ext}` via HTTP `PUT` request without exposing cloud API keys to frontend.
+
+##### Sub-Step C: Database Record Update
+* **Purpose**: If `slot == 0`, updates `main_thumbnail_url`. If `slot == 1` or `2`, updates alternative thumbnail URL array.
+
 #### Response Specification (`200 OK`)
 ```json
 {
@@ -423,6 +506,11 @@ Content-Type: application/json
 }
 ```
 
+#### Internal Backend Workflows
+
+##### Sub-Step A: Cover Swap Operation
+* **Purpose**: Replaces `main_thumbnail_url` with `selected_main_thumbnail` URL and moves old main URL into `alt_thumbnail_urls` array in SQLite.
+
 #### Response Specification (`200 OK`)
 ```json
 {
@@ -436,6 +524,14 @@ Content-Type: application/json
 
 Deletes a backup alternative thumbnail asset permanently from Bunny Storage and removes its URL entry from the database.
 
+#### Internal Backend Workflows
+
+##### Sub-Step A: Bunny Storage Cloud File Deletion
+* **Purpose**: Extracts filename from target URL and sends HTTP `DELETE` to Bunny Storage API path `{bunny_video_id}/{filename}`.
+
+##### Sub-Step B: Database List Removal
+* **Purpose**: Removes deleted image URL from `alt_thumbnail_urls` array in SQLite.
+
 #### Response Specification (`200 OK`)
 ```json
 {
@@ -448,6 +544,14 @@ Deletes a backup alternative thumbnail asset permanently from Bunny Storage and 
 ### 9. `DELETE /api/v1/admin/videos/{video_id}` — Delete Video Asset
 
 Deletes a video asset from the backend database and deletes the underlying container on Bunny Stream.
+
+#### Internal Backend Workflows
+
+##### Sub-Step A: Cloud Asset Purge
+* **Purpose**: Issues HTTP `DELETE` to Bunny Stream API (`DELETE /library/{id}/videos/{guid}`) and purges all thumbnail images from Bunny Storage Zone.
+
+##### Sub-Step B: Database Record Drop
+* **Purpose**: Removes the video row permanently from SQLite `videos` table.
 
 #### Response Specification (`200 OK`)
 ```json
@@ -467,6 +571,11 @@ Publishes a video asset immediately, updating its state to `published` and recor
 Authorization: Bearer <creator_access_token>
 ```
 
+#### Internal Backend Workflows
+
+##### Sub-Step A: Immediate Release Transition
+* **Purpose**: Updates `status = "published"`, records `published_at = datetime.utcnow()`, and clears `scheduled_at = NULL` in SQLite. Video is instantly made live for subscribers!
+
 #### Response Specification (`200 OK`)
 ```json
 {
@@ -480,7 +589,7 @@ Authorization: Bearer <creator_access_token>
 
 ### 11. `POST /api/v1/admin/videos/{video_id}/schedule` — Schedule Video Publishing
 
-Schedules a video asset for automated future publication at a specific date, time, and timezone.
+Schedules a video asset for automated future publication at a specific target date and time.
 
 #### Request Headers
 ```http
@@ -491,18 +600,30 @@ Content-Type: application/json
 #### Request Body
 ```json
 {
-  "date": "2024-07-01",
-  "time": "09:00",
-  "timezone": "America/Los_Angeles"
+  "date": "2026-08-01",
+  "time": "18:00"
 }
 ```
+
+#### Internal Backend & Automated Publishing Workflows
+
+##### Sub-Step A: Request Validation & Datetime Parsing
+* **Purpose**: Validates JWT authorization ownership and parses `date` (`YYYY-MM-DD`) and `time` (`HH:MM`) strings into a native Python `datetime` object (`YYYY-MM-DD HH:MM:00`).
+
+##### Sub-Step B: Database State Persistence
+* **Purpose**: Commits the state change in SQLite (`status = "scheduled"`, `scheduled_at = datetime`). The video remains hidden from the subscriber catalog app until `scheduled_at` time arrives.
+
+##### Sub-Step C: Automated 60-Second Background Publisher
+* **Purpose**: A background loop in `app/main.py` runs every 60 seconds executing a bulk SQL update:
+  `UPDATE videos SET status = 'published', published_at = scheduled_at, scheduled_at = NULL WHERE status = 'scheduled' AND scheduled_at <= datetime('now')`
+* **Result**: Once local time reaches `scheduled_at`, the video status automatically flips to `"published"` and becomes live for all subscribers!
 
 #### Response Specification (`200 OK`)
 ```json
 {
   "id": 101,
   "status": "scheduled",
-  "scheduled_at": "2024-07-01T16:00:00Z"
+  "scheduled_at": "2026-08-01T18:00:00"
 }
 ```
 
@@ -524,6 +645,17 @@ Content-Type: application/json
   "video_ids": [101, 102, 105]
 }
 ```
+
+#### Internal Backend Workflows
+
+##### Sub-Step A: Ownership Authorization & DB Fetch
+* **Purpose**: Fetches video records matching `video_ids` array where `Video.user == user_id`.
+
+##### Sub-Step B: Batch Cloud Asset Purge
+* **Purpose**: Iterates over matching videos, deleting Bunny Stream containers (`DELETE /library/{id}/videos/{guid}`) and removing thumbnail files from Bunny Storage.
+
+##### Sub-Step C: Bulk SQL Record Deletion
+* **Purpose**: Deletes matching rows from SQLite `videos` table in a single batch query (`DELETE FROM video WHERE id IN (...) AND user_id = ...`).
 
 #### Response Specification (`200 OK`)
 ```json

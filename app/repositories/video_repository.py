@@ -1,7 +1,10 @@
+import logging
 from typing import Optional, List, Tuple
 from datetime import datetime
-from peewee import fn
+from peewee import fn, PeeweeException
 from app.models.video import Video
+
+logger = logging.getLogger(__name__)
 
 class VideoRepository:
     """
@@ -91,10 +94,12 @@ class VideoRepository:
         status: str,
         encode_progress: int,
         is_playable: bool,
-        caption_url: Optional[str] = None
+        captions_data: Optional[list] = None,
+        available_resolutions: Optional[list] = None,
+        duration: Optional[str] = None
     ) -> Optional[Video]:
         """
-        Updates state machine fields (status, encode_progress, is_playable) of a video record in DB.
+        Updates state machine fields (status, encode_progress, is_playable, captions_data, available_resolutions, duration, published_at) of a video record in DB.
         """
         video = self.get_video_by_bunny_id(bunny_video_id)
         if not video:
@@ -102,8 +107,14 @@ class VideoRepository:
         video.status = status
         video.encode_progress = encode_progress
         video.is_playable = is_playable
-        if caption_url:
-            video.caption_url = caption_url
+        if captions_data is not None:
+            video.captions_data = captions_data
+        if available_resolutions is not None:
+            video.available_resolutions = available_resolutions
+        if duration:
+            video.duration = duration
+        if is_playable and not video.published_at:
+            video.published_at = datetime.utcnow()
         video.save()
         return video
 
@@ -122,7 +133,7 @@ class VideoRepository:
 
     def schedule_video(self, video_id: int, user_id: int, scheduled_at_dt: datetime) -> Optional[Video]:
         """
-        Schedules a video asset for future publication, setting status = 'scheduled' and target UTC datetime.
+        Schedules a video asset for future publication, setting status = 'scheduled' and target datetime.
         """
         video = self.get_video_by_id(video_id, user_id)
         if not video:
@@ -131,6 +142,22 @@ class VideoRepository:
         video.scheduled_at = scheduled_at_dt
         video.save()
         return video
+
+    def publish_due_scheduled_videos(self) -> int:
+        """
+        Bulk updates all videos where status = 'scheduled' and scheduled_at <= datetime.now().
+        Flips status = 'published', published_at = scheduled_at, and clears scheduled_at = None.
+        """
+        try:
+            now = datetime.now()
+            count = (Video
+                     .update(status="published", published_at=Video.scheduled_at, scheduled_at=None)
+                     .where((Video.status == "scheduled") & (Video.scheduled_at.is_null(False)) & (Video.scheduled_at <= now))
+                     .execute())
+            return count
+        except PeeweeException as e:
+            logger.error(f"Error publishing due scheduled videos: {str(e)}")
+            return 0
 
     def swap_main_thumbnail(self, video_id: int, user_id: int, new_main_url: str) -> Optional[Video]:
         """

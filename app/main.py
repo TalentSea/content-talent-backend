@@ -12,10 +12,30 @@ from app.routes.admin import (
     admin_comment_router
 )
 
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+async def scheduled_video_auto_publisher():
+    """Background task running every 60s to publish due scheduled videos."""
+    from app.repositories.video_repository import VideoRepository
+    repo = VideoRepository()
+    while True:
+        try:
+            count = repo.publish_due_scheduled_videos()
+            if count > 0:
+                logger.info(f"Auto-published {count} due scheduled videos.")
+        except Exception as e:
+            logger.error(f"Error in auto-publisher background loop: {str(e)}")
+        await asyncio.sleep(60)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    publisher_task = asyncio.create_task(scheduled_video_auto_publisher())
     yield
+    publisher_task.cancel()
 
 app = FastAPI(
     title="Creator OTT Platform API",

@@ -135,6 +135,3 @@ def upload_bunny_storage_file(file_path: str, file_bytes: bytes, content_type: s
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Bunny Storage service is currently unreachable"
         )
-
-
-
