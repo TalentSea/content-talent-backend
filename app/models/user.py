@@ -6,8 +6,8 @@ class User(BaseModel):
     """
     Stores identity, authentication state, creator profile attributes, and social media handles.
     """
-    username = CharField(unique=True, max_length=100)
-    email = CharField(unique=True, max_length=255)
+    username = CharField(max_length=100, null=True)
+    email = CharField(max_length=255, null=True, index=True)
     first_name = CharField(max_length=100, null=True)
     last_name = CharField(max_length=100, null=True)
     phone = CharField(max_length=50, null=True)
@@ -15,6 +15,9 @@ class User(BaseModel):
     bio = TextField(null=True)
     website = CharField(max_length=255, null=True)
     avatar_url = CharField(max_length=500, null=True)
+    provider = CharField(max_length=50, default="email")
+    provider_id = CharField(max_length=255, null=True, index=True)
+    role = CharField(max_length=50, default="subscriber")
     twitter_url = CharField(max_length=255, null=True)
     youtube_url = CharField(max_length=255, null=True)
     instagram_url = CharField(max_length=255, null=True)

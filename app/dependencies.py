@@ -19,8 +19,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     if token in (static_key, "test_token"):
         user = User.get_or_none(User.username == "default_creator")
         if not user:
-            user = User.create(username="default_creator", email="creator@example.com")
-        return {"user_id": user.id, "username": user.username, "email": user.email}
+            user = User.create(username="default_creator", email="creator@example.com", role="creator")
+        return {"user_id": user.id, "username": user.username, "email": user.email, "role": getattr(user, "role", "creator")}
 
     payload = decode_access_token(token)
     user_id = payload.get("user_id")
@@ -33,4 +33,31 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return {"user_id": user.id, "username": user.username, "email": user.email}
+    return {
+        "user_id": user.id,
+        "username": user.username or f"user_{user.id}",
+        "email": user.email,
+        "role": getattr(user, "role", "subscriber")
+    }
+
+def get_current_subscriber(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Guards subscriber mobile app routes to ensure caller has 'subscriber' role.
+    """
+    if current_user.get("role") not in ("subscriber", "creator", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subscriber access required"
+        )
+    return current_user
+
+def get_current_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Guards web admin portal routes to ensure caller has 'creator' or 'admin' role.
+    """
+    if current_user.get("role") not in ("creator", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin portal authorization required"
+        )
+    return current_user

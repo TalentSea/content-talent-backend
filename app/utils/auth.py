@@ -3,22 +3,42 @@ import jwt
 from fastapi import HTTPException, status
 from app.config import get_settings
 
-def create_access_token(user_id: int, username: str, expires_delta_minutes: int = 60) -> str:
+import secrets
+import hashlib
+
+from typing import Optional
+
+def create_access_token(user_id: int, username: str = "", role: str = "subscriber", expires_delta_minutes: Optional[int] = None) -> str:
     """
-    Encodes user_id and username into a signed JWT access token.
+    Encodes user_id, username, and role into a signed JWT access token.
     """
     settings = get_settings()
+    if expires_delta_minutes is None:
+        expires_delta_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
     secret_key = settings.JWT_SECRET_KEY or "dev_secret_key_change_in_production"
     expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta_minutes)
     
     to_encode = {
         "sub": str(user_id),
         "user_id": user_id,
-        "username": username,
+        "username": username or f"user_{user_id}",
+        "role": role,
         "exp": expire
     }
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
+
+def create_refresh_token_string() -> str:
+    """
+    Generates a cryptographically secure 64-character hex random string for refresh token.
+    """
+    return secrets.token_hex(32)
+
+def hash_refresh_token(token: str) -> str:
+    """
+    Computes SHA-256 hash string of raw refresh token for safe DB storage.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 def decode_access_token(token: str) -> dict:
     """

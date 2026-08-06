@@ -19,6 +19,18 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     STATIC_API_KEY: str = "talentsea_secret_api_key_2026"
 
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 60
+
+    BUNNY_TUS_UPLOAD_SIGNATURE_EXPIRE_SECONDS: int = 86400
+    BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS: int = 7200
+    BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS: int = 7200
+    AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS: int = 60
+
+    GOOGLE_CLIENT_ID: str = ""
+    FACEBOOK_APP_ID: str = ""
+    FACEBOOK_APP_SECRET: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

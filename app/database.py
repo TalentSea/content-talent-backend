@@ -21,6 +21,7 @@ def init_db():
 
     # Import models here to prevent circular dependency
     from app.models.user import User
+    from app.models.refresh_token import RefreshToken
     from app.models.video import Video
     from app.models.playlist import Playlist, PlaylistVideo
     from app.models.comment import Comment, CommentLike
@@ -28,7 +29,7 @@ def init_db():
     if db_proxy.is_closed():
         db_proxy.connect()
 
-    db_proxy.create_tables([User, Video, Playlist, PlaylistVideo, Comment, CommentLike], safe=True)
+    db_proxy.create_tables([User, RefreshToken, Video, Playlist, PlaylistVideo, Comment, CommentLike], safe=True)
 
     # Ensure at least one default test user exists for development/auth testing
     if User.select().count() == 0:

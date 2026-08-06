@@ -5,6 +5,7 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from app.database import init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
+from app.routes.auth_routes import router as auth_router
 from app.routes.admin import (
     admin_video_router,
     admin_playlist_router,
@@ -18,8 +19,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 async def scheduled_video_auto_publisher():
-    """Background task running every 60s to publish due scheduled videos."""
+    """Background task running on configurable interval to publish due scheduled videos."""
     from app.repositories.video_repository import VideoRepository
+    from app.config import get_settings
     repo = VideoRepository()
     while True:
         try:
@@ -28,7 +30,7 @@ async def scheduled_video_auto_publisher():
                 logger.info(f"Auto-published {count} due scheduled videos.")
         except Exception as e:
             logger.error(f"Error in auto-publisher background loop: {str(e)}")
-        await asyncio.sleep(60)
+        await asyncio.sleep(get_settings().AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,7 +51,8 @@ app = FastAPI(
 setup_cors_middleware(app)
 app.add_middleware(PeeweeDBMiddleware)
 
-# Register Admin Video, Playlist, Profile & Comment routers cleanly
+# Register Routers cleanly
+app.include_router(auth_router)
 app.include_router(admin_video_router)
 app.include_router(admin_playlist_router)
 app.include_router(admin_profile_router)
