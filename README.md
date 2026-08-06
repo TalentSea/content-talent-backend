@@ -20,42 +20,50 @@ content-talent-backend/
 │   │   └── db_middleware.py      # Database connection lifecycle management
 │   ├── models/                   # Peewee ORM Entity Definitions
 │   │   ├── base.py               # Base model bound to database proxy
-│   │   ├── user.py               # Creator profile identity & settings entity
+│   │   ├── user.py               # Creator & subscriber profile identity entity
+│   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata entity
 │   │   ├── playlist.py           # Playlist and junction entities
 │   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
+│   │   ├── auth_repository.py    # Social user auto-provisioning & refresh token repository
 │   │   ├── video_repository.py
 │   │   ├── playlist_repository.py
 │   │   ├── profile_repository.py
 │   │   └── comment_repository.py
 │   ├── routes/                   # FastAPI Endpoint Route Handlers
+│   │   ├── auth_routes.py        # Mobile Social Auth endpoints (/api/v1/auth)
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── video_routes.py   # Admin Video management endpoints (/api/v1/admin/videos)
 │   │       ├── playlist_routes.py# Admin Playlist management endpoints (/api/v1/admin/playlists)
 │   │       ├── profile_routes.py # Admin Creator profile & social links (/api/v1/admin/profile)
 │   │       └── comment_routes.py # Admin Comment & moderation endpoints (/api/v1/admin/comments)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
+│   │   ├── auth_schemas.py       # Mobile social login & token DTOs
 │   │   ├── common_schemas.py     # Generic pagination envelopes
 │   │   ├── video_schemas.py      # Video request and response DTOs
 │   │   ├── playlist_schemas.py   # Playlist DTOs
 │   │   ├── profile_schemas.py    # Profile & avatar upload DTOs
 │   │   └── comment_schemas.py    # Comment & thread reply DTOs
 │   ├── services/                 # Business Logic & Cloud Orchestration
+│   │   ├── auth_service.py       # Mobile social login & JWT token rotation service
 │   │   ├── video_service.py      # Video orchestration service
 │   │   ├── playlist_service.py   # Playlist curation service
 │   │   ├── profile_service.py    # Profile & Bunny Storage avatar service
 │   │   └── comment_service.py    # Comment moderation service
 │   └── utils/                    # Cloud Helper Utilities & Cryptography
 │       ├── auth.py               # JWT token encoding and decoding
+│       ├── social_verifiers.py   # Google OIDC RSA & Facebook Graph API verifiers
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
 │       └── bunny_signature.py    # TUS and HLS presigned token signature helpers
 ├── docs/                         # Domain Architecture Specifications
-│   └── admin/                    # Creator Admin API Specifications
-│       ├── video_management_api_specification.md
-│       ├── playlist_management_api_specification.md
-│       ├── settings_profile_api_specification.md
-│       └── comments_management_api_specification.md
+│   ├── admin/                    # Creator Admin API Specifications
+│   │   ├── video_management_api_specification.md
+│   │   ├── playlist_management_api_specification.md
+│   │   ├── settings_profile_api_specification.md
+│   │   └── comments_management_api_specification.md
+│   └── subscriber/               # Mobile Subscriber App Specifications
+│       └── social_authentication_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template

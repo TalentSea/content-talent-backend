@@ -1,6 +1,6 @@
-# Mobile Social Authentication API Specification (Google & Facebook OAuth2 / OIDC)
+# Mobile Social Authentication API Specification (Google OIDC & Facebook OAuth2)
 
-This specification defines the industry-standard **OAuth 2.0 & OpenID Connect (OIDC)** social authentication module for mobile applications (iOS & Android / Flutter & React Native).
+This specification defines the industry-standard **OAuth 2.0 & OpenID Connect (OIDC)** social authentication endpoints for mobile applications (iOS & Android / Flutter & React Native).
 
 ---
 
@@ -14,45 +14,17 @@ The system uses a **Native SDK Token Exchange Architecture**. The mobile applica
 │ (iOS/Android)  │ ◄───────────────────────────────────── │ (OIDC / OAuth 2.0)     │
 └───────┬────────┘       Returns id_token / access_token  └────────────────────────┘
         │
-        │ POST /api/v1/auth/google  { id_token }
+        │ POST /api/v1/auth/google   { id_token }
         │ POST /api/v1/auth/facebook { access_token }
         ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │ FastAPI Backend                                                                  │
 │ 1. Cryptographically verifies OIDC id_token (Google) or queries Graph API (FB)  │
 │ 2. Extracts verified user identity (sub, email, name, avatar_url)                │
-│ 3. Performs User Auto-Provisioning (Finds or Creates User in SQLite DB)          │
+│ 3. Performs User Auto-Provisioning in Database                                   │
 │ 4. Issues Application JWT Access Token (30m) & Refresh Token (60d)               │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## 🗄️ Database Schemas
-
-### 1. `User` Entity Extensions (`users` table)
-| Field | Type | Attributes | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto Increment | Internal user ID |
-| `email` | `VARCHAR(255)` | Unique, Indexed, Nullable | Verified user email |
-| `name` | `VARCHAR(255)` | Nullable | User display name |
-| `avatar_url` | `VARCHAR(500)` | Nullable | Profile picture CDN/remote URL |
-| `provider` | `VARCHAR(50)` | Required | Auth provider: `"google"` or `"facebook"` |
-| `provider_id` | `VARCHAR(255)` | Required, Indexed | Permanent social provider ID (`google.sub` or `facebook.id`) |
-| `role` | `VARCHAR(50)` | Default `"subscriber"` | Role: `"subscriber"`, `"creator"`, `"admin"` |
-| `is_active` | `BOOLEAN` | Default `TRUE` | Account status flag |
-| `created_at` | `DATETIME` | Default `now()` | Timestamp of account creation |
-
-### 2. `RefreshToken` Entity (`refresh_tokens` table)
-| Field | Type | Attributes | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | Primary Key, Auto Increment | Token record ID |
-| `user` | `FOREIGN KEY` | References `User.id`, `ON DELETE CASCADE` | Linked user account |
-| `token_hash` | `VARCHAR(255)` | Unique, Indexed | Hashed SHA-256 string of refresh token |
-| `device_info` | `VARCHAR(255)` | Nullable | Client device string (e.g. `"iPhone 15 Pro / iOS 17"`) |
-| `expires_at` | `DATETIME` | Indexed | Absolute expiration timestamp (60 days) |
-| `is_revoked` | `BOOLEAN` | Default `FALSE` | Revocation status flag |
-| `created_at` | `DATETIME` | Default `now()` | Token creation timestamp |
 
 ---
 
@@ -88,7 +60,8 @@ Content-Type: application/json
     "email": "jane.doe@gmail.com",
     "avatar_url": "https://lh3.googleusercontent.com/a/AEdFT...",
     "provider": "google",
-    "role": "subscriber"
+    "role": "subscriber",
+    "created_at": "2026-08-06T12:00:00Z"
   }
 }
 ```
@@ -125,7 +98,8 @@ Content-Type: application/json
     "email": "john.smith@facebook.com",
     "avatar_url": "https://platform-lookaside.fbsbx.com/platform/profilepic/...",
     "provider": "facebook",
-    "role": "subscriber"
+    "role": "subscriber",
+    "created_at": "2026-08-06T12:00:00Z"
   }
 }
 ```
@@ -134,7 +108,7 @@ Content-Type: application/json
 
 ### 3. `POST /api/v1/auth/refresh` — Silent Access Token Refresh
 
-Generates a fresh short-lived Access Token using a valid Refresh Token when the access token expires.
+Generates a fresh short-lived Access Token and rotated Refresh Token when the access token expires.
 
 #### Request Headers
 ```http
@@ -154,7 +128,15 @@ Content-Type: application/json
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
   "refresh_token": "new_rotated_refresh_token_987...",
   "token_type": "bearer",
-  "expires_in": 1800
+  "expires_in": 1800,
+  "user": {
+    "id": 42,
+    "name": "Jane Doe",
+    "email": "jane.doe@gmail.com",
+    "avatar_url": "https://lh3.googleusercontent.com/a/AEdFT...",
+    "provider": "google",
+    "role": "subscriber"
+  }
 }
 ```
 
@@ -162,7 +144,7 @@ Content-Type: application/json
 
 ### 4. `POST /api/v1/auth/logout` — Revoke Refresh Token Session
 
-Invalidates the user's active refresh token in the database.
+Invalidates the user's active refresh token in the database upon logout.
 
 #### Request Headers
 ```http
@@ -203,7 +185,7 @@ Authorization: Bearer <access_token>
   "avatar_url": "https://lh3.googleusercontent.com/a/AEdFT...",
   "provider": "google",
   "role": "subscriber",
-  "created_at": "2024-08-01T12:00:00Z"
+  "created_at": "2026-08-06T12:00:00Z"
 }
 ```
 
