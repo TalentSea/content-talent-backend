@@ -1,7 +1,19 @@
 from app.models.base import BaseModel
-from app.models.user import User
+from app.models.admin import Admin
+from app.models.subscriber import Subscriber
 from app.models.refresh_token import RefreshToken
 from app.models.video import Video
 from app.models.playlist import Playlist, PlaylistVideo
+from app.models.comment import Comment, CommentLike
 
-__all__ = ["BaseModel", "User", "RefreshToken", "Video", "Playlist", "PlaylistVideo"]
+__all__ = [
+    "BaseModel",
+    "Admin",
+    "Subscriber",
+    "RefreshToken",
+    "Video",
+    "Playlist",
+    "PlaylistVideo",
+    "Comment",
+    "CommentLike"
+]

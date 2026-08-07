@@ -3,15 +3,15 @@ from peewee import CharField, TextField, IntegerField, BooleanField, DateTimeFie
 from playhouse.sqlite_ext import JSONField
 
 from app.models.base import BaseModel
-from app.models.user import User
+from app.models.admin import Admin
 
 class Video(BaseModel):
     """
     Stores metadata for uploaded video entities.
     """
     user = ForeignKeyField(
-        model=User,
-        field=User.id,
+        model=Admin,
+        field=Admin.id,
         column_name="user_id",
         backref="videos",
         on_delete="CASCADE",

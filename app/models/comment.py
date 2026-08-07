@@ -1,7 +1,7 @@
 from datetime import datetime
 from peewee import ForeignKeyField, CharField, TextField, IntegerField, DateTimeField
 from app.models.base import BaseModel
-from app.models.user import User
+from app.models.subscriber import Subscriber
 from app.models.video import Video
 
 class Comment(BaseModel):
@@ -9,7 +9,7 @@ class Comment(BaseModel):
     Peewee ORM model representing video comments and threaded replies.
     """
     video = ForeignKeyField(Video, backref='comments', on_delete='CASCADE')
-    user = ForeignKeyField(User, backref='comments', on_delete='CASCADE')
+    user = ForeignKeyField(Subscriber, backref='comments', on_delete='CASCADE', null=True)
     user_name = CharField(max_length=100)
     user_avatar = CharField(max_length=500, null=True)
     text = TextField()
@@ -22,9 +22,9 @@ class Comment(BaseModel):
 
 class CommentLike(BaseModel):
     """
-    Junction table tracking likes/hearts on comments from users (creators & subscribers).
+    Junction table tracking likes/hearts on comments from subscribers.
     """
-    user = ForeignKeyField(User, backref='comment_likes', on_delete='CASCADE')
+    user = ForeignKeyField(Subscriber, backref='comment_likes', on_delete='CASCADE')
     comment = ForeignKeyField(Comment, backref='likes_rel', on_delete='CASCADE')
     created_at = DateTimeField(default=datetime.now)
 

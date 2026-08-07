@@ -13,6 +13,7 @@ from app.schemas.auth_schemas import (
 from app.schemas.common_schemas import ActionSuccessResponse
 from app.utils.social_verifiers import verify_google_id_token, verify_facebook_access_token
 from app.utils.auth import create_access_token
+from app.models.subscriber import Subscriber
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -24,21 +25,18 @@ class AuthService:
     def __init__(self):
         self.repo = AuthRepository()
 
-    def _build_user_profile_response(self, user) -> UserProfileResponse:
+    def _build_user_profile_response(self, subscriber: Subscriber) -> UserProfileResponse:
         """
-        Maps a User Peewee instance to UserProfileResponse DTO.
+        Maps a Subscriber Peewee ORM instance to UserProfileResponse DTO.
         """
-        name_parts = [user.first_name, user.last_name]
-        full_name = " ".join([p for p in name_parts if p]).strip() or user.username
-
         return UserProfileResponse(
-            id=user.id,
-            name=full_name,
-            email=user.email,
-            avatar_url=user.avatar_url,
-            provider=user.provider or "google",
-            role=user.role or "subscriber",
-            created_at=user.created_at
+            id=subscriber.id,
+            name=subscriber.name or f"Subscriber {subscriber.id}",
+            email=subscriber.email,
+            avatar_url=subscriber.avatar_url,
+            provider=subscriber.provider or "google",
+            role=subscriber.role or "subscriber",
+            created_at=subscriber.created_at
         )
 
     def _process_social_user_login(
@@ -48,7 +46,7 @@ class AuthService:
         device_info: Optional[str] = None
     ) -> AuthTokenResponse:
         """
-        Common user provisioning and token issuance pipeline.
+        Common subscriber provisioning and token issuance pipeline.
         """
         provider_id = identity_data.get("sub")
         email = identity_data.get("email")
@@ -61,10 +59,10 @@ class AuthService:
                 detail=f"Social provider {provider} did not return a valid user identity ID"
             )
 
-        # Find existing user or create a new subscriber
-        user = self.repo.find_user_by_provider_or_email(provider, provider_id, email)
-        if not user:
-            user = self.repo.create_social_user(
+        # Find existing subscriber or create a new subscriber record
+        subscriber = self.repo.find_user_by_provider_or_email(provider, provider_id, email)
+        if not subscriber:
+            subscriber = self.repo.create_social_user(
                 provider=provider,
                 provider_id=provider_id,
                 email=email,
@@ -73,27 +71,27 @@ class AuthService:
                 role="subscriber"
             )
         else:
-            user = self.repo.update_user_profile_info(user, name, avatar_url)
+            subscriber = self.repo.update_user_profile_info(subscriber, name, avatar_url)
 
         settings = get_settings()
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
         # Generate App JWT Access Token and Refresh Token
-        username_str = user.username or f"user_{user.id}"
+        username_str = subscriber.name or f"subscriber_{subscriber.id}"
         access_token = create_access_token(
-            user_id=user.id,
+            user_id=subscriber.id,
             username=username_str,
-            role=user.role or "subscriber",
+            role=subscriber.role or "subscriber",
             expires_delta_minutes=expire_minutes
         )
         refresh_token = self.repo.create_refresh_token_record(
-            user=user,
+            user=subscriber,
             device_info=device_info,
             expires_in_days=expire_days
         )
 
-        user_profile = self._build_user_profile_response(user)
+        user_profile = self._build_user_profile_response(subscriber)
 
         return AuthTokenResponse(
             access_token=access_token,
@@ -128,11 +126,11 @@ class AuthService:
                 detail="Invalid or expired refresh token"
             )
 
-        user = token_record.user
-        if not user or not user.is_active:
+        subscriber = token_record.user
+        if not subscriber or not subscriber.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account disabled or deleted"
+                detail="Subscriber account disabled or deleted"
             )
 
         # Revoke old refresh token (Token Rotation)
@@ -143,20 +141,20 @@ class AuthService:
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
         # Issue new token pair
-        username_str = user.username or f"user_{user.id}"
+        username_str = subscriber.name or f"subscriber_{subscriber.id}"
         new_access_token = create_access_token(
-            user_id=user.id,
+            user_id=subscriber.id,
             username=username_str,
-            role=user.role or "subscriber",
+            role=subscriber.role or "subscriber",
             expires_delta_minutes=expire_minutes
         )
         new_refresh_token = self.repo.create_refresh_token_record(
-            user=user,
+            user=subscriber,
             device_info=token_record.device_info,
             expires_in_days=expire_days
         )
 
-        user_profile = self._build_user_profile_response(user)
+        user_profile = self._build_user_profile_response(subscriber)
 
         return AuthTokenResponse(
             access_token=new_access_token,
@@ -175,12 +173,12 @@ class AuthService:
 
     def get_current_user_profile(self, user_id: int) -> UserProfileResponse:
         """
-        Retrieves user profile metadata by user_id.
+        Retrieves subscriber profile metadata by user_id.
         """
-        user = self.repo.get_user_by_id(user_id)
-        if not user:
+        subscriber = self.repo.get_user_by_id(user_id)
+        if not subscriber:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User account {user_id} not found"
+                detail=f"Subscriber account {user_id} not found"
             )
-        return self._build_user_profile_response(user)
+        return self._build_user_profile_response(subscriber)

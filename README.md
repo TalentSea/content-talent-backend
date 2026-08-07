@@ -20,19 +20,21 @@ content-talent-backend/
 │   │   └── db_middleware.py      # Database connection lifecycle management
 │   ├── models/                   # Peewee ORM Entity Definitions
 │   │   ├── base.py               # Base model bound to database proxy
-│   │   ├── user.py               # Creator & subscriber profile identity entity
+│   │   ├── admin.py              # Web Admin Creator profile identity entity
+│   │   ├── subscriber.py         # Mobile App Subscriber profile identity entity
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata entity
 │   │   ├── playlist.py           # Playlist and junction entities
 │   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
-│   │   ├── auth_repository.py    # Social user auto-provisioning & refresh token repository
+│   │   ├── auth_repository.py    # Social subscriber auto-provisioning & refresh token repository
 │   │   ├── video_repository.py
 │   │   ├── playlist_repository.py
 │   │   ├── profile_repository.py
 │   │   └── comment_repository.py
 │   ├── routes/                   # FastAPI Endpoint Route Handlers
 │   │   ├── auth_routes.py        # Mobile Social Auth endpoints (/api/v1/auth)
+│   │   ├── webhook_routes.py     # Public Bunny Stream Webhooks (/api/v1/webhooks)
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── video_routes.py   # Admin Video management endpoints (/api/v1/admin/videos)
 │   │       ├── playlist_routes.py# Admin Playlist management endpoints (/api/v1/admin/playlists)
@@ -62,7 +64,7 @@ content-talent-backend/
 │   │   ├── playlist_management_api_specification.md
 │   │   ├── settings_profile_api_specification.md
 │   │   └── comments_management_api_specification.md
-│   └── subscriber/               # Mobile Subscriber App Specifications
+│   └── mobile/                   # Mobile Application API Specifications
 │       └── social_authentication_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification

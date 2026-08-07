@@ -4,7 +4,8 @@ from peewee import PeeweeException, fn
 
 from app.models.comment import Comment, CommentLike
 from app.models.video import Video
-from app.models.user import User
+from app.models.subscriber import Subscriber
+from app.models.admin import Admin
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,8 @@ class CommentRepository:
         """
         try:
             query = (Comment
-                     .select(Comment, Video, User)
+                     .select(Comment, Video)
                      .join(Video)
-                     .switch(Comment)
-                     .join(User)
                      .where(Video.user == creator_id)
                      .where(Comment.parent.is_null(True)))
 
@@ -130,7 +129,7 @@ class CommentRepository:
             logger.error(f"Error checking like state for comment {comment_id}: {str(e)}")
             return False
 
-    def create_reply(self, parent_comment: Comment, creator_user: User, text: str) -> Comment:
+    def create_reply(self, parent_comment: Comment, creator_user: Admin, text: str) -> Comment:
         """
         Creates a creator reply nested under the root top-level parent comment.
         """
@@ -138,7 +137,7 @@ class CommentRepository:
         creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or creator_user.username
         reply = Comment.create(
             video=root_parent.video,
-            user=creator_user,
+            user=None,
             user_name=creator_name,
             user_avatar=creator_user.avatar_url,
             text=text,

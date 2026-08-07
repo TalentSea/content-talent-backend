@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from peewee import PeeweeException
-from app.models.user import User
+from app.models.subscriber import Subscriber
 from app.models.refresh_token import RefreshToken
 from app.utils.auth import hash_refresh_token, create_refresh_token_string
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class AuthRepository:
     """
-    Data access repository for Social Authentication and Refresh Token management.
+    Data access repository for Mobile Subscriber Social Authentication and Refresh Token management.
     """
 
     def find_user_by_provider_or_email(
@@ -18,28 +18,27 @@ class AuthRepository:
         provider: str,
         provider_id: str,
         email: Optional[str] = None
-    ) -> Optional[User]:
+    ) -> Optional[Subscriber]:
         """
-        Finds existing user by (provider, provider_id) pair or matching email address.
+        Finds existing subscriber by (provider, provider_id) pair or matching email address.
         """
         try:
-            user = User.select().where(
-                (User.provider == provider) & (User.provider_id == provider_id)
+            sub = Subscriber.select().where(
+                (Subscriber.provider == provider) & (Subscriber.provider_id == provider_id)
             ).first()
-            if user:
-                return user
+            if sub:
+                return sub
 
             if email:
-                user_by_email = User.select().where(User.email == email).first()
-                if user_by_email:
-                    # Associate provider and provider_id if missing
-                    user_by_email.provider = provider
-                    user_by_email.provider_id = provider_id
-                    user_by_email.save()
-                    return user_by_email
+                sub_by_email = Subscriber.select().where(Subscriber.email == email).first()
+                if sub_by_email:
+                    sub_by_email.provider = provider
+                    sub_by_email.provider_id = provider_id
+                    sub_by_email.save()
+                    return sub_by_email
             return None
         except PeeweeException as e:
-            logger.error(f"Error querying user by provider/email: {str(e)}")
+            logger.error(f"Error querying subscriber by provider/email: {str(e)}")
             return None
 
     def create_social_user(
@@ -50,24 +49,13 @@ class AuthRepository:
         name: Optional[str] = None,
         avatar_url: Optional[str] = None,
         role: str = "subscriber"
-    ) -> User:
+    ) -> Subscriber:
         """
-        Creates a new social subscriber user in the database.
+        Creates a new social subscriber in the database.
         """
-        first_name = None
-        last_name = None
-        if name:
-            parts = name.strip().split(" ", 1)
-            first_name = parts[0]
-            last_name = parts[1] if len(parts) > 1 else None
-
-        username_str = email.split("@")[0] if email else f"{provider}_user_{provider_id[:8]}"
-
-        user = User.create(
-            username=username_str,
+        sub = Subscriber.create(
             email=email,
-            first_name=first_name,
-            last_name=last_name,
+            name=name,
             avatar_url=avatar_url,
             provider=provider,
             provider_id=provider_id,
@@ -75,30 +63,28 @@ class AuthRepository:
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
-        return user
+        return sub
 
-    def update_user_profile_info(self, user: User, name: Optional[str], avatar_url: Optional[str]) -> User:
+    def update_user_profile_info(self, subscriber: Subscriber, name: Optional[str], avatar_url: Optional[str]) -> Subscriber:
         """
         Updates profile avatar or name if updated on social provider.
         """
         updated = False
-        if avatar_url and user.avatar_url != avatar_url:
-            user.avatar_url = avatar_url
+        if avatar_url and subscriber.avatar_url != avatar_url:
+            subscriber.avatar_url = avatar_url
             updated = True
-        if name and not user.first_name:
-            parts = name.strip().split(" ", 1)
-            user.first_name = parts[0]
-            user.last_name = parts[1] if len(parts) > 1 else None
+        if name and not subscriber.name:
+            subscriber.name = name
             updated = True
 
         if updated:
-            user.updated_at = datetime.utcnow()
-            user.save()
-        return user
+            subscriber.updated_at = datetime.utcnow()
+            subscriber.save()
+        return subscriber
 
     def create_refresh_token_record(
         self,
-        user: User,
+        subscriber: Subscriber,
         device_info: Optional[str] = None,
         expires_in_days: Optional[int] = None
     ) -> str:
@@ -113,7 +99,7 @@ class AuthRepository:
         expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
 
         RefreshToken.create(
-            user=user,
+            user=subscriber,
             token_hash=token_hash_str,
             device_info=device_info,
             expires_at=expires_at,
@@ -143,11 +129,11 @@ class AuthRepository:
         affected = query.execute()
         return affected > 0
 
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
+    def get_user_by_id(self, user_id: int) -> Optional[Subscriber]:
         """
-        Retrieves a user Peewee ORM instance by ID.
+        Retrieves a subscriber Peewee ORM instance by ID.
         """
         try:
-            return User.get_by_id(user_id)
+            return Subscriber.get_by_id(user_id)
         except Exception:
             return None

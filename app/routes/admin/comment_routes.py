@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_admin
 from app.schemas.comment_schemas import (
     CommentItemResponse,
     CommentReplyResponse,
@@ -25,7 +25,7 @@ def list_creator_comments(
     sort: Optional[str] = Query("newest", description="Sort order: newest, oldest, mostLiked"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin)
 ):
     """
     GET /api/v1/admin/comments — Retrieves a paginated list of top-level comments with reply_count.
@@ -48,7 +48,7 @@ def get_comment_replies(
     sort: Optional[str] = Query("oldest", description="Sort order: oldest (default), newest"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin)
 ):
     """
     GET /api/v1/admin/comments/{comment_id}/replies — Retrieves paginated child replies nested under a top-level comment.
@@ -65,7 +65,7 @@ def get_comment_replies(
 def post_creator_reply(
     comment_id: int,
     payload: CommentReplyCreateRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin)
 ):
     """
     POST /api/v1/admin/comments/{comment_id}/reply — Posts an official creator reply to a user comment.
@@ -75,7 +75,7 @@ def post_creator_reply(
 @router.post("/{comment_id}/like", response_model=CommentLikeResponse, status_code=status.HTTP_200_OK)
 def toggle_creator_comment_like(
     comment_id: int,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin)
 ):
     """
     POST /api/v1/admin/comments/{comment_id}/like — Toggles creator heart/like state on a user comment.
@@ -85,7 +85,7 @@ def toggle_creator_comment_like(
 @router.delete("/{comment_id}", response_model=ActionSuccessResponse, status_code=status.HTTP_200_OK)
 def delete_comment(
     comment_id: int,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin)
 ):
     """
     DELETE /api/v1/admin/comments/{comment_id} — Permanently deletes a comment and its replies.

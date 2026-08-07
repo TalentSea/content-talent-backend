@@ -21,56 +21,56 @@ logger = logging.getLogger(__name__)
 
 class ProfileService:
     """
-    Business logic layer for Creator Profile & Avatar operations.
+    Business logic layer for Creator Admin Profile & Avatar operations.
     """
 
     def __init__(self):
         self.repo = ProfileRepository()
 
-    def get_profile(self, user_id: int) -> ProfileResponse:
+    def get_profile(self, admin_id: int) -> ProfileResponse:
         """
-        Retrieves detailed profile information and social links for authenticated creator.
+        Retrieves detailed profile information and social links for authenticated creator admin.
         """
-        user = self.repo.get_profile_by_user_id(user_id)
-        if not user:
+        admin = self.repo.get_profile_by_admin_id(admin_id)
+        if not admin:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator profile not found")
 
         social_links = SocialLinksSchema(
-            twitter=user.twitter_url,
-            youtube=user.youtube_url,
-            instagram=user.instagram_url
+            twitter=admin.twitter_url,
+            youtube=admin.youtube_url,
+            instagram=admin.instagram_url
         )
 
         return ProfileResponse(
-            first_name=user.first_name,
-            last_name=user.last_name,
-            email=user.email,
-            bio=user.bio,
-            website=user.website,
-            phone=user.phone,
-            location=user.location,
-            avatar_url=user.avatar_url,
+            first_name=admin.first_name,
+            last_name=admin.last_name,
+            email=admin.email,
+            bio=admin.bio,
+            website=admin.website,
+            phone=admin.phone,
+            location=admin.location,
+            avatar_url=admin.avatar_url,
             social_links=social_links,
-            updated_at=user.updated_at
+            updated_at=admin.updated_at
         )
 
-    def update_profile(self, user_id: int, payload: ProfileUpdateRequest) -> ActionSuccessResponse:
+    def update_profile(self, admin_id: int, payload: ProfileUpdateRequest) -> ActionSuccessResponse:
         """
         Updates creator profile information and social links in DB.
         """
         update_data = payload.model_dump(exclude_unset=True)
-        user = self.repo.update_profile(user_id, update_data)
-        if not user:
+        admin = self.repo.update_profile(admin_id, update_data)
+        if not admin:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator profile not found")
 
         return ActionSuccessResponse(status="success")
 
-    def upload_profile_photo(self, user_id: int, file: UploadFile) -> ProfilePhotoUploadResponse:
+    def upload_profile_photo(self, admin_id: int, file: UploadFile) -> ProfilePhotoUploadResponse:
         """
-        Uploads avatar image to Bunny Storage (assets/avatars/avatar_{user_id}_{timestamp}.{ext}) with CDN cache-busting.
+        Uploads avatar image to Bunny Storage (assets/avatars/avatar_{admin_id}_{timestamp}.{ext}) with CDN cache-busting.
         """
-        user = self.repo.get_profile_by_user_id(user_id)
-        if not user:
+        admin = self.repo.get_profile_by_admin_id(admin_id)
+        if not admin:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator profile not found")
 
         allowed_mime_types = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
@@ -92,19 +92,23 @@ class ProfileService:
         pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
 
         # Delete previous avatar file from Bunny Storage if present on CDN
-        if user.avatar_url and "talentsea77999.b-cdn.net" in user.avatar_url:
+        if admin.avatar_url and "talentsea77999.b-cdn.net" in admin.avatar_url:
             try:
-                old_filename = user.avatar_url.split('/')[-1]
+                old_filename = admin.avatar_url.split('/')[-1]
                 delete_bunny_storage_file(f"assets/avatars/{old_filename}")
             except Exception as e:
-                logger.warning(f"Failed to delete old avatar file for user {user_id}: {str(e)}")
+                logger.warning(f"Failed to delete old avatar file for admin {admin_id}: {str(e)}")
 
+        ext = content_type.split('/')[-1]
+        if ext == "jpeg":
+            ext = "jpg"
         timestamp = int(time.time())
-        ext = "png" if "png" in content_type else ("webp" if "webp" in content_type else "jpg")
-        avatar_path = f"assets/avatars/avatar_{user_id}_{timestamp}.{ext}"
-        avatar_url = f"{pull_zone}/{avatar_path}"
+        filename = f"avatar_{admin_id}_{timestamp}.{ext}"
+        storage_path = f"assets/avatars/{filename}"
 
-        upload_bunny_storage_file(avatar_path, file_bytes, content_type)
+        upload_bunny_storage_file(storage_path, file_bytes, content_type)
 
-        self.repo.update_avatar_url(user_id, avatar_url)
+        avatar_url = f"{pull_zone}/{storage_path}"
+        self.repo.update_avatar_url(admin_id, avatar_url)
+
         return ProfilePhotoUploadResponse(avatar_url=avatar_url)

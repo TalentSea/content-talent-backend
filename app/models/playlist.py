@@ -1,16 +1,16 @@
 from datetime import datetime
 from peewee import CharField, TextField, IntegerField, DateTimeField, ForeignKeyField, CompositeKey
 from app.models.base import BaseModel
-from app.models.user import User
+from app.models.admin import Admin
 from app.models.video import Video
 
 class Playlist(BaseModel):
     """
-    Container for custom video collections owned by a User.
+    Container for custom video collections owned by an Admin creator.
     """
     user = ForeignKeyField(
-        model=User,
-        field=User.id,
+        model=Admin,
+        field=Admin.id,
         column_name="user_id",
         backref="playlists",
         on_delete="CASCADE",

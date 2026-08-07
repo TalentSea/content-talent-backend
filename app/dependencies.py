@@ -6,39 +6,55 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     """
-    Validates JWT Bearer access token, extracts user_id payload, and injects authenticated creator context into routes.
+    Validates JWT Bearer access token, extracts user_id payload, and injects authenticated caller context into routes.
     No user_id parameter is accepted in request bodies or query strings to eliminate IDOR risks.
     """
     from app.config import get_settings
-    from app.models.user import User
+    from app.models.admin import Admin
+    from app.models.subscriber import Subscriber
 
     settings = get_settings()
     static_key = settings.STATIC_API_KEY or "talentsea_secret_api_key_2026"
 
-    # Static API Key & Dev token override for Frontend testing
+    # Static API Key & Dev token override for Creator Admin testing
     if token in (static_key, "test_token"):
-        user = User.get_or_none(User.username == "default_creator")
-        if not user:
-            user = User.create(username="default_creator", email="creator@example.com", role="creator")
-        return {"user_id": user.id, "username": user.username, "email": user.email, "role": getattr(user, "role", "creator")}
+        admin = Admin.get_or_none(Admin.username == "default_creator")
+        if not admin:
+            admin = Admin.create(username="default_creator", email="creator@example.com", role="creator")
+        return {"user_id": admin.id, "username": admin.username, "email": admin.email, "role": getattr(admin, "role", "creator")}
 
     payload = decode_access_token(token)
     user_id = payload.get("user_id")
+    token_role = payload.get("role", "subscriber")
 
-    user = User.get_or_none(User.id == user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authenticated user record no longer exists",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return {
-        "user_id": user.id,
-        "username": user.username or f"user_{user.id}",
-        "email": user.email,
-        "role": getattr(user, "role", "subscriber")
-    }
+    if token_role in ("creator", "admin"):
+        admin = Admin.get_or_none(Admin.id == user_id)
+        if not admin:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authenticated creator record no longer exists",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return {
+            "user_id": admin.id,
+            "username": admin.username,
+            "email": admin.email,
+            "role": getattr(admin, "role", "creator")
+        }
+    else:
+        sub = Subscriber.get_or_none(Subscriber.id == user_id)
+        if not sub:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authenticated subscriber record no longer exists",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return {
+            "user_id": sub.id,
+            "username": sub.name or f"subscriber_{sub.id}",
+            "email": sub.email,
+            "role": getattr(sub, "role", "subscriber")
+        }
 
 def get_current_subscriber(current_user: dict = Depends(get_current_user)) -> dict:
     """
