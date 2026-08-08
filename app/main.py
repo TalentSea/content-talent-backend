@@ -5,7 +5,7 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from app.database import init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
-from app.routes.auth_routes import router as auth_router
+from app.routes.mobile.auth_routes import router as auth_router
 from app.routes.webhook_routes import router as webhook_router
 from app.routes.admin import (
     admin_video_router,

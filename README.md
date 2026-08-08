@@ -65,7 +65,8 @@ content-talent-backend/
 │   │   ├── settings_profile_api_specification.md
 │   │   └── comments_management_api_specification.md
 │   └── mobile/                   # Mobile Application API Specifications
-│       └── social_authentication_api_specification.md
+│       ├── social_authentication_api_specification.md
+│       └── video_streaming_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template
