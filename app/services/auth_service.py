@@ -86,7 +86,7 @@ class AuthService:
             expires_delta_minutes=expire_minutes
         )
         refresh_token = self.repo.create_refresh_token_record(
-            user=subscriber,
+            subscriber=subscriber,
             device_info=device_info,
             expires_in_days=expire_days
         )
@@ -149,7 +149,7 @@ class AuthService:
             expires_delta_minutes=expire_minutes
         )
         new_refresh_token = self.repo.create_refresh_token_record(
-            user=subscriber,
+            subscriber=subscriber,
             device_info=token_record.device_info,
             expires_in_days=expire_days
         )
