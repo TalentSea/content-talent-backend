@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from peewee import PeeweeException
+from app.config import get_settings
 from app.models.subscriber import Subscriber
 from app.models.refresh_token import RefreshToken
 from app.utils.auth import hash_refresh_token, create_refresh_token_string
@@ -91,7 +92,6 @@ class AuthRepository:
         """
         Generates a secure refresh token string, hashes it, and stores it in the DB.
         """
-        from app.config import get_settings
         if expires_in_days is None:
             expires_in_days = get_settings().REFRESH_TOKEN_EXPIRE_DAYS
         raw_token = create_refresh_token_string()

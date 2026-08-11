@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
+from app.models.video import VideoLike
 from app.repositories.video_repository import VideoRepository
 from app.schemas.video_schemas import (
     VideoInitiateRequest,
@@ -134,6 +135,10 @@ class VideoService:
             download_items.append(DownloadUrlItem(resolution=clean_res, label=label, url=url))
         return download_items
 
+    def _get_likes_count(self, video_id: int) -> int:
+        """Helper returning total likes for a video asset."""
+        return VideoLike.select().where(VideoLike.video == video_id).count()
+
     def _to_video_response(self, video) -> VideoResponse:
         """
         Maps a Video Peewee ORM instance to a canonical VideoResponse DTO.
@@ -157,6 +162,7 @@ class VideoService:
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
             views=video.views or 0,
+            likes=self._get_likes_count(video.id),
             duration=video.duration,
             playback_url=playback_url,
             main_thumbnail_url=video.main_thumbnail_url,
@@ -180,6 +186,7 @@ class VideoService:
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
             views=video.views or 0,
+            likes=self._get_likes_count(video.id),
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
             published_at=video.published_at,

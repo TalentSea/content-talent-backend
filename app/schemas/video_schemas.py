@@ -35,6 +35,7 @@ class VideoListItemResponse(BaseModel):
     encode_progress: int
     is_playable: bool
     views: int = 0
+    likes: int = 0
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
     published_at: Optional[datetime] = None
@@ -52,6 +53,7 @@ class VideoResponse(BaseModel):
     encode_progress: int
     is_playable: bool
     views: int = 0
+    likes: int = 0
     duration: Optional[str] = None
     playback_url: Optional[str] = None
     main_thumbnail_url: Optional[str] = None

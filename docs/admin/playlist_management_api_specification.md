@@ -270,6 +270,7 @@ Authorization: Bearer <creator_access_token>
       "status": "published",
       "is_playable": true,
       "views": 12400,
+      "likes": 340,
       "duration": "18:42",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_abc123xyz/thumbnail.jpg",
       "order": 1,
@@ -400,6 +401,7 @@ GET /api/v1/admin/playlists/104/available_videos?search=FastAPI&category=tutoria
       "status": "published",
       "is_playable": true,
       "views": 18500,
+      "likes": 450,
       "duration": "148:00",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_abc888lmn/thumbnail.jpg",
       "created_at": "2024-05-20T00:00:00Z"

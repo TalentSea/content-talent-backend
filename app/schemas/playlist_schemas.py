@@ -60,6 +60,7 @@ class PlaylistItemVideoResponse(BaseModel):
     status: str
     is_playable: bool
     views: int = 0
+    likes: int = 0
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
     order: int = 0
@@ -90,6 +91,7 @@ class PlaylistAvailableVideoResponse(BaseModel):
     status: str
     is_playable: bool
     views: int = 0
+    likes: int = 0
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
     created_at: Optional[datetime] = None

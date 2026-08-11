@@ -1,6 +1,10 @@
 from typing import Optional
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+
+from app.config import get_settings
+from app.models.admin import Admin
+from app.models.subscriber import Subscriber
 from app.utils.auth import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -10,10 +14,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     Validates JWT Bearer access token, extracts user_id payload, and injects authenticated caller context into routes.
     No user_id parameter is accepted in request bodies or query strings to eliminate IDOR risks.
     """
-    from app.config import get_settings
-    from app.models.admin import Admin
-    from app.models.subscriber import Subscriber
-
     settings = get_settings()
     static_key = settings.STATIC_API_KEY or "talentsea_secret_api_key_2026"
 

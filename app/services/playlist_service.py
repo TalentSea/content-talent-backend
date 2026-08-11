@@ -5,6 +5,7 @@ from typing import Optional, List
 from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
+from app.models.video import VideoLike
 from app.repositories.playlist_repository import PlaylistRepository
 from app.schemas.playlist_schemas import (
     PlaylistCreateRequest,
@@ -209,6 +210,7 @@ class PlaylistService:
                 status=v.status,
                 is_playable=v.is_playable,
                 views=v.views or 0,
+                likes=VideoLike.select().where(VideoLike.video == v.id).count(),
                 duration=v.duration,
                 main_thumbnail_url=v.main_thumbnail_url,
                 order=order_val,
@@ -299,6 +301,7 @@ class PlaylistService:
                 status=v.status,
                 is_playable=v.is_playable,
                 views=v.views or 0,
+                likes=VideoLike.select().where(VideoLike.video == v.id).count(),
                 duration=v.duration,
                 main_thumbnail_url=v.main_thumbnail_url,
                 created_at=v.created_at
