@@ -10,6 +10,7 @@ from app.schemas.playlist_schemas import (
     PlaylistCreateRequest,
     PlaylistCreateResponse,
     PlaylistListItemResponse,
+    PlaylistThumbnailUploadResponse,
     PlaylistDetailsResponse,
     PlaylistUpdateRequest,
     PlaylistUpdateResponse,
@@ -74,7 +75,6 @@ class PlaylistService:
             PlaylistListItemResponse(
                 id=p.id,
                 name=p.name,
-                description=p.description,
                 thumbnail_url=p.thumbnail_url,
                 video_count=v_count,
                 created_at=p.created_at,
@@ -129,7 +129,7 @@ class PlaylistService:
             updated_at=playlist.updated_at
         )
 
-    def upload_playlist_banner(self, user_id: int, playlist_id: int, file: UploadFile) -> ActionSuccessResponse:
+    def upload_playlist_banner(self, user_id: int, playlist_id: int, file: UploadFile) -> PlaylistThumbnailUploadResponse:
         """
         Uploads playlist banner image binary to Bunny Storage (assets/playlists/playlist_{id}.jpg) via server proxy.
         """
@@ -159,7 +159,7 @@ class PlaylistService:
         playlist.thumbnail_url = thumbnail_url
         playlist.save()
 
-        return ActionSuccessResponse(status="success")
+        return PlaylistThumbnailUploadResponse(thumbnail_url=thumbnail_url)
 
     def delete_playlist(self, user_id: int, playlist_id: int) -> ActionSuccessResponse:
         """
@@ -205,7 +205,6 @@ class PlaylistService:
             PlaylistItemVideoResponse(
                 id=v.id,
                 title=v.title,
-                description=v.description,
                 category=v.category,
                 status=v.status,
                 is_playable=v.is_playable,
@@ -296,7 +295,6 @@ class PlaylistService:
             PlaylistAvailableVideoResponse(
                 id=v.id,
                 title=v.title,
-                description=v.description,
                 category=v.category,
                 status=v.status,
                 is_playable=v.is_playable,

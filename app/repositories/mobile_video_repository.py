@@ -32,7 +32,7 @@ class MobileVideoRepository:
             )
 
             if category:
-                query = query.where(Video.category == category)
+                query = query.where(fn.LOWER(Video.category) == category.lower())
 
             if search:
                 query = query.where(

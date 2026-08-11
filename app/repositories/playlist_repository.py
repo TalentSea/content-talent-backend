@@ -95,12 +95,17 @@ class PlaylistRepository:
 
         total = query.count()
         playlists = list(query.paginate(page, limit))
+        if not playlists:
+            return [], total
 
-        results = []
-        for p in playlists:
-            v_count = self.get_playlist_video_count(p)
-            results.append((p, v_count))
+        # Batch count videos for all returned playlists in a single SQL query
+        pl_ids = [p.id for p in playlists]
+        counts_query = (PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.id).alias("v_count"))
+                        .where(PlaylistVideo.playlist.in_(pl_ids))
+                        .group_by(PlaylistVideo.playlist))
+        counts_map = {row.playlist_id: row.v_count for row in counts_query}
 
+        results = [(p, counts_map.get(p.id, 0)) for p in playlists]
         return results, total
 
     def update_playlist(self, playlist_id: int, user_id: int, update_data: dict) -> Optional[Playlist]:

@@ -6,6 +6,7 @@ from app.schemas.playlist_schemas import (
     PlaylistCreateRequest,
     PlaylistCreateResponse,
     PlaylistListItemResponse,
+    PlaylistThumbnailUploadResponse,
     PlaylistDetailsResponse,
     PlaylistUpdateRequest,
     PlaylistUpdateResponse,
@@ -24,20 +25,20 @@ playlist_service = PlaylistService()
 @router.post("", response_model=PlaylistCreateResponse, status_code=status.HTTP_201_CREATED)
 def create_playlist(payload: PlaylistCreateRequest, current_user: dict = Depends(get_current_admin)):
     """
-    POST /api/v1/admin/playlists — Creates a new playlist container and links initial video IDs.
+    POST /api/v1/admin/playlists — Creates a new playlist container.
     """
     return playlist_service.create_playlist(current_user["user_id"], payload)
 
 @router.get("", response_model=PaginatedResponse[PlaylistListItemResponse], status_code=status.HTTP_200_OK)
 def list_playlists(
-    search: Optional[str] = Query(None, description="Search playlist names by substring"),
-    sort: Optional[str] = Query("newest", description="Sort order: newest, oldest, title"),
+    search: Optional[str] = Query(None, description="Search playlists by name substring"),
+    sort: Optional[str] = Query("newest", description="Sort order: newest, oldest, title, videoCount"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     current_user: dict = Depends(get_current_admin)
 ):
     """
-    GET /api/v1/admin/playlists — Retrieves a paginated list of lightweight playlist summaries.
+    GET /api/v1/admin/playlists — Retrieves a paginated list of creator playlists.
     """
     return playlist_service.list_user_playlists(
         user_id=current_user["user_id"],
@@ -61,7 +62,7 @@ def update_playlist(playlist_id: int, payload: PlaylistUpdateRequest, current_us
     """
     return playlist_service.update_playlist_metadata(current_user["user_id"], playlist_id, payload)
 
-@router.post("/{playlist_id}/thumbnail/upload", response_model=ActionSuccessResponse, status_code=status.HTTP_200_OK)
+@router.post("/{playlist_id}/thumbnail/upload", response_model=PlaylistThumbnailUploadResponse, status_code=status.HTTP_200_OK)
 def upload_playlist_banner(playlist_id: int, file: UploadFile = File(...), current_user: dict = Depends(get_current_admin)):
     """
     POST /api/v1/admin/playlists/{playlist_id}/thumbnail/upload — Uploads a playlist cover banner image via server proxy.

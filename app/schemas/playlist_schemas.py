@@ -20,11 +20,14 @@ class PlaylistListItemResponse(BaseModel):
     """Lightweight DTO for listing creator playlists matching spec doc API 2."""
     id: int
     name: str
-    description: Optional[str] = None
     thumbnail_url: Optional[str] = None
     video_count: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+class PlaylistThumbnailUploadResponse(BaseModel):
+    """Response payload returned when a playlist thumbnail image is uploaded matching spec doc API 5."""
+    thumbnail_url: str
 
 class PlaylistDetailsResponse(BaseModel):
     """Detailed DTO for single playlist views matching spec doc API 3."""
@@ -53,7 +56,6 @@ class PlaylistItemVideoResponse(BaseModel):
     """Canonical DTO representation for videos inside a playlist matching spec doc API 7."""
     id: int
     title: str
-    description: Optional[str] = None
     category: Optional[str] = None
     status: str
     is_playable: bool
@@ -84,7 +86,6 @@ class PlaylistAvailableVideoResponse(BaseModel):
     """DTO for unattached videos in the playlist picker modal matching spec doc API 11."""
     id: int
     title: str
-    description: Optional[str] = None
     category: Optional[str] = None
     status: str
     is_playable: bool

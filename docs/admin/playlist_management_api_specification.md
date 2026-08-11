@@ -119,7 +119,6 @@ GET /api/v1/admin/playlists?page=1&limit=20
     {
       "id": 104,
       "name": "Trending Sci-Fi Collection",
-      "description": "The highest rated sci-fi series and updates on our app.",
       "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/playlist_104.jpg",
       "video_count": 12,
       "created_at": "2024-05-01T00:00:00Z",
@@ -210,7 +209,7 @@ Content-Type: multipart/form-data
 #### Response Specification (`200 OK`)
 ```json
 {
-  "status": "success"
+  "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/pl_104_172345.jpg"
 }
 ```
 
@@ -267,7 +266,6 @@ Authorization: Bearer <creator_access_token>
     {
       "id": 101,
       "title": "Mad Max: Fury Road",
-      "description": "A story set in a post-apocalyptic wasteland.",
       "category": "action",
       "status": "published",
       "is_playable": true,
@@ -398,7 +396,6 @@ GET /api/v1/admin/playlists/104/available_videos?search=FastAPI&category=tutoria
     {
       "id": 102,
       "title": "Inception",
-      "description": "A thief who steals corporate secrets through dream-sharing technology.",
       "category": "sci-fi",
       "status": "published",
       "is_playable": true,
