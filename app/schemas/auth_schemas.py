@@ -16,6 +16,14 @@ class FacebookAuthRequest(BaseModel):
     access_token: str = Field(..., description="Facebook OAuth 2.0 access_token string")
     device_info: Optional[str] = Field(None, description="Client device description string")
 
+class GuestAuthRequest(BaseModel):
+    """
+    Dedicated payload for Anonymous Guest Session ("Skip Signup").
+    """
+    device_id: str = Field(..., description="Unique mobile device hardware ID")
+    device_info: Optional[str] = Field(None, description="Client device description string")
+
+
 class RefreshTokenRequest(BaseModel):
     """
     Payload for silent access token refresh or session logout.

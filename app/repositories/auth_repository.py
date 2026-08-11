@@ -137,3 +137,85 @@ class AuthRepository:
             return Subscriber.get_by_id(user_id)
         except Exception:
             return None
+
+    def get_or_create_guest_subscriber(self, device_id: str) -> Subscriber:
+        """
+        Finds existing guest subscriber by device_id or creates a new anonymous guest subscriber.
+        Refreshes updated_at timestamp on active guest sessions.
+        """
+        now = datetime.utcnow()
+        sub = Subscriber.select().where(
+            (Subscriber.provider == "guest") &
+            (Subscriber.provider_id == device_id)
+        ).first()
+
+        if sub:
+            sub.updated_at = now
+            sub.save()
+            return sub
+
+        sub = Subscriber.create(
+            name="Guest User",
+            email=None,
+            avatar_url=None,
+            provider="guest",
+            provider_id=device_id,
+            role="guest",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        return sub
+
+    def upgrade_guest_subscriber(
+        self,
+        guest_subscriber_id: int,
+        provider: str,
+        provider_id: str,
+        email: Optional[str] = None,
+        name: Optional[str] = None,
+        avatar_url: Optional[str] = None
+    ) -> Subscriber:
+        """
+        Upgrades an existing Guest subscriber record in-place to a permanent Google/Facebook subscriber.
+        Preserves all Watch History, Watchlist, and Liked Videos attached to subscriber ID!
+        """
+        sub = self.get_user_by_id(guest_subscriber_id)
+        if not sub:
+            return self.create_social_user(
+                provider=provider,
+                provider_id=provider_id,
+                email=email,
+                name=name,
+                avatar_url=avatar_url,
+                role="subscriber"
+            )
+
+        now = datetime.utcnow()
+        sub.provider = provider
+        sub.provider_id = provider_id
+        if email:
+            sub.email = email
+        if name:
+            sub.name = name
+        if avatar_url:
+            sub.avatar_url = avatar_url
+        sub.role = "subscriber"
+        sub.updated_at = now
+        sub.save()
+        return sub
+
+    def cleanup_stale_guest_subscribers(self, days: int = 90) -> int:
+        """
+        Deletes abandoned guest subscriber records with updated_at < NOW() - 90 days.
+        Cascades delete to associated watch_history, video_saves, and video_likes.
+        """
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        deleted_count = Subscriber.delete().where(
+            (Subscriber.provider == "guest") &
+            (Subscriber.role == "guest") &
+            (Subscriber.updated_at < cutoff_date)
+        ).execute()
+        logger.info(f"Cleaned up {deleted_count} stale guest subscribers older than {days} days.")
+        return deleted_count
+

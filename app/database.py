@@ -23,14 +23,15 @@ def init_db():
     from app.models.admin import Admin
     from app.models.subscriber import Subscriber
     from app.models.refresh_token import RefreshToken
-    from app.models.video import Video
+    from app.models.video import Video, VideoLike, VideoSave, WatchHistory
     from app.models.playlist import Playlist, PlaylistVideo
     from app.models.comment import Comment, CommentLike
+    from app.models.category import Category
 
     if db_proxy.is_closed():
         db_proxy.connect()
 
-    db_proxy.create_tables([Admin, Subscriber, RefreshToken, Video, Playlist, PlaylistVideo, Comment, CommentLike], safe=True)
+    db_proxy.create_tables([Admin, Subscriber, RefreshToken, Video, VideoLike, VideoSave, WatchHistory, Playlist, PlaylistVideo, Comment, CommentLike, Category], safe=True)
 
     # Ensure at least one default test creator exists in admins table for development/auth testing
     if Admin.select().count() == 0:

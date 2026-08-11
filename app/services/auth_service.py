@@ -6,6 +6,7 @@ from app.repositories.auth_repository import AuthRepository
 from app.schemas.auth_schemas import (
     GoogleAuthRequest,
     FacebookAuthRequest,
+    GuestAuthRequest,
     RefreshTokenRequest,
     AuthTokenResponse,
     UserProfileResponse
@@ -19,7 +20,7 @@ logger = logging.getLogger("uvicorn.error")
 
 class AuthService:
     """
-    Business logic layer for Mobile Social Authentication (Google OIDC & Facebook OAuth).
+    Business logic layer for Mobile Social Authentication (Google OIDC, Facebook OAuth, Guest Sessions).
     """
 
     def __init__(self):
@@ -43,10 +44,11 @@ class AuthService:
         self,
         provider: str,
         identity_data: Dict[str, Any],
-        device_info: Optional[str] = None
+        device_info: Optional[str] = None,
+        guest_subscriber_id: Optional[int] = None
     ) -> AuthTokenResponse:
         """
-        Common subscriber provisioning and token issuance pipeline.
+        Common subscriber provisioning, account upgrade, and token issuance pipeline.
         """
         provider_id = identity_data.get("sub")
         email = identity_data.get("email")
@@ -59,19 +61,34 @@ class AuthService:
                 detail=f"Social provider {provider} did not return a valid user identity ID"
             )
 
-        # Find existing subscriber or create a new subscriber record
-        subscriber = self.repo.find_user_by_provider_or_email(provider, provider_id, email)
+        # 1. If active guest_subscriber_id is provided, upgrade the existing Guest account in-place!
+        subscriber = None
+        if guest_subscriber_id:
+            guest_sub = self.repo.get_user_by_id(guest_subscriber_id)
+            if guest_sub and guest_sub.provider == "guest":
+                subscriber = self.repo.upgrade_guest_subscriber(
+                    guest_subscriber_id=guest_subscriber_id,
+                    provider=provider,
+                    provider_id=provider_id,
+                    email=email,
+                    name=name,
+                    avatar_url=avatar_url
+                )
+
+        # 2. Otherwise find existing subscriber or create a new subscriber record
         if not subscriber:
-            subscriber = self.repo.create_social_user(
-                provider=provider,
-                provider_id=provider_id,
-                email=email,
-                name=name,
-                avatar_url=avatar_url,
-                role="subscriber"
-            )
-        else:
-            subscriber = self.repo.update_user_profile_info(subscriber, name, avatar_url)
+            subscriber = self.repo.find_user_by_provider_or_email(provider, provider_id, email)
+            if not subscriber:
+                subscriber = self.repo.create_social_user(
+                    provider=provider,
+                    provider_id=provider_id,
+                    email=email,
+                    name=name,
+                    avatar_url=avatar_url,
+                    role="subscriber"
+                )
+            else:
+                subscriber = self.repo.update_user_profile_info(subscriber, name, avatar_url)
 
         settings = get_settings()
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -101,19 +118,52 @@ class AuthService:
             user=user_profile
         )
 
-    def authenticate_google(self, payload: GoogleAuthRequest) -> AuthTokenResponse:
+    def authenticate_guest(self, payload: GuestAuthRequest) -> AuthTokenResponse:
         """
-        Handles dedicated Google OIDC Sign-In.
+        Handles Anonymous Guest Session ("Skip Signup") authentication.
+        """
+        subscriber = self.repo.get_or_create_guest_subscriber(payload.device_id)
+
+        settings = get_settings()
+        expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
+
+        access_token = create_access_token(
+            user_id=subscriber.id,
+            username=subscriber.name or f"guest_{subscriber.id}",
+            role="guest",
+            expires_delta_minutes=expire_minutes
+        )
+        refresh_token = self.repo.create_refresh_token_record(
+            subscriber=subscriber,
+            device_info=payload.device_info,
+            expires_in_days=expire_days
+        )
+
+        user_profile = self._build_user_profile_response(subscriber)
+
+        return AuthTokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=expire_minutes * 60,
+            user=user_profile
+        )
+
+    def authenticate_google(self, payload: GoogleAuthRequest, guest_subscriber_id: Optional[int] = None) -> AuthTokenResponse:
+        """
+        Handles dedicated Google OIDC Sign-In and optional Guest Account Upgrade.
         """
         identity_data = verify_google_id_token(payload.id_token)
-        return self._process_social_user_login("google", identity_data, payload.device_info)
+        return self._process_social_user_login("google", identity_data, payload.device_info, guest_subscriber_id=guest_subscriber_id)
 
-    def authenticate_facebook(self, payload: FacebookAuthRequest) -> AuthTokenResponse:
+    def authenticate_facebook(self, payload: FacebookAuthRequest, guest_subscriber_id: Optional[int] = None) -> AuthTokenResponse:
         """
-        Handles dedicated Facebook OAuth Sign-In.
+        Handles dedicated Facebook OAuth Sign-In and optional Guest Account Upgrade.
         """
         identity_data = verify_facebook_access_token(payload.access_token)
-        return self._process_social_user_login("facebook", identity_data, payload.device_info)
+        return self._process_social_user_login("facebook", identity_data, payload.device_info, guest_subscriber_id=guest_subscriber_id)
+
 
     def refresh_access_token(self, payload: RefreshTokenRequest) -> AuthTokenResponse:
         """

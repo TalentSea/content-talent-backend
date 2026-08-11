@@ -3,7 +3,7 @@ from peewee import CharField, TextField, IntegerField, BooleanField, DateTimeFie
 from playhouse.sqlite_ext import JSONField
 
 from app.models.base import BaseModel
-from app.models.admin import Admin
+from app.models.subscriber import Subscriber
 
 class Video(BaseModel):
     """
@@ -31,8 +31,57 @@ class Video(BaseModel):
     scheduled_at = DateTimeField(null=True)
     published_at = DateTimeField(null=True)
     views = IntegerField(default=0)
+    popularity_score = IntegerField(default=0, index=True)
     duration = CharField(max_length=50, null=True)
     created_at = DateTimeField(default=datetime.now)
 
     class Meta:
         table_name = "videos"
+
+class VideoLike(BaseModel):
+    """
+    Stores video like relationships between Subscriber and Video entities.
+    """
+    video = ForeignKeyField(Video, backref="likes", on_delete="CASCADE")
+    subscriber = ForeignKeyField(Subscriber, backref="video_likes", on_delete="CASCADE")
+    created_at = DateTimeField(default=datetime.now)
+
+    class Meta:
+        table_name = "video_likes"
+        indexes = (
+            (("video", "subscriber"), True),
+        )
+
+class VideoSave(BaseModel):
+    """
+    Stores video save/bookmark relationships between Subscriber and Video entities ("My Watchlist").
+    """
+    video = ForeignKeyField(Video, backref="saves", on_delete="CASCADE")
+    subscriber = ForeignKeyField(Subscriber, backref="video_saves", on_delete="CASCADE")
+    created_at = DateTimeField(default=datetime.now)
+
+    class Meta:
+        table_name = "video_saves"
+        indexes = (
+            (("video", "subscriber"), True),
+        )
+
+class WatchHistory(BaseModel):
+    """
+    Stores subscriber playback watch history & resume position for "Continue Watching" carousel.
+    """
+    video = ForeignKeyField(Video, backref="watch_histories", on_delete="CASCADE")
+    subscriber = ForeignKeyField(Subscriber, backref="watch_histories", on_delete="CASCADE")
+    last_position_seconds = IntegerField(default=0)
+    completed = BooleanField(default=False)
+    last_watched_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=datetime.now)
+
+    class Meta:
+        table_name = "watch_history"
+        indexes = (
+            (("video", "subscriber"), True),
+        )
+
+
+

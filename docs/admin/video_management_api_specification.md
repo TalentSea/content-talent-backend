@@ -294,23 +294,13 @@ GET /api/v1/admin/videos?status=published&search=FastAPI&sort=newest&page=1&limi
     {
       "id": 101,
       "title": "Introduction to FastAPI & OTT Streaming",
-      "description": "Learn how to build a production grade video upload pipeline using Bunny.net.",
       "category": "tutorials",
-      "tags": ["fastapi", "python", "bunny-stream"],
       "status": "published",
       "encode_progress": 100,
       "is_playable": true,
       "views": 12400,
       "duration": "18:42",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumbnail.jpg",
-      "captions_data": [
-        {
-          "srclang": "en-auto",
-          "label": "EN",
-          "is_default": true,
-          "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en-auto.vtt"
-        }
-      ],
       "published_at": "2024-06-01T00:00:00Z",
       "scheduled_at": null,
       "created_at": "2024-05-20T00:00:00Z"

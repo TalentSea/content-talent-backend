@@ -1,37 +1,58 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, status
 from app.schemas.auth_schemas import (
     GoogleAuthRequest,
     FacebookAuthRequest,
+    GuestAuthRequest,
     RefreshTokenRequest,
     AuthTokenResponse,
     UserProfileResponse
 )
 from app.schemas.common_schemas import ActionSuccessResponse
 from app.services.auth_service import AuthService
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_optional_subscriber
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Mobile Social Authentication"])
 auth_service = AuthService()
 
 @router.post(
+    "/guest",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Anonymous Guest Session (Skip Signup)",
+    description="Issues an application session for anonymous guest users skipping social login on app launch."
+)
+def authenticate_guest(payload: GuestAuthRequest):
+    return auth_service.authenticate_guest(payload)
+
+@router.post(
     "/google",
     response_model=AuthTokenResponse,
     status_code=status.HTTP_200_OK,
-    summary="Dedicated Google OIDC Sign-In",
-    description="Exchanges a Google OIDC id_token JWT for application session JWT tokens."
+    summary="Dedicated Google OIDC Sign-In & Account Upgrade",
+    description="Exchanges a Google OIDC id_token JWT for application session JWT tokens. Upgrades active Guest account in-place if Bearer token is provided."
 )
-def authenticate_google(payload: GoogleAuthRequest):
-    return auth_service.authenticate_google(payload)
+def authenticate_google(
+    payload: GoogleAuthRequest,
+    optional_subscriber: Optional[dict] = Depends(get_optional_subscriber)
+):
+    guest_id = optional_subscriber["user_id"] if optional_subscriber else None
+    return auth_service.authenticate_google(payload, guest_subscriber_id=guest_id)
 
 @router.post(
     "/facebook",
     response_model=AuthTokenResponse,
     status_code=status.HTTP_200_OK,
-    summary="Dedicated Facebook OAuth Sign-In",
-    description="Exchanges a Facebook OAuth access_token for application session JWT tokens."
+    summary="Dedicated Facebook OAuth Sign-In & Account Upgrade",
+    description="Exchanges a Facebook OAuth access_token for application session JWT tokens. Upgrades active Guest account in-place if Bearer token is provided."
 )
-def authenticate_facebook(payload: FacebookAuthRequest):
-    return auth_service.authenticate_facebook(payload)
+def authenticate_facebook(
+    payload: FacebookAuthRequest,
+    optional_subscriber: Optional[dict] = Depends(get_optional_subscriber)
+):
+    guest_id = optional_subscriber["user_id"] if optional_subscriber else None
+    return auth_service.authenticate_facebook(payload, guest_subscriber_id=guest_id)
+
 
 @router.post(
     "/refresh",

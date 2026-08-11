@@ -30,17 +30,13 @@ class VideoListItemResponse(BaseModel):
     """Canonical DTO for item summary in paginated list matching spec doc API 3."""
     id: int
     title: str
-    description: Optional[str] = None
     category: Optional[str] = None
-    tags: List[str] = []
     status: str
     encode_progress: int
     is_playable: bool
     views: int = 0
     duration: Optional[str] = None
     main_thumbnail_url: Optional[str] = None
-    captions_data: List[dict] = []
-    download_urls: List[DownloadUrlItem] = []
     published_at: Optional[datetime] = None
     scheduled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None

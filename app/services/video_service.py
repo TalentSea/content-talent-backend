@@ -175,17 +175,13 @@ class VideoService:
         return VideoListItemResponse(
             id=video.id,
             title=video.title,
-            description=video.description,
             category=video.category,
-            tags=list(video.tags or []),
             status=video.status,
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
             views=video.views or 0,
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
-            captions_data=list(video.captions_data or []),
-            download_urls=self._generate_download_urls(video),
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at
@@ -200,7 +196,8 @@ class VideoService:
             title=video.title,
             description=video.description,
             category=video.category,
-            tags=list(video.tags or [])
+            tags=list(video.tags or []),
+            status=video.status
         )
 
     def initiate_video_upload(self, user_id: int, payload: VideoInitiateRequest) -> VideoInitiateResponse:

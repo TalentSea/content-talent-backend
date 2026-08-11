@@ -1,4 +1,5 @@
-from fastapi import Depends, HTTPException, status
+from typing import Optional
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.utils.auth import decode_access_token
 
@@ -77,3 +78,17 @@ def get_current_admin(current_user: dict = Depends(get_current_user)) -> dict:
             detail="Admin portal authorization required"
         )
     return current_user
+
+def get_optional_subscriber(authorization: Optional[str] = Header(None)) -> Optional[dict]:
+    """
+    Optional dependency helper that inspects incoming Authorization header.
+    If valid Bearer token present, returns subscriber dict; if missing/invalid (Guest), returns None.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split("Bearer ")[1].strip()
+    try:
+        return get_current_user(token=token)
+    except Exception:
+        return None
+
