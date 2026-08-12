@@ -50,7 +50,7 @@ class MobilePlaylistRepository:
                 .where(
                     (PlaylistVideo.playlist.in_(pl_ids)) &
                     (Video.status == "published") &
-                    (Video.transcoding_status == "READY")
+                    (Video.is_playable == True)
                 )
                 .group_by(PlaylistVideo.playlist)
             )
@@ -89,7 +89,7 @@ class MobilePlaylistRepository:
                 .where(
                     (PlaylistVideo.playlist == playlist) &
                     (Video.status == "published") &
-                    (Video.transcoding_status == "READY")
+                    (Video.is_playable == True)
                 )
                 .order_by(PlaylistVideo.order.asc())
             )

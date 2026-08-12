@@ -51,7 +51,7 @@ class CategoryRepository:
                     (Video.user == user_id) &
                     (fn.LOWER(Video.category) == cat.slug) &
                     (Video.status == "published") &
-                    (Video.transcoding_status == "READY")
+                    (Video.is_playable == True)
                 ).count()
                 results.append((cat, count))
 

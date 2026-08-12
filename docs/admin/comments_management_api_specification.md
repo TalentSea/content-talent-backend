@@ -93,10 +93,13 @@ Authorization: Bearer <creator_access_token>
   "items": [
     {
       "id": 8912,
-      "user_id": 4512,
-      "user_name": "Sarah Connor",
-      "user_avatar": "https://talentsea77999.b-cdn.net/avatars/user_4512.jpg",
       "text": "Great explanation on FastAPI dependency injection!",
+      "author": {
+        "id": 4512,
+        "name": "Sarah Connor",
+        "avatar_url": "https://talentsea77999.b-cdn.net/avatars/user_4512.jpg",
+        "is_creator": false
+      },
       "video_id": 102,
       "video_title": "FastAPI Masterclass - Part 3",
       "likes": 42,
@@ -142,9 +145,12 @@ Authorization: Bearer <creator_access_token>
       "id": 9001,
       "comment_id": 8912,
       "text": "Thank you Sarah! Glad you found it useful.",
-      "user_id": 101,
-      "user_name": "Alex Tech",
-      "user_avatar": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+      "author": {
+        "id": 101,
+        "name": "Alex Tech",
+        "avatar_url": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+        "is_creator": true
+      },
       "likes": 12,
       "is_liked": true,
       "created_at": "2024-06-18T15:00:00Z"
@@ -153,9 +159,12 @@ Authorization: Bearer <creator_access_token>
       "id": 9002,
       "comment_id": 8912,
       "text": "Also checking if there is a follow-up video on async handlers?",
-      "user_id": 4512,
-      "user_name": "Sarah Connor",
-      "user_avatar": "https://talentsea77999.b-cdn.net/avatars/user_4512.jpg",
+      "author": {
+        "id": 4512,
+        "name": "Sarah Connor",
+        "avatar_url": "https://talentsea77999.b-cdn.net/avatars/user_4512.jpg",
+        "is_creator": false
+      },
       "likes": 3,
       "is_liked": false,
       "created_at": "2024-06-18T15:30:00Z"
@@ -192,9 +201,14 @@ Content-Type: application/json
   "id": 9105,
   "comment_id": 8912,
   "text": "Thanks for your feedback! Part 4 is coming out tomorrow.",
-  "user_id": 101,
-  "user_name": "Alex Tech",
-  "user_avatar": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+  "author": {
+    "id": 101,
+    "name": "Alex Tech",
+    "avatar_url": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+    "is_creator": true
+  },
+  "likes": 0,
+  "is_liked": false,
   "created_at": "2024-06-20T10:30:00Z"
 }
 ```

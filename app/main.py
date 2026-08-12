@@ -15,6 +15,7 @@ from app.routes.mobile.auth_routes import router as auth_router
 from app.routes.mobile.video_routes import router as mobile_video_router
 from app.routes.mobile.category_routes import router as mobile_category_router
 from app.routes.mobile.playlist_routes import router as mobile_playlist_router
+from app.routes.mobile.comment_routes import router as mobile_comment_router
 from app.routes.webhook_routes import router as webhook_router
 from app.routes.admin import (
     admin_video_router,
@@ -77,6 +78,7 @@ app.include_router(auth_router)
 app.include_router(mobile_video_router)
 app.include_router(mobile_category_router)
 app.include_router(mobile_playlist_router)
+app.include_router(mobile_comment_router)
 app.include_router(webhook_router)
 app.include_router(admin_video_router)
 app.include_router(admin_playlist_router)

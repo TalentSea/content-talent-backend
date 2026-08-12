@@ -73,7 +73,8 @@ content-talent-backend/
 │       ├── social_authentication_api_specification.md
 │       ├── video_streaming_api_specification.md
 │       ├── categories_api_specification.md
-│       └── playlists_api_specification.md
+│       ├── playlists_api_specification.md
+│       └── comments_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template

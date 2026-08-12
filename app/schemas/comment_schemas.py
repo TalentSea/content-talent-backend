@@ -2,23 +2,28 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
+class CommentAuthorResponse(BaseModel):
+    """Canonical DTO representation of a comment author matching spec doc."""
+    id: int
+    name: str
+    avatar_url: Optional[str] = None
+    is_creator: bool = False
+
 class CommentReplyResponse(BaseModel):
-    """DTO schema for a reply nested under a parent comment."""
+    """DTO schema for a reply nested under a parent comment matching spec doc API 2 & API 3."""
     id: int
     comment_id: int
     text: str
-    user_id: int
-    user_name: str
-    user_avatar: Optional[str] = None
+    author: CommentAuthorResponse
+    likes: int = 0
+    is_liked: bool = False
     created_at: Optional[datetime] = None
 
 class CommentItemResponse(BaseModel):
-    """DTO schema for top-level video comments matching spec doc."""
+    """DTO schema for top-level video comments matching spec doc API 1."""
     id: int
-    user_id: int
-    user_name: str
-    user_avatar: Optional[str] = None
     text: str
+    author: CommentAuthorResponse
     video_id: int
     video_title: str
     likes: int = 0
@@ -30,15 +35,9 @@ class CommentReplyCreateRequest(BaseModel):
     """Request payload for posting a creator reply to a comment."""
     text: str
 
-class CommentReplyCreateResponse(BaseModel):
-    """Response payload returned when a reply is posted matching spec doc."""
-    id: int
-    comment_id: int
-    text: str
-    user_id: int
-    user_name: str
-    user_avatar: Optional[str] = None
-    created_at: Optional[datetime] = None
+class CommentReplyCreateResponse(CommentReplyResponse):
+    """Response payload returned when a reply is posted matching spec doc API 3."""
+    pass
 
 class CommentLikeResponse(BaseModel):
     """Response payload returned when toggling creator like state on a comment."""

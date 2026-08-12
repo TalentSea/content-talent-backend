@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from app.repositories.comment_repository import CommentRepository
 from app.repositories.profile_repository import ProfileRepository
 from app.schemas.comment_schemas import (
+    CommentAuthorResponse,
     CommentItemResponse,
     CommentReplyResponse,
     CommentReplyCreateRequest,
@@ -18,27 +19,45 @@ logger = logging.getLogger(__name__)
 
 class CommentService:
     """
-    Business logic layer for Admin Comment & Moderation operations.
+    Business logic service for Creator Comment Moderation, Thread Replies, and Engagement.
     """
 
     def __init__(self):
         self.comment_repo = CommentRepository()
         self.profile_repo = ProfileRepository()
 
+    def _build_author_response(self, c) -> CommentAuthorResponse:
+        """Helper to construct canonical CommentAuthorResponse object."""
+        if c.user:
+            return CommentAuthorResponse(
+                id=c.user.id,
+                name=c.user_name,
+                avatar_url=c.user_avatar,
+                is_creator=False
+            )
+        # For Admin Creator posts where c.user is None
+        creator_id = c.video.user.id if (c.video and hasattr(c.video.user, 'id')) else 0
+        return CommentAuthorResponse(
+            id=creator_id,
+            name=c.user_name,
+            avatar_url=c.user_avatar,
+            is_creator=True
+        )
+
     def list_creator_comments(
         self,
         creator_id: int,
-        search: Optional[str] = None,
-        video_id: Optional[int] = None,
         category: Optional[str] = None,
+        video_id: Optional[int] = None,
         date: Optional[str] = None,
         min_likes: Optional[int] = None,
+        search: Optional[str] = None,
         sort: Optional[str] = "newest",
         page: int = 1,
         limit: int = 20
     ) -> PaginatedResponse[CommentItemResponse]:
         """
-        Retrieves paginated top-level comments with reply_count matching spec doc API 1.
+        Retrieves paginated top-level comments across creator's videos matching spec doc API 1.
         """
         comments, total = self.comment_repo.get_all_comments_by_creator(
             creator_id=creator_id,
@@ -59,10 +78,8 @@ class CommentService:
 
             item = CommentItemResponse(
                 id=c.id,
-                user_id=c.user.id,
-                user_name=c.user_name,
-                user_avatar=c.user_avatar,
                 text=c.text,
+                author=self._build_author_response(c),
                 video_id=c.video.id,
                 video_title=c.video.title,
                 likes=c.likes,
@@ -104,18 +121,20 @@ class CommentService:
             limit=limit
         )
 
-        items = [
-            CommentReplyResponse(
-                id=r.id,
-                comment_id=parent_comment.id,
-                text=r.text,
-                user_id=r.user.id,
-                user_name=r.user_name,
-                user_avatar=r.user_avatar,
-                created_at=r.created_at
+        items: List[CommentReplyResponse] = []
+        for r in replies_raw:
+            is_liked = self.comment_repo.is_comment_liked_by_user(r.id, creator_id)
+            items.append(
+                CommentReplyResponse(
+                    id=r.id,
+                    comment_id=parent_comment.id,
+                    text=r.text,
+                    author=self._build_author_response(r),
+                    likes=r.likes or 0,
+                    is_liked=is_liked,
+                    created_at=r.created_at
+                )
             )
-            for r in replies_raw
-        ]
 
         total_pages = math.ceil(total / limit) if total > 0 else 1
 
@@ -145,9 +164,14 @@ class CommentService:
             id=reply.id,
             comment_id=reply.parent.id,  # Guarantees root parent ID is returned
             text=reply.text,
-            user_id=creator_user.id,
-            user_name=reply.user_name,
-            user_avatar=reply.user_avatar,
+            author=CommentAuthorResponse(
+                id=creator_user.id,
+                name=reply.user_name,
+                avatar_url=reply.user_avatar,
+                is_creator=True
+            ),
+            likes=0,
+            is_liked=False,
             created_at=reply.created_at
         )
 

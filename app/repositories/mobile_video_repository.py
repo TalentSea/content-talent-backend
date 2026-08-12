@@ -28,7 +28,7 @@ class MobileVideoRepository:
         try:
             query = Video.select().where(
                 (Video.status == "published") &
-                (Video.transcoding_status == "READY")
+                (Video.is_playable == True)
             )
 
             if category:
@@ -75,7 +75,7 @@ class MobileVideoRepository:
             ).where(
                 (VideoLike.subscriber == subscriber_id) &
                 (Video.status == "published") &
-                (Video.transcoding_status == "READY")
+                (Video.is_playable == True)
             ).order_by(VideoLike.created_at.desc())
 
             total_count = query.count()
@@ -93,7 +93,7 @@ class MobileVideoRepository:
             return Video.get_or_none(
                 (Video.id == video_id) &
                 (Video.status == "published") &
-                (Video.transcoding_status == "READY")
+                (Video.is_playable == True)
             )
         except PeeweeException as e:
             logger.error(f"Error fetching public video {video_id}: {str(e)}")
@@ -202,7 +202,7 @@ class MobileVideoRepository:
             ).where(
                 (VideoSave.subscriber == subscriber_id) &
                 (Video.status == "published") &
-                (Video.transcoding_status == "READY")
+                (Video.is_playable == True)
             ).order_by(VideoSave.created_at.desc())
 
             total_count = query.count()
@@ -315,7 +315,7 @@ class MobileVideoRepository:
                 (WatchHistory.completed == False) &
                 (WatchHistory.last_position_seconds >= 10) &
                 (Video.status == "published") &
-                (Video.transcoding_status == "READY")
+                (Video.is_playable == True)
             ).order_by(WatchHistory.last_watched_at.desc())
 
             total_count = query.count()
@@ -345,7 +345,7 @@ class MobileVideoRepository:
             query = WatchHistory.select(WatchHistory, Video).join(Video).where(
                 (WatchHistory.subscriber == subscriber_id) &
                 (Video.status == "published") &
-                (Video.transcoding_status == "READY")
+                (Video.is_playable == True)
             ).order_by(WatchHistory.last_watched_at.desc())
 
             total_count = query.count()
