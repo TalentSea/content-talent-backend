@@ -100,7 +100,7 @@ class PlaylistRepository:
 
         # Batch count videos for all returned playlists in a single SQL query
         pl_ids = [p.id for p in playlists]
-        counts_query = (PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.id).alias("v_count"))
+        counts_query = (PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.video).alias("v_count"))
                         .where(PlaylistVideo.playlist.in_(pl_ids))
                         .group_by(PlaylistVideo.playlist))
         counts_map = {row.playlist_id: row.v_count for row in counts_query}

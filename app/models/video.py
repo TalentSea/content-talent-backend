@@ -3,6 +3,7 @@ from peewee import CharField, TextField, IntegerField, BooleanField, DateTimeFie
 from playhouse.sqlite_ext import JSONField
 
 from app.models.base import BaseModel
+from app.models.admin import Admin
 from app.models.subscriber import Subscriber
 
 class Video(BaseModel):

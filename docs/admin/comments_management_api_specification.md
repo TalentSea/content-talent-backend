@@ -145,6 +145,8 @@ Authorization: Bearer <creator_access_token>
       "user_id": 101,
       "user_name": "Alex Tech",
       "user_avatar": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+      "likes": 12,
+      "is_liked": true,
       "created_at": "2024-06-18T15:00:00Z"
     },
     {
@@ -154,6 +156,8 @@ Authorization: Bearer <creator_access_token>
       "user_id": 4512,
       "user_name": "Sarah Connor",
       "user_avatar": "https://talentsea77999.b-cdn.net/avatars/user_4512.jpg",
+      "likes": 3,
+      "is_liked": false,
       "created_at": "2024-06-18T15:30:00Z"
     }
   ]

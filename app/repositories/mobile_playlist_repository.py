@@ -45,7 +45,7 @@ class MobilePlaylistRepository:
             # Batch count only published & ready videos for each playlist
             pl_ids = [p.id for p in playlists]
             counts_query = (
-                PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.id).alias("v_count"))
+                PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.video).alias("v_count"))
                 .join(Video, on=(PlaylistVideo.video == Video.id))
                 .where(
                     (PlaylistVideo.playlist.in_(pl_ids)) &
