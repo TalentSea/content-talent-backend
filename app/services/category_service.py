@@ -61,7 +61,7 @@ class CategoryService:
         pairs = self.repo.list_categories(user_id, simple=simple)
         if simple:
             data = [CategoryOptionResponse(id=cat.id, name=cat.name, slug=cat.slug) for cat, _ in pairs]
-            return {"data": data}
+            return CategoryOptionListResponse(data=data)
 
         data = [self._to_category_response(cat, count) for cat, count in pairs]
         return CategoryListResponse(data=data)

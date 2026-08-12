@@ -17,7 +17,7 @@ category_service = CategoryService()
 
 @router.get(
     "",
-    response_model=Union[CategoryListResponse, CategoryOptionListResponse],
+    response_model=Union[CategoryOptionListResponse, CategoryListResponse],
     status_code=status.HTTP_200_OK,
     summary="List All Creator Categories",
     description="Retrieves all content categories. Pass simple=true for lightweight UI dropdown options."
