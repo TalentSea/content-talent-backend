@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, List, Tuple
-from peewee import PeeweeException, fn
+from peewee import PeeweeException, fn, IntegrityError
+from app.database import db_proxy
 
 from app.models.comment import Comment, CommentLike
 from app.models.video import Video
@@ -162,24 +163,32 @@ class CommentRepository:
     def toggle_like(self, comment: Comment, user_id: int) -> Tuple[bool, int]:
         """
         Toggles like state in comment_likes table for user_id and updates comment.likes.
+        Protected against concurrent double-click race conditions using db.atomic() and IntegrityError.
         """
         try:
-            existing_like = CommentLike.get_or_none(
-                (CommentLike.comment == comment.id) & (CommentLike.user == user_id)
-            )
+            with db_proxy.atomic():
+                existing_like = CommentLike.get_or_none(
+                    (CommentLike.comment == comment.id) & (CommentLike.user == user_id)
+                )
 
-            if existing_like:
-                existing_like.delete_instance()
-                is_liked = False
-            else:
-                CommentLike.create(comment=comment.id, user=user_id)
-                is_liked = True
+                if existing_like:
+                    existing_like.delete_instance()
+                    is_liked = False
+                else:
+                    try:
+                        CommentLike.create(comment=comment.id, user=user_id)
+                        is_liked = True
+                    except IntegrityError:
+                        CommentLike.delete().where(
+                            (CommentLike.comment == comment.id) & (CommentLike.user == user_id)
+                        ).execute()
+                        is_liked = False
 
-            total_likes = CommentLike.select().where(CommentLike.comment == comment.id).count()
-            comment.likes = total_likes
-            comment.save()
+                total_likes = CommentLike.select().where(CommentLike.comment == comment.id).count()
+                comment.likes = total_likes
+                comment.save()
 
-            return is_liked, total_likes
+                return is_liked, total_likes
 
         except PeeweeException as e:
             logger.error(f"Error toggling like for user {user_id} on comment {comment.id}: {str(e)}")

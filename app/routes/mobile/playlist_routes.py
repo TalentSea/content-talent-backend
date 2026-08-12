@@ -41,7 +41,7 @@ def get_playlist_details(
     GET /api/v1/mobile/playlists/{playlist_id} — Retrieves playlist header details & paginated video items matching spec API 2.
     Populates personalized watch progress, like states, and saves overlay for authenticated subscribers.
     """
-    subscriber_id = current_subscriber["subscriber_id"] if current_subscriber else None
+    subscriber_id = current_subscriber.get("user_id") if current_subscriber else None
     return playlist_service.get_playlist_details(
         playlist_id=playlist_id,
         subscriber_id=subscriber_id,
