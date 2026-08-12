@@ -389,6 +389,18 @@ Authorization: Bearer <creator_access_token>
       "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en-auto.vtt"
     }
   ],
+  "download_urls": [
+    {
+      "resolution": "1080p",
+      "label": "1080p HD",
+      "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/play_1080p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
+    },
+    {
+      "resolution": "720p",
+      "label": "720p HD",
+      "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/play_720p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
+    }
+  ],
   "published_at": "2024-06-01T00:00:00Z",
   "scheduled_at": null,
   "created_at": "2024-05-20T00:00:00Z"
