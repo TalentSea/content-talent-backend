@@ -59,7 +59,7 @@ class CommentService:
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video {video_id} not found")
 
-        creator_user = self.profile_repo.get_profile_by_user_id(creator_id)
+        creator_user = self.profile_repo.get_profile_by_admin_id(creator_id)
         if not creator_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator account not found")
 
@@ -195,7 +195,7 @@ class CommentService:
         if not comment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Comment {comment_id} not found")
 
-        creator_user = self.profile_repo.get_profile_by_user_id(creator_id)
+        creator_user = self.profile_repo.get_profile_by_admin_id(creator_id)
         if not creator_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator account not found")
 

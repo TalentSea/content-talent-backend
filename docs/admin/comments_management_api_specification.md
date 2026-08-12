@@ -113,7 +113,7 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 2. `POST /api/v1/admin/videos/{video_id}/comments` — Post Creator Top-Level Comment
+### 2. `POST /api/v1/admin/comments/videos/{video_id}/comments` — Post Creator Top-Level Comment
 
 Posts an official top-level comment by the creator under a specific video (e.g. pinned announcement, welcome message, or discussion prompt).
 
