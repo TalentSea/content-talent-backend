@@ -9,6 +9,7 @@ from app.schemas.category_schemas import (
     CategoryReorderRequest,
     CategoryResponse,
     CategoryOptionResponse,
+    CategoryOptionListResponse,
     MobileCategoryResponse,
     CategoryListResponse
 )
