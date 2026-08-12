@@ -42,6 +42,21 @@ def list_creator_comments(
         limit=limit
     )
 
+@router.post("/videos/{video_id}/comments", response_model=CommentItemResponse, status_code=status.HTTP_201_CREATED)
+def post_creator_top_level_comment(
+    video_id: int,
+    payload: CommentReplyCreateRequest,
+    current_user: dict = Depends(get_current_admin)
+):
+    """
+    POST /api/v1/admin/videos/{video_id}/comments — Posts an official creator top-level comment matching spec API 2.
+    """
+    return comment_service.create_top_level_comment(
+        creator_id=current_user["user_id"],
+        video_id=video_id,
+        payload=payload
+    )
+
 @router.get("/{comment_id}/replies", response_model=PaginatedResponse[CommentReplyResponse], status_code=status.HTTP_200_OK)
 def get_comment_replies(
     comment_id: int,

@@ -113,7 +113,49 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 2. `GET /api/v1/admin/comments/{id}/replies` — Fetch Thread Replies (Paginated)
+### 2. `POST /api/v1/admin/videos/{video_id}/comments` — Post Creator Top-Level Comment
+
+Posts an official top-level comment by the creator under a specific video (e.g. pinned announcement, welcome message, or discussion prompt).
+
+#### Request Headers
+```http
+Authorization: Bearer <creator_access_token>
+Content-Type: application/json
+```
+
+#### Path Parameters
+- `video_id` (integer, required): ID of the video to post a comment under.
+
+#### Request Body
+```json
+{
+  "text": "Welcome everyone! Feel free to ask any questions about the FastAPI tutorial below."
+}
+```
+
+#### Response Specification (`201 Created`)
+```json
+{
+  "id": 9500,
+  "text": "Welcome everyone! Feel free to ask any questions about the FastAPI tutorial below.",
+  "author": {
+    "id": 101,
+    "name": "Alex Tech",
+    "avatar_url": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+    "is_creator": true
+  },
+  "video_id": 102,
+  "video_title": "FastAPI Masterclass - Part 3",
+  "likes": 0,
+  "is_liked": false,
+  "reply_count": 0,
+  "created_at": "2024-08-12T10:30:00Z"
+}
+```
+
+---
+
+### 3. `GET /api/v1/admin/comments/{id}/replies` — Fetch Thread Replies (Paginated)
 
 Retrieves a paginated list of child replies nested under a specific top-level comment when the creator clicks "Show all replies".
 
@@ -175,7 +217,7 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 3. `POST /api/v1/admin/comments/{id}/reply` — Post Creator Reply
+### 4. `POST /api/v1/admin/comments/{id}/reply` — Post Creator Reply
 
 Posts an official creator reply to a specific user comment.
 
@@ -215,7 +257,7 @@ Content-Type: application/json
 
 ---
 
-### 4. `POST /api/v1/admin/comments/{id}/like` — Toggle Comment Like
+### 5. `POST /api/v1/admin/comments/{id}/like` — Toggle Comment Like
 
 Toggles authenticated user's like state in the `comment_likes` table, updating likes count and `is_liked` status.
 
@@ -251,7 +293,7 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 5. `DELETE /api/v1/admin/comments/{id}` — Delete Comment
+### 6. `DELETE /api/v1/admin/comments/{id}` — Delete Comment
 
 Deletes a comment permanently from a creator's video.
 

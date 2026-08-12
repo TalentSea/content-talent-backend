@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 
 from app.repositories.comment_repository import CommentRepository
 from app.repositories.profile_repository import ProfileRepository
+from app.repositories.video_repository import VideoRepository
 from app.schemas.comment_schemas import (
     CommentAuthorResponse,
     CommentItemResponse,
@@ -25,6 +26,7 @@ class CommentService:
     def __init__(self):
         self.comment_repo = CommentRepository()
         self.profile_repo = ProfileRepository()
+        self.video_repo = VideoRepository()
 
     def _build_author_response(self, c) -> CommentAuthorResponse:
         """Helper to construct canonical CommentAuthorResponse object."""
@@ -42,6 +44,45 @@ class CommentService:
             name=c.user_name,
             avatar_url=c.user_avatar,
             is_creator=True
+        )
+
+    def create_top_level_comment(
+        self,
+        creator_id: int,
+        video_id: int,
+        payload: CommentReplyCreateRequest
+    ) -> CommentItemResponse:
+        """
+        Posts an official creator top-level comment under a video matching spec doc API 2.
+        """
+        video = self.video_repo.get_video_by_id(video_id, creator_id)
+        if not video:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video {video_id} not found")
+
+        creator_user = self.profile_repo.get_profile_by_user_id(creator_id)
+        if not creator_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator account not found")
+
+        if not payload.text or not payload.text.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comment text cannot be empty")
+
+        comment = self.comment_repo.create_top_level_comment(video, creator_user, payload.text.strip())
+
+        return CommentItemResponse(
+            id=comment.id,
+            text=comment.text,
+            author=CommentAuthorResponse(
+                id=creator_user.id,
+                name=comment.user_name,
+                avatar_url=comment.user_avatar,
+                is_creator=True
+            ),
+            video_id=video.id,
+            video_title=video.title,
+            likes=0,
+            is_liked=False,
+            reply_count=0,
+            created_at=comment.created_at
         )
 
     def list_creator_comments(

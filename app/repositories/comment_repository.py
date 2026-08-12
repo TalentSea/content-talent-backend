@@ -129,6 +129,20 @@ class CommentRepository:
             logger.error(f"Error checking like state for comment {comment_id}: {str(e)}")
             return False
 
+    def create_top_level_comment(self, video: Video, creator_user: Admin, text: str) -> Comment:
+        """
+        Creates a creator top-level comment under a video.
+        """
+        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or creator_user.username
+        return Comment.create(
+            video=video,
+            user=None,
+            user_name=creator_name,
+            user_avatar=creator_user.avatar_url,
+            text=text,
+            parent=None
+        )
+
     def create_reply(self, parent_comment: Comment, creator_user: Admin, text: str) -> Comment:
         """
         Creates a creator reply nested under the root top-level parent comment.
