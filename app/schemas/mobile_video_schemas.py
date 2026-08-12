@@ -80,5 +80,12 @@ class MobileWatchProgressRequest(BaseModel):
     """
     progress_seconds: int = Field(..., ge=0, description="Current playback position in seconds")
 
+class WatchProgressResponse(BaseModel):
+    """
+    DTO representation for subscriber video watch position and completion percentage.
+    """
+    last_position_seconds: int = 0
+    completion_percentage: float = 0.0
+
 
 

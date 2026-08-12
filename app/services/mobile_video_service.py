@@ -20,6 +20,22 @@ from app.utils.bunny_signature import generate_signed_playback_url, generate_sig
 
 logger = logging.getLogger(__name__)
 
+def parse_duration_seconds(val: Optional[str]) -> int:
+    """Parses duration string (MM:SS, HH:MM:SS or raw int seconds) to integer seconds."""
+    if not val:
+        return 0
+    if isinstance(val, int):
+        return val
+    val_str = str(val).strip()
+    if val_str.isdigit():
+        return int(val_str)
+    parts = val_str.split(":")
+    if len(parts) == 2:
+        return int(parts[0]) * 60 + int(parts[1])
+    elif len(parts) == 3:
+        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    return 0
+
 class MobileVideoService:
     """
     Business logic service for Mobile Subscriber Video catalog, HLS presigned streaming, MP4 downloads, and Watch History.
@@ -37,8 +53,8 @@ class MobileVideoService:
         return MobileVideoListItemResponse(
             id=v.id,
             title=v.title,
-            thumbnail_url=v.thumbnail_url,
-            duration=int(v.duration or 0),
+            thumbnail_url=v.main_thumbnail_url,
+            duration=parse_duration_seconds(v.duration),
             views_count=v.views or 0,
             category=v.category,
             last_position_seconds=pos,
@@ -152,7 +168,8 @@ class MobileVideoService:
                 )
             )
 
-        tags_list = [t.strip() for t in (video.tags or "").split(",") if t.strip()]
+        tags_list = list(video.tags or []) if isinstance(video.tags, (list, tuple)) else [t.strip() for t in (video.tags or "").split(",") if t.strip()]
+        duration_secs = parse_duration_seconds(video.duration)
 
         # 4. Calculate engagement state & watch progress
         likes_count = self.repo.get_video_likes_count(video.id)
@@ -165,7 +182,7 @@ class MobileVideoService:
             is_liked = self.repo.is_video_liked_by_subscriber(video.id, subscriber_id)
             is_saved = self.repo.is_video_saved_by_subscriber(video.id, subscriber_id)
             last_pos, progress_pct = self.repo.get_subscriber_video_watch_progress(
-                video.id, subscriber_id, int(video.duration or 0)
+                video.id, subscriber_id, duration_secs
             )
 
         return MobileVideoDetailResponse(
@@ -174,14 +191,14 @@ class MobileVideoService:
             description=video.description,
             category=video.category,
             tags=tags_list,
-            duration=int(video.duration or 0),
+            duration=duration_secs,
             views_count=video.views or 0,
             likes_count=likes_count,
             is_liked=is_liked,
             is_saved=is_saved,
             last_position_seconds=last_pos,
             progress_percentage=progress_pct,
-            thumbnail_url=video.thumbnail_url,
+            thumbnail_url=video.main_thumbnail_url,
             hls_stream_url=hls_stream_url,
             download_urls=download_urls,
             captions=captions,
