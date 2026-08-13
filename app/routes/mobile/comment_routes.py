@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies import get_current_subscriber, get_optional_subscriber
+from app.dependencies import get_current_subscriber
 from app.schemas.mobile_comment_schemas import (
     MobileCommentItemResponse,
     MobileCommentCreateRequest,
@@ -20,19 +20,18 @@ def list_video_comments(
     sort: Optional[str] = Query("newest", description="Sort order: newest, oldest, most_liked"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_subscriber: Optional[dict] = Depends(get_optional_subscriber)
+    current_subscriber: dict = Depends(get_current_subscriber)
 ):
     """
     GET /api/v1/mobile/videos/{video_id}/comments — List top-level video comments matching spec API 1.
-    Accessible by guest users and authenticated subscribers.
+    Requires subscriber or guest Bearer token.
     """
-    subscriber_id = current_subscriber.get("user_id") if current_subscriber else None
     return comment_service.list_video_comments(
         video_id=video_id,
         sort=sort,
         page=page,
         limit=limit,
-        subscriber_id=subscriber_id
+        subscriber_id=current_subscriber["user_id"]
     )
 
 @router.post("/videos/{video_id}/comments", response_model=MobileCommentItemResponse, status_code=status.HTTP_201_CREATED)
@@ -58,19 +57,18 @@ def get_comment_replies(
     sort: Optional[str] = Query("oldest", description="Sort order: oldest, newest"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_subscriber: Optional[dict] = Depends(get_optional_subscriber)
+    current_subscriber: dict = Depends(get_current_subscriber)
 ):
     """
     GET /api/v1/mobile/comments/{id}/replies — Fetch thread child replies matching spec API 3.
-    Accessible by guest users and authenticated subscribers.
+    Requires subscriber or guest Bearer token.
     """
-    subscriber_id = current_subscriber.get("user_id") if current_subscriber else None
     return comment_service.get_comment_replies(
         comment_id=id,
         sort=sort,
         page=page,
         limit=limit,
-        subscriber_id=subscriber_id
+        subscriber_id=current_subscriber["user_id"]
     )
 
 @router.post("/comments/{id}/replies", response_model=MobileCommentReplyResponse, status_code=status.HTTP_201_CREATED)

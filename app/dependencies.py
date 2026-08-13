@@ -22,18 +22,30 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         admin = Admin.get_or_none(Admin.username == "default_creator")
         if not admin:
             admin = Admin.create(username="default_creator", email="creator@example.com", role="creator")
-        return {"user_id": admin.id, "username": admin.username, "email": admin.email, "role": getattr(admin, "role", "creator")}
+        return {
+            "user_id": admin.id,
+            "username": admin.username,
+            "email": admin.email,
+            "role": getattr(admin, "role", "creator")
+        }
 
     payload = decode_access_token(token)
     user_id = payload.get("user_id")
     token_role = payload.get("role", "subscriber")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials: User ID payload missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     if token_role in ("creator", "admin"):
         admin = Admin.get_or_none(Admin.id == user_id)
         if not admin:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authenticated creator record no longer exists",
+                detail="Authenticated creator account no longer exists",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return {
@@ -47,7 +59,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         if not sub:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authenticated subscriber record no longer exists",
+                detail="Authenticated subscriber account no longer exists",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return {

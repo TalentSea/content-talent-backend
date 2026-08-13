@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies import get_optional_subscriber
+from app.dependencies import get_current_subscriber
 from app.schemas.mobile_playlist_schemas import (
     MobilePlaylistListResponse,
     MobilePlaylistDetailsResponse
@@ -17,11 +17,11 @@ def list_public_playlists(
     sort: Optional[str] = Query("newest", description="Sort order: newest, oldest, title"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_subscriber: Optional[dict] = Depends(get_optional_subscriber)
+    current_subscriber: dict = Depends(get_current_subscriber)
 ):
     """
     GET /api/v1/mobile/playlists — Retrieves paginated public creator playlists feed matching spec API 1.
-    Accessible by both guest users and authenticated subscribers.
+    Requires subscriber/guest Bearer token.
     """
     return playlist_service.list_public_playlists(
         search=search,
@@ -35,16 +35,15 @@ def get_playlist_details(
     playlist_id: int,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_subscriber: Optional[dict] = Depends(get_optional_subscriber)
+    current_subscriber: dict = Depends(get_current_subscriber)
 ):
     """
     GET /api/v1/mobile/playlists/{playlist_id} — Retrieves playlist header details & paginated video items matching spec API 2.
     Populates personalized watch progress, like states, and saves overlay for authenticated subscribers.
     """
-    subscriber_id = current_subscriber.get("user_id") if current_subscriber else None
     return playlist_service.get_playlist_details(
         playlist_id=playlist_id,
-        subscriber_id=subscriber_id,
+        subscriber_id=current_subscriber["user_id"],
         page=page,
         limit=limit
     )

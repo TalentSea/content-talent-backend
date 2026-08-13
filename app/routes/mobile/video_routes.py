@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 
-from app.dependencies import get_current_user, get_current_subscriber, get_optional_subscriber
+from app.dependencies import get_current_user, get_current_subscriber
 from app.schemas.mobile_video_schemas import (
     MobileVideoListItemResponse,
     MobileVideoDetailResponse,
@@ -29,16 +29,15 @@ def list_public_videos(
     sort: Optional[str] = Query("newest", description="Sort order: newest, oldest, popular (weighted: views + 3*likes), most_liked"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    current_user: Optional[dict] = Depends(get_optional_subscriber)
+    current_subscriber: dict = Depends(get_current_subscriber)
 ):
-    subscriber_id = current_user.get("user_id") if current_user else None
     return mobile_video_service.list_public_videos(
         category=category,
         search=search,
         sort=sort,
         page=page,
         limit=limit,
-        subscriber_id=subscriber_id
+        subscriber_id=current_subscriber["user_id"]
     )
 
 

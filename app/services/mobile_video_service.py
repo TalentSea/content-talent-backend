@@ -129,8 +129,8 @@ class MobileVideoService:
             )
 
         settings = get_settings()
-        pull_zone_url = settings.BUNNY_STREAM_PULL_ZONE_URL
-        token_key = settings.BUNNY_STREAM_TOKEN_AUTH_KEY
+        pull_zone_url = settings.BUNNY_PULL_ZONE_URL
+        token_key = settings.BUNNY_STREAM_TOKEN_KEY
 
         # 1. Generate Presigned HLS Playback URL (playlist.m3u8?token=...&expires=...)
         hls_stream_url = None
@@ -261,7 +261,7 @@ class MobileVideoService:
             video_id=video_id,
             subscriber_id=subscriber_id,
             progress_seconds=progress_seconds,
-            duration_seconds=int(video.duration or 0)
+            duration_seconds=parse_duration_seconds(video.duration)
         )
 
     def list_subscriber_liked_videos(
