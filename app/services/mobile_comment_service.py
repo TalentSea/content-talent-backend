@@ -55,7 +55,7 @@ class MobileCommentService:
         """
         Retrieves paginated top-level comments for a video matching spec doc API 1.
         """
-        video = self.video_repo.get_video_by_id(video_id)
+        video = self.video_repo.get_public_video_by_id(video_id)
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video {video_id} not found")
 
@@ -104,7 +104,7 @@ class MobileCommentService:
         """
         Posts a new top-level comment under a video matching spec doc API 2.
         """
-        video = self.video_repo.get_video_by_id(video_id)
+        video = self.video_repo.get_public_video_by_id(video_id)
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video {video_id} not found")
 

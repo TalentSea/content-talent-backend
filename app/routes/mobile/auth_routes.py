@@ -36,7 +36,7 @@ def authenticate_google(
     payload: GoogleAuthRequest,
     optional_subscriber: Optional[dict] = Depends(get_optional_subscriber)
 ):
-    guest_id = optional_subscriber["user_id"] if optional_subscriber else None
+    guest_id = optional_subscriber.get("user_id") if optional_subscriber else None
     return auth_service.authenticate_google(payload, guest_subscriber_id=guest_id)
 
 @router.post(
@@ -50,7 +50,7 @@ def authenticate_facebook(
     payload: FacebookAuthRequest,
     optional_subscriber: Optional[dict] = Depends(get_optional_subscriber)
 ):
-    guest_id = optional_subscriber["user_id"] if optional_subscriber else None
+    guest_id = optional_subscriber.get("user_id") if optional_subscriber else None
     return auth_service.authenticate_facebook(payload, guest_subscriber_id=guest_id)
 
 

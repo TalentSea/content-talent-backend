@@ -49,7 +49,7 @@ class MobilePlaylistRepository:
                 .join(Video, on=(PlaylistVideo.video == Video.id))
                 .where(
                     (PlaylistVideo.playlist.in_(pl_ids)) &
-                    (Video.status == "published") &
+                    (fn.LOWER(Video.status).in_(["published", "ready"])) &
                     (Video.is_playable == True)
                 )
                 .group_by(PlaylistVideo.playlist)
@@ -88,7 +88,7 @@ class MobilePlaylistRepository:
                 .join(PlaylistVideo, on=(Video.id == PlaylistVideo.video))
                 .where(
                     (PlaylistVideo.playlist == playlist) &
-                    (Video.status == "published") &
+                    (fn.LOWER(Video.status).in_(["published", "ready"])) &
                     (Video.is_playable == True)
                 )
                 .order_by(PlaylistVideo.order.asc())

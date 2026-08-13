@@ -7,6 +7,23 @@ from app.models.video import Video, VideoLike, VideoSave, WatchHistory
 
 logger = logging.getLogger(__name__)
 
+def parse_duration_seconds(dur_str) -> int:
+    """Safely converts duration string ('02:58', '01:15:30', or 178) into integer seconds."""
+    if not dur_str:
+        return 0
+    if isinstance(dur_str, int):
+        return dur_str
+    try:
+        if ":" in str(dur_str):
+            parts = [int(p) for p in str(dur_str).split(":")]
+            if len(parts) == 3:
+                return parts[0] * 3600 + parts[1] * 60 + parts[2]
+            elif len(parts) == 2:
+                return parts[0] * 60 + parts[1]
+        return int(dur_str)
+    except Exception:
+        return 0
+
 class MobileVideoRepository:
     """
     Data access repository for Mobile Subscriber Video catalog & streaming playback.
@@ -27,7 +44,7 @@ class MobileVideoRepository:
         """
         try:
             query = Video.select().where(
-                (Video.status == "published") &
+                (fn.LOWER(Video.status).in_(["published", "ready"])) &
                 (Video.is_playable == True)
             )
 
@@ -74,7 +91,7 @@ class MobileVideoRepository:
                 VideoLike, on=(Video.id == VideoLike.video)
             ).where(
                 (VideoLike.subscriber == subscriber_id) &
-                (Video.status == "published") &
+                (fn.LOWER(Video.status).in_(["published", "ready"])) &
                 (Video.is_playable == True)
             ).order_by(VideoLike.created_at.desc())
 
@@ -92,7 +109,7 @@ class MobileVideoRepository:
         try:
             return Video.get_or_none(
                 (Video.id == video_id) &
-                (Video.status == "published") &
+                (fn.LOWER(Video.status).in_(["published", "ready"])) &
                 (Video.is_playable == True)
             )
         except PeeweeException as e:
@@ -201,7 +218,7 @@ class MobileVideoRepository:
                 VideoSave, on=(Video.id == VideoSave.video)
             ).where(
                 (VideoSave.subscriber == subscriber_id) &
-                (Video.status == "published") &
+                (fn.LOWER(Video.status).in_(["published", "ready"])) &
                 (Video.is_playable == True)
             ).order_by(VideoSave.created_at.desc())
 
@@ -294,7 +311,7 @@ class MobileVideoRepository:
         )
         progress_map = {}
         for r in records:
-            dur = int(r.video.duration or 0)
+            dur = parse_duration_seconds(r.video.duration)
             pos = r.last_position_seconds or 0
             pct = round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
             progress_map[r.video_id] = (pos, pct)
@@ -314,7 +331,7 @@ class MobileVideoRepository:
                 (WatchHistory.subscriber == subscriber_id) &
                 (WatchHistory.completed == False) &
                 (WatchHistory.last_position_seconds >= 10) &
-                (Video.status == "published") &
+                (fn.LOWER(Video.status).in_(["published", "ready"])) &
                 (Video.is_playable == True)
             ).order_by(WatchHistory.last_watched_at.desc())
 
@@ -324,7 +341,7 @@ class MobileVideoRepository:
             for wh in records:
                 v = wh.video
                 pos = wh.last_position_seconds or 0
-                dur = int(v.duration or 0)
+                dur = parse_duration_seconds(v.duration)
                 pct = round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
                 items.append((v, pos, pct))
             return items, total_count
@@ -344,7 +361,7 @@ class MobileVideoRepository:
         try:
             query = WatchHistory.select(WatchHistory, Video).join(Video).where(
                 (WatchHistory.subscriber == subscriber_id) &
-                (Video.status == "published") &
+                (fn.LOWER(Video.status).in_(["published", "ready"])) &
                 (Video.is_playable == True)
             ).order_by(WatchHistory.last_watched_at.desc())
 
@@ -354,7 +371,7 @@ class MobileVideoRepository:
             for wh in records:
                 v = wh.video
                 pos = wh.last_position_seconds or 0
-                dur = int(v.duration or 0)
+                dur = parse_duration_seconds(v.duration)
                 pct = round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
                 items.append((v, pos, pct))
             return items, total_count

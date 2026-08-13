@@ -50,7 +50,7 @@ class CategoryRepository:
                 count = Video.select().where(
                     (Video.user == user_id) &
                     (fn.LOWER(Video.category) == cat.slug) &
-                    (Video.status == "published") &
+                    (fn.LOWER(Video.status).in_(["published", "ready"])) &
                     (Video.is_playable == True)
                 ).count()
                 results.append((cat, count))
