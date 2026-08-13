@@ -67,6 +67,23 @@ class VideoSave(BaseModel):
             (("video", "subscriber"), True),
         )
 
+def parse_duration_seconds(dur_str) -> int:
+    """Safely converts duration string ('02:58', '01:15:30', or 178) into integer seconds."""
+    if not dur_str:
+        return 0
+    if isinstance(dur_str, int):
+        return dur_str
+    try:
+        if ":" in str(dur_str):
+            parts = [int(p) for p in str(dur_str).split(":")]
+            if len(parts) == 3:
+                return parts[0] * 3600 + parts[1] * 60 + parts[2]
+            elif len(parts) == 2:
+                return parts[0] * 60 + parts[1]
+        return int(dur_str)
+    except Exception:
+        return 0
+
 class WatchHistory(BaseModel):
     """
     Stores subscriber playback watch history & resume position for "Continue Watching" carousel.
@@ -77,6 +94,22 @@ class WatchHistory(BaseModel):
     completed = BooleanField(default=False)
     last_watched_at = DateTimeField(default=datetime.now)
     created_at = DateTimeField(default=datetime.now)
+
+    @property
+    def completion_percentage(self) -> float:
+        """
+        Dynamically calculates completion percentage against target video duration.
+        """
+        try:
+            if not self.video or not self.video.duration:
+                return 0.0
+            dur = parse_duration_seconds(self.video.duration)
+            if dur <= 0:
+                return 0.0
+            pos = self.last_position_seconds or 0
+            return round(min(100.0, (pos / float(dur)) * 100.0), 1)
+        except Exception:
+            return 0.0
 
     class Meta:
         table_name = "watch_history"

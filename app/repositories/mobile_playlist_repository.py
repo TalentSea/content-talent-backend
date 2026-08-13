@@ -117,13 +117,13 @@ class MobilePlaylistRepository:
                 )
                 saved_set = {row.video_id for row in saved_query}
 
-                watch_query = WatchHistory.select().where(
+                watch_query = WatchHistory.select(WatchHistory, Video).join(Video).where(
                     (WatchHistory.subscriber == subscriber_id) & (WatchHistory.video.in_(video_ids))
                 )
                 for w in watch_query:
                     watch_map[w.video_id] = {
                         "last_position_seconds": w.last_position_seconds,
-                        "completion_percentage": round(w.completion_percentage, 2) if w.completion_percentage is not None else 0.0
+                        "completion_percentage": w.completion_percentage
                     }
 
             # Batch likes count for returned videos
