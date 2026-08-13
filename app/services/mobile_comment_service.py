@@ -108,7 +108,7 @@ class MobileCommentService:
         if not video:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video {video_id} not found")
 
-        subscriber = self.auth_repo.get_subscriber_by_id(subscriber_id)
+        subscriber = self.auth_repo.get_user_by_id(subscriber_id)
         if not subscriber:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscriber account not found")
 
@@ -196,7 +196,7 @@ class MobileCommentService:
         if not parent_comment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Comment {comment_id} not found")
 
-        subscriber = self.auth_repo.get_subscriber_by_id(subscriber_id)
+        subscriber = self.auth_repo.get_user_by_id(subscriber_id)
         if not subscriber:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscriber account not found")
 
