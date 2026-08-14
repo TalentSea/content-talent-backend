@@ -1,8 +1,10 @@
 from peewee import DatabaseProxy, SqliteDatabase
+
 from app.config import get_settings
 
 # Global database proxy for Peewee ORM
 db_proxy = DatabaseProxy()
+
 
 def init_db():
     """
@@ -11,27 +13,39 @@ def init_db():
     settings = get_settings()
     db = SqliteDatabase(
         settings.SQLITE_DB_PATH,
-        pragmas={
-            'foreign_keys': 1,
-            'journal_mode': 'wal',
-            'synchronous': 'normal'
-        }
+        pragmas={"foreign_keys": 1, "journal_mode": "wal", "synchronous": "normal"},
     )
     db_proxy.initialize(db)
 
     # Import models here to prevent circular dependency
     from app.models.admin import Admin
-    from app.models.subscriber import Subscriber
-    from app.models.refresh_token import RefreshToken
-    from app.models.video import Video, VideoLike, VideoSave, WatchHistory
-    from app.models.playlist import Playlist, PlaylistVideo
-    from app.models.comment import Comment, CommentLike
     from app.models.category import Category
+    from app.models.comment import Comment, CommentLike
+    from app.models.playlist import Playlist, PlaylistVideo
+    from app.models.refresh_token import RefreshToken
+    from app.models.subscriber import Subscriber
+    from app.models.video import Video, VideoLike, VideoSave, WatchHistory
 
     if db_proxy.is_closed():
         db_proxy.connect()
 
-    db_proxy.create_tables([Admin, Subscriber, RefreshToken, Video, VideoLike, VideoSave, WatchHistory, Playlist, PlaylistVideo, Comment, CommentLike, Category], safe=True)
+    db_proxy.create_tables(
+        [
+            Admin,
+            Subscriber,
+            RefreshToken,
+            Video,
+            VideoLike,
+            VideoSave,
+            WatchHistory,
+            Playlist,
+            PlaylistVideo,
+            Comment,
+            CommentLike,
+            Category,
+        ],
+        safe=True,
+    )
 
     # Ensure at least one default test creator exists in admins table for development/auth testing
     if Admin.select().count() == 0:
@@ -47,7 +61,7 @@ def init_db():
             twitter_url="https://twitter.com/username",
             youtube_url="https://youtube.com/@username",
             instagram_url="https://instagram.com/username",
-            role="creator"
+            role="creator",
         )
 
     if not db_proxy.is_closed():

@@ -1,8 +1,10 @@
-from typing import List, Tuple, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+
 from peewee import fn
+
 from app.models.playlist import Playlist, PlaylistVideo
 from app.models.video import Video
+
 
 class PlaylistRepository:
     """
@@ -18,16 +20,22 @@ class PlaylistRepository:
         playlist = Playlist.create(user=user_id, **data)
 
         for order, vid_id in enumerate(video_ids):
-            if Video.select().where((Video.id == vid_id) & (Video.user == user_id)).exists():
+            if (
+                Video.select()
+                .where((Video.id == vid_id) & (Video.user == user_id))
+                .exists()
+            ):
                 PlaylistVideo.create(playlist=playlist, video=vid_id, order=order)
 
         return playlist
 
-    def get_playlist_by_id(self, playlist_id: int, user_id: int) -> Optional[Playlist]:
+    def get_playlist_by_id(self, playlist_id: int, user_id: int) -> Playlist | None:
         """
         Retrieves a playlist by primary key ID ensuring ownership authorization check.
         """
-        return Playlist.get_or_none((Playlist.id == playlist_id) & (Playlist.user == user_id))
+        return Playlist.get_or_none(
+            (Playlist.id == playlist_id) & (Playlist.user == user_id)
+        )
 
     def get_playlist_video_count(self, playlist: Playlist) -> int:
         """
@@ -39,10 +47,10 @@ class PlaylistRepository:
         self,
         playlist_id: int,
         user_id: int,
-        search: Optional[str] = None,
+        search: str | None = None,
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[Optional[Playlist], List[Tuple[Video, int, datetime]], int]:
+        limit: int = 20,
+    ) -> tuple[Playlist | None, list[tuple[Video, int, datetime]], int]:
         """
         Retrieves attached videos for a playlist with order and added_at metadata, supporting title search and pagination.
         """
@@ -50,22 +58,26 @@ class PlaylistRepository:
         if not playlist:
             return None, [], 0
 
-        query = (Video.select(Video, PlaylistVideo.order, PlaylistVideo.added_at)
-                 .join(PlaylistVideo)
-                 .where(PlaylistVideo.playlist == playlist))
+        query = (
+            Video.select(Video, PlaylistVideo.order, PlaylistVideo.added_at)
+            .join(PlaylistVideo)
+            .where(PlaylistVideo.playlist == playlist)
+        )
 
         if search:
             query = query.where(Video.title.contains(search))
 
         query = query.order_by(PlaylistVideo.order.asc())
         total = query.count()
-        
+
         # Paginate results
         paginated_query = query.paginate(page, limit)
         results = []
         for v in paginated_query:
-            order_val = getattr(v.playlistvideo, 'order', 0)
-            added_at_val = getattr(v.playlistvideo, 'added_at', datetime.now())
+            order_val = getattr(v.playlistvideo, "order", 0)
+            added_at_val = getattr(
+                v.playlistvideo, "added_at", datetime.now(timezone.utc)
+            )
             results.append((v, order_val, added_at_val))
 
         return playlist, results, total
@@ -73,11 +85,11 @@ class PlaylistRepository:
     def get_all_playlists_by_user(
         self,
         user_id: int,
-        search: Optional[str] = None,
-        sort: Optional[str] = "newest",
+        search: str | None = None,
+        sort: str | None = "newest",
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Tuple[Playlist, int]], int]:
+        limit: int = 20,
+    ) -> tuple[list[tuple[Playlist, int]], int]:
         """
         Fetches a paginated, filtered, and sorted list of creator playlists along with total count.
         """
@@ -100,15 +112,21 @@ class PlaylistRepository:
 
         # Batch count videos for all returned playlists in a single SQL query
         pl_ids = [p.id for p in playlists]
-        counts_query = (PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.video).alias("v_count"))
-                        .where(PlaylistVideo.playlist.in_(pl_ids))
-                        .group_by(PlaylistVideo.playlist))
+        counts_query = (
+            PlaylistVideo.select(
+                PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.video).alias("v_count")
+            )
+            .where(PlaylistVideo.playlist.in_(pl_ids))
+            .group_by(PlaylistVideo.playlist)
+        )
         counts_map = {row.playlist_id: row.v_count for row in counts_query}
 
         results = [(p, counts_map.get(p.id, 0)) for p in playlists]
         return results, total
 
-    def update_playlist(self, playlist_id: int, user_id: int, update_data: dict) -> Optional[Playlist]:
+    def update_playlist(
+        self, playlist_id: int, user_id: int, update_data: dict
+    ) -> Playlist | None:
         """
         Updates playlist textual metadata (name, description) and records updated_at timestamp.
         """
@@ -119,11 +137,13 @@ class PlaylistRepository:
         for k, v in update_data.items():
             if v is not None:
                 setattr(playlist, k, v)
-        playlist.updated_at = datetime.now()
+        playlist.updated_at = datetime.now(timezone.utc)
         playlist.save()
         return playlist
 
-    def add_videos_to_playlist(self, playlist_id: int, user_id: int, video_ids: List[int]) -> Optional[Playlist]:
+    def add_videos_to_playlist(
+        self, playlist_id: int, user_id: int, video_ids: list[int]
+    ) -> Playlist | None:
         """
         Adds an array of video IDs to the specified playlist if owned by creator.
         """
@@ -131,23 +151,39 @@ class PlaylistRepository:
         if not playlist:
             return None
 
-        max_order = (PlaylistVideo.select(fn.MAX(PlaylistVideo.order))
-                     .where(PlaylistVideo.playlist == playlist)
-                     .scalar() or 0)
+        max_order = (
+            PlaylistVideo.select(fn.MAX(PlaylistVideo.order))
+            .where(PlaylistVideo.playlist == playlist)
+            .scalar()
+            or 0
+        )
 
         curr_order = max_order + 1 if max_order > 0 else 0
         for vid_id in video_ids:
-            exists = Video.select().where((Video.id == vid_id) & (Video.user == user_id)).exists()
-            link_exists = PlaylistVideo.select().where((PlaylistVideo.playlist == playlist) & (PlaylistVideo.video == vid_id)).exists()
+            exists = (
+                Video.select()
+                .where((Video.id == vid_id) & (Video.user == user_id))
+                .exists()
+            )
+            link_exists = (
+                PlaylistVideo.select()
+                .where(
+                    (PlaylistVideo.playlist == playlist)
+                    & (PlaylistVideo.video == vid_id)
+                )
+                .exists()
+            )
             if exists and not link_exists:
                 PlaylistVideo.create(playlist=playlist, video=vid_id, order=curr_order)
                 curr_order += 1
 
-        playlist.updated_at = datetime.now()
+        playlist.updated_at = datetime.now(timezone.utc)
         playlist.save()
         return playlist
 
-    def remove_video_from_playlist(self, playlist_id: int, user_id: int, video_id: int) -> bool:
+    def remove_video_from_playlist(
+        self, playlist_id: int, user_id: int, video_id: int
+    ) -> bool:
         """
         Removes a single video link from a playlist.
         """
@@ -155,14 +191,22 @@ class PlaylistRepository:
         if not playlist:
             return False
 
-        deleted = PlaylistVideo.delete().where((PlaylistVideo.playlist == playlist) & (PlaylistVideo.video == video_id)).execute()
+        deleted = (
+            PlaylistVideo.delete()
+            .where(
+                (PlaylistVideo.playlist == playlist) & (PlaylistVideo.video == video_id)
+            )
+            .execute()
+        )
         if deleted > 0:
-            playlist.updated_at = datetime.now()
+            playlist.updated_at = datetime.now(timezone.utc)
             playlist.save()
             return True
         return False
 
-    def bulk_remove_videos_from_playlist(self, playlist_id: int, user_id: int, video_ids: List[int]) -> bool:
+    def bulk_remove_videos_from_playlist(
+        self, playlist_id: int, user_id: int, video_ids: list[int]
+    ) -> bool:
         """
         Bulk removes an array of video IDs from a playlist.
         """
@@ -170,14 +214,23 @@ class PlaylistRepository:
         if not playlist:
             return False
 
-        deleted = PlaylistVideo.delete().where((PlaylistVideo.playlist == playlist) & (PlaylistVideo.video.in_(video_ids))).execute()
+        deleted = (
+            PlaylistVideo.delete()
+            .where(
+                (PlaylistVideo.playlist == playlist)
+                & (PlaylistVideo.video.in_(video_ids))
+            )
+            .execute()
+        )
         if deleted > 0:
-            playlist.updated_at = datetime.now()
+            playlist.updated_at = datetime.now(timezone.utc)
             playlist.save()
             return True
         return False
 
-    def reorder_playlist_videos(self, playlist_id: int, user_id: int, video_orders: List[dict]) -> bool:
+    def reorder_playlist_videos(
+        self, playlist_id: int, user_id: int, video_orders: list[dict]
+    ) -> bool:
         """
         Persists updated sequence positions (order) of videos inside a playlist.
         """
@@ -189,9 +242,12 @@ class PlaylistRepository:
             vid_id = vo.get("video_id")
             order_val = vo.get("order")
             if vid_id is not None and order_val is not None:
-                PlaylistVideo.update(order=order_val).where((PlaylistVideo.playlist == playlist) & (PlaylistVideo.video == vid_id)).execute()
+                PlaylistVideo.update(order=order_val).where(
+                    (PlaylistVideo.playlist == playlist)
+                    & (PlaylistVideo.video == vid_id)
+                ).execute()
 
-        playlist.updated_at = datetime.now()
+        playlist.updated_at = datetime.now(timezone.utc)
         playlist.save()
         return True
 
@@ -209,17 +265,21 @@ class PlaylistRepository:
         self,
         playlist_id: int,
         user_id: int,
-        search: Optional[str] = None,
-        category: Optional[str] = None,
-        sort: Optional[str] = "newest",
+        search: str | None = None,
+        category: str | None = None,
+        sort: str | None = "newest",
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Video], int]:
+        limit: int = 20,
+    ) -> tuple[list[Video], int]:
         """
         Executes query returning paginated, filtered, and sorted list of creator videos NOT attached to the specified playlist.
         """
-        attached_subquery = PlaylistVideo.select(PlaylistVideo.video_id).where(PlaylistVideo.playlist_id == playlist_id)
-        query = Video.select().where((Video.user == user_id) & (Video.id.not_in(attached_subquery)))
+        attached_subquery = PlaylistVideo.select(PlaylistVideo.video_id).where(
+            PlaylistVideo.playlist_id == playlist_id
+        )
+        query = Video.select().where(
+            (Video.user == user_id) & (Video.id.not_in(attached_subquery))
+        )
 
         if search:
             query = query.where(Video.title.contains(search))

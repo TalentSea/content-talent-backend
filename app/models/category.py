@@ -1,13 +1,16 @@
 from datetime import datetime
-from peewee import CharField, TextField, IntegerField, DateTimeField, ForeignKeyField
 
-from app.models.base import BaseModel
+from peewee import CharField, DateTimeField, ForeignKeyField, IntegerField, TextField
+
 from app.models.admin import Admin
+from app.models.base import BaseModel
+
 
 class Category(BaseModel):
     """
     Stores category metadata for creator content categorization.
     """
+
     user = ForeignKeyField(
         model=Admin,
         field=Admin.id,
@@ -26,6 +29,4 @@ class Category(BaseModel):
 
     class Meta:
         table_name = "categories"
-        indexes = (
-            (("user", "name"), True),
-        )
+        indexes = ((("user", "name"), True),)

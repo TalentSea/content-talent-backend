@@ -1,14 +1,14 @@
 import logging
-from typing import Optional, List, Tuple
-from peewee import PeeweeException, fn, IntegrityError
-from app.database import db_proxy
 
+from peewee import IntegrityError, PeeweeException, fn
+
+from app.database import db_proxy
+from app.models.admin import Admin
 from app.models.comment import Comment, CommentLike
 from app.models.video import Video
-from app.models.subscriber import Subscriber
-from app.models.admin import Admin
 
 logger = logging.getLogger(__name__)
+
 
 class CommentRepository:
     """
@@ -18,24 +18,25 @@ class CommentRepository:
     def get_all_comments_by_creator(
         self,
         creator_id: int,
-        search: Optional[str] = None,
-        video_id: Optional[int] = None,
-        category: Optional[str] = None,
-        date: Optional[str] = None,
-        min_likes: Optional[int] = None,
-        sort: Optional[str] = "newest",
+        search: str | None = None,
+        video_id: int | None = None,
+        category: str | None = None,
+        date: str | None = None,
+        min_likes: int | None = None,
+        sort: str | None = "newest",
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Comment], int]:
+        limit: int = 20,
+    ) -> tuple[list[Comment], int]:
         """
         Retrieves top-level comments for creator's videos with pagination and filtering.
         """
         try:
-            query = (Comment
-                     .select(Comment, Video)
-                     .join(Video)
-                     .where(Video.user == creator_id)
-                     .where(Comment.parent.is_null(True)))
+            query = (
+                Comment.select(Comment, Video)
+                .join(Video)
+                .where(Video.user == creator_id)
+                .where(Comment.parent.is_null(True))
+            )
 
             if video_id:
                 query = query.where(Comment.video == video_id)
@@ -66,21 +67,22 @@ class CommentRepository:
             return comments, total
 
         except PeeweeException as e:
-            logger.error(f"Error listing comments for creator {creator_id}: {str(e)}")
-            raise e
+            logger.error(f"Error listing comments for creator {creator_id}: {e!s}")
+            raise
 
-    def get_comment_by_id(self, comment_id: int, creator_id: int) -> Optional[Comment]:
+    def get_comment_by_id(self, comment_id: int, creator_id: int) -> Comment | None:
         """
         Fetches a comment by ID, ensuring it belongs to a video owned by creator_id.
         """
         try:
-            return (Comment
-                    .select(Comment, Video)
-                    .join(Video)
-                    .where(Comment.id == comment_id, Video.user == creator_id)
-                    .first())
+            return (
+                Comment.select(Comment, Video)
+                .join(Video)
+                .where(Comment.id == comment_id, Video.user == creator_id)
+                .first()
+            )
         except PeeweeException as e:
-            logger.error(f"Error fetching comment {comment_id}: {str(e)}")
+            logger.error(f"Error fetching comment {comment_id}: {e!s}")
             return None
 
     def get_reply_count_for_comment(self, comment_id: int) -> int:
@@ -90,16 +92,16 @@ class CommentRepository:
         try:
             return Comment.select().where(Comment.parent == comment_id).count()
         except PeeweeException as e:
-            logger.error(f"Error counting replies for comment {comment_id}: {str(e)}")
+            logger.error(f"Error counting replies for comment {comment_id}: {e!s}")
             return 0
 
     def get_replies_for_comment(
         self,
         comment_id: int,
-        sort: Optional[str] = "oldest",
+        sort: str | None = "oldest",
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Comment], int]:
+        limit: int = 20,
+    ) -> tuple[list[Comment], int]:
         """
         Fetches paginated child replies nested under a parent comment.
         """
@@ -115,7 +117,7 @@ class CommentRepository:
             replies = list(query.paginate(page, limit))
             return replies, total
         except PeeweeException as e:
-            logger.error(f"Error fetching replies for comment {comment_id}: {str(e)}")
+            logger.error(f"Error fetching replies for comment {comment_id}: {e!s}")
             return [], 0
 
     def is_comment_liked_by_user(self, comment_id: int, user_id: int) -> bool:
@@ -123,44 +125,58 @@ class CommentRepository:
         Checks if a specific user has a row in comment_likes table.
         """
         try:
-            return CommentLike.select().where(
-                (CommentLike.comment == comment_id) & (CommentLike.user == user_id)
-            ).exists()
+            return (
+                CommentLike.select()
+                .where(
+                    (CommentLike.comment == comment_id) & (CommentLike.user == user_id)
+                )
+                .exists()
+            )
         except PeeweeException as e:
-            logger.error(f"Error checking like state for comment {comment_id}: {str(e)}")
+            logger.error(f"Error checking like state for comment {comment_id}: {e!s}")
             return False
 
-    def create_top_level_comment(self, video: Video, creator_user: Admin, text: str) -> Comment:
+    def create_top_level_comment(
+        self, video: Video, creator_user: Admin, text: str
+    ) -> Comment:
         """
         Creates a creator top-level comment under a video.
         """
-        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or creator_user.username
+        creator_name = (
+            f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
+            or creator_user.username
+        )
         return Comment.create(
             video=video,
             user=None,
             user_name=creator_name,
             user_avatar=creator_user.avatar_url,
             text=text,
-            parent=None
+            parent=None,
         )
 
-    def create_reply(self, parent_comment: Comment, creator_user: Admin, text: str) -> Comment:
+    def create_reply(
+        self, parent_comment: Comment, creator_user: Admin, text: str
+    ) -> Comment:
         """
         Creates a creator reply nested under the root top-level parent comment.
         """
         root_parent = parent_comment.parent if parent_comment.parent else parent_comment
-        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or creator_user.username
+        creator_name = (
+            f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
+            or creator_user.username
+        )
         reply = Comment.create(
             video=root_parent.video,
             user=None,
             user_name=creator_name,
             user_avatar=creator_user.avatar_url,
             text=text,
-            parent=root_parent
+            parent=root_parent,
         )
         return reply
 
-    def toggle_like(self, comment: Comment, user_id: int) -> Tuple[bool, int]:
+    def toggle_like(self, comment: Comment, user_id: int) -> tuple[bool, int]:
         """
         Toggles like state in comment_likes table for user_id and updates comment.likes.
         Protected against concurrent double-click race conditions using db.atomic() and IntegrityError.
@@ -180,19 +196,26 @@ class CommentRepository:
                         is_liked = True
                     except IntegrityError:
                         CommentLike.delete().where(
-                            (CommentLike.comment == comment.id) & (CommentLike.user == user_id)
+                            (CommentLike.comment == comment.id)
+                            & (CommentLike.user == user_id)
                         ).execute()
                         is_liked = False
 
-                total_likes = CommentLike.select().where(CommentLike.comment == comment.id).count()
+                total_likes = (
+                    CommentLike.select()
+                    .where(CommentLike.comment == comment.id)
+                    .count()
+                )
                 comment.likes = total_likes
                 comment.save()
 
                 return is_liked, total_likes
 
         except PeeweeException as e:
-            logger.error(f"Error toggling like for user {user_id} on comment {comment.id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error toggling like for user {user_id} on comment {comment.id}: {e!s}"
+            )
+            raise
 
     def delete_comment(self, comment: Comment) -> bool:
         """

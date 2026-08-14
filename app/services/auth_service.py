@@ -1,22 +1,28 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
+
 from fastapi import HTTPException, status
+
 from app.config import get_settings
+from app.models.subscriber import Subscriber
 from app.repositories.auth_repository import AuthRepository
 from app.schemas.auth_schemas import (
-    GoogleAuthRequest,
+    AuthTokenResponse,
     FacebookAuthRequest,
+    GoogleAuthRequest,
     GuestAuthRequest,
     RefreshTokenRequest,
-    AuthTokenResponse,
-    UserProfileResponse
+    UserProfileResponse,
 )
 from app.schemas.common_schemas import ActionSuccessResponse
-from app.utils.social_verifiers import verify_google_id_token, verify_facebook_access_token
 from app.utils.auth import create_access_token
-from app.models.subscriber import Subscriber
+from app.utils.social_verifiers import (
+    verify_facebook_access_token,
+    verify_google_id_token,
+)
 
 logger = logging.getLogger("uvicorn.error")
+
 
 class AuthService:
     """
@@ -26,7 +32,9 @@ class AuthService:
     def __init__(self):
         self.repo = AuthRepository()
 
-    def _build_user_profile_response(self, subscriber: Subscriber) -> UserProfileResponse:
+    def _build_user_profile_response(
+        self, subscriber: Subscriber
+    ) -> UserProfileResponse:
         """
         Maps a Subscriber Peewee ORM instance to UserProfileResponse DTO.
         """
@@ -37,15 +45,15 @@ class AuthService:
             avatar_url=subscriber.avatar_url,
             provider=subscriber.provider or "google",
             role=subscriber.role or "subscriber",
-            created_at=subscriber.created_at
+            created_at=subscriber.created_at,
         )
 
     def _process_social_user_login(
         self,
         provider: str,
-        identity_data: Dict[str, Any],
-        device_info: Optional[str] = None,
-        guest_subscriber_id: Optional[int] = None
+        identity_data: dict[str, Any],
+        device_info: str | None = None,
+        guest_subscriber_id: int | None = None,
     ) -> AuthTokenResponse:
         """
         Common subscriber provisioning, account upgrade, and token issuance pipeline.
@@ -58,7 +66,7 @@ class AuthService:
         if not provider_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Social provider {provider} did not return a valid user identity ID"
+                detail=f"Social provider {provider} did not return a valid user identity ID",
             )
 
         # 1. If active guest_subscriber_id is provided, upgrade the existing Guest account in-place!
@@ -72,12 +80,14 @@ class AuthService:
                     provider_id=provider_id,
                     email=email,
                     name=name,
-                    avatar_url=avatar_url
+                    avatar_url=avatar_url,
                 )
 
         # 2. Otherwise find existing subscriber or create a new subscriber record
         if not subscriber:
-            subscriber = self.repo.find_user_by_provider_or_email(provider, provider_id, email)
+            subscriber = self.repo.find_user_by_provider_or_email(
+                provider, provider_id, email
+            )
             if not subscriber:
                 subscriber = self.repo.create_social_user(
                     provider=provider,
@@ -85,10 +95,12 @@ class AuthService:
                     email=email,
                     name=name,
                     avatar_url=avatar_url,
-                    role="subscriber"
+                    role="subscriber",
                 )
             else:
-                subscriber = self.repo.update_user_profile_info(subscriber, name, avatar_url)
+                subscriber = self.repo.update_user_profile_info(
+                    subscriber, name, avatar_url
+                )
 
         settings = get_settings()
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -100,12 +112,10 @@ class AuthService:
             user_id=subscriber.id,
             username=username_str,
             role=subscriber.role or "subscriber",
-            expires_delta_minutes=expire_minutes
+            expires_delta_minutes=expire_minutes,
         )
         refresh_token = self.repo.create_refresh_token_record(
-            subscriber=subscriber,
-            device_info=device_info,
-            expires_in_days=expire_days
+            subscriber=subscriber, device_info=device_info, expires_in_days=expire_days
         )
 
         user_profile = self._build_user_profile_response(subscriber)
@@ -115,7 +125,7 @@ class AuthService:
             refresh_token=refresh_token,
             token_type="bearer",
             expires_in=expire_minutes * 60,
-            user=user_profile
+            user=user_profile,
         )
 
     def authenticate_guest(self, payload: GuestAuthRequest) -> AuthTokenResponse:
@@ -132,12 +142,12 @@ class AuthService:
             user_id=subscriber.id,
             username=subscriber.name or f"guest_{subscriber.id}",
             role="guest",
-            expires_delta_minutes=expire_minutes
+            expires_delta_minutes=expire_minutes,
         )
         refresh_token = self.repo.create_refresh_token_record(
             subscriber=subscriber,
             device_info=payload.device_info,
-            expires_in_days=expire_days
+            expires_in_days=expire_days,
         )
 
         user_profile = self._build_user_profile_response(subscriber)
@@ -147,23 +157,36 @@ class AuthService:
             refresh_token=refresh_token,
             token_type="bearer",
             expires_in=expire_minutes * 60,
-            user=user_profile
+            user=user_profile,
         )
 
-    def authenticate_google(self, payload: GoogleAuthRequest, guest_subscriber_id: Optional[int] = None) -> AuthTokenResponse:
+    def authenticate_google(
+        self, payload: GoogleAuthRequest, guest_subscriber_id: int | None = None
+    ) -> AuthTokenResponse:
         """
         Handles dedicated Google OIDC Sign-In and optional Guest Account Upgrade.
         """
         identity_data = verify_google_id_token(payload.id_token)
-        return self._process_social_user_login("google", identity_data, payload.device_info, guest_subscriber_id=guest_subscriber_id)
+        return self._process_social_user_login(
+            "google",
+            identity_data,
+            payload.device_info,
+            guest_subscriber_id=guest_subscriber_id,
+        )
 
-    def authenticate_facebook(self, payload: FacebookAuthRequest, guest_subscriber_id: Optional[int] = None) -> AuthTokenResponse:
+    def authenticate_facebook(
+        self, payload: FacebookAuthRequest, guest_subscriber_id: int | None = None
+    ) -> AuthTokenResponse:
         """
         Handles dedicated Facebook OAuth Sign-In and optional Guest Account Upgrade.
         """
         identity_data = verify_facebook_access_token(payload.access_token)
-        return self._process_social_user_login("facebook", identity_data, payload.device_info, guest_subscriber_id=guest_subscriber_id)
-
+        return self._process_social_user_login(
+            "facebook",
+            identity_data,
+            payload.device_info,
+            guest_subscriber_id=guest_subscriber_id,
+        )
 
     def refresh_access_token(self, payload: RefreshTokenRequest) -> AuthTokenResponse:
         """
@@ -173,14 +196,14 @@ class AuthService:
         if not token_record:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token"
+                detail="Invalid or expired refresh token",
             )
 
         subscriber = token_record.user
         if not subscriber or not subscriber.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Subscriber account disabled or deleted"
+                detail="Subscriber account disabled or deleted",
             )
 
         # Revoke old refresh token (Token Rotation)
@@ -196,12 +219,12 @@ class AuthService:
             user_id=subscriber.id,
             username=username_str,
             role=subscriber.role or "subscriber",
-            expires_delta_minutes=expire_minutes
+            expires_delta_minutes=expire_minutes,
         )
         new_refresh_token = self.repo.create_refresh_token_record(
             subscriber=subscriber,
             device_info=token_record.device_info,
-            expires_in_days=expire_days
+            expires_in_days=expire_days,
         )
 
         user_profile = self._build_user_profile_response(subscriber)
@@ -211,7 +234,7 @@ class AuthService:
             refresh_token=new_refresh_token,
             token_type="bearer",
             expires_in=expire_minutes * 60,
-            user=user_profile
+            user=user_profile,
         )
 
     def logout_session(self, payload: RefreshTokenRequest) -> ActionSuccessResponse:
@@ -229,6 +252,6 @@ class AuthService:
         if not subscriber:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Subscriber account {user_id} not found"
+                detail=f"Subscriber account {user_id} not found",
             )
         return self._build_user_profile_response(subscriber)

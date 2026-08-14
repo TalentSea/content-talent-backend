@@ -1,18 +1,22 @@
 from datetime import datetime
-from peewee import CharField, DateTimeField, BooleanField, ForeignKeyField
+
+from peewee import BooleanField, CharField, DateTimeField, ForeignKeyField
+
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
+
 
 class RefreshToken(BaseModel):
     """
     Stores active hashed JWT refresh tokens for mobile subscriber session management, token rotation, and logout revocation.
     """
+
     user = ForeignKeyField(
         model=Subscriber,
         field=Subscriber.id,
         column_name="user_id",
         backref="refresh_tokens",
-        on_delete="CASCADE"
+        on_delete="CASCADE",
     )
     token_hash = CharField(unique=True, max_length=255, index=True)
     device_info = CharField(max_length=255, null=True)

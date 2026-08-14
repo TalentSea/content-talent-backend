@@ -1,5 +1,7 @@
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.database import db_proxy
+
 
 class PeeweeDBMiddleware(BaseHTTPMiddleware):
     """
@@ -7,6 +9,7 @@ class PeeweeDBMiddleware(BaseHTTPMiddleware):
     Opens a database connection before request processing starts
     and closes it cleanly after the response is returned.
     """
+
     async def dispatch(self, request, call_next):
         if db_proxy.is_closed():
             db_proxy.connect()

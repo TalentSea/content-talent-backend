@@ -1,28 +1,13 @@
 import logging
-from typing import Optional, List, Tuple, Dict
-from datetime import datetime
-from peewee import PeeweeException, fn, JOIN
+from datetime import datetime, timezone
+
+from peewee import PeeweeException, fn
 
 from app.models.video import Video, VideoLike, VideoSave, WatchHistory
+from app.utils.formatters import parse_duration_seconds
 
 logger = logging.getLogger(__name__)
 
-def parse_duration_seconds(dur_str) -> int:
-    """Safely converts duration string ('02:58', '01:15:30', or 178) into integer seconds."""
-    if not dur_str:
-        return 0
-    if isinstance(dur_str, int):
-        return dur_str
-    try:
-        if ":" in str(dur_str):
-            parts = [int(p) for p in str(dur_str).split(":")]
-            if len(parts) == 3:
-                return parts[0] * 3600 + parts[1] * 60 + parts[2]
-            elif len(parts) == 2:
-                return parts[0] * 60 + parts[1]
-        return int(dur_str)
-    except Exception:
-        return 0
 
 class MobileVideoRepository:
     """
@@ -32,20 +17,20 @@ class MobileVideoRepository:
 
     def list_public_videos(
         self,
-        category: Optional[str] = None,
-        search: Optional[str] = None,
+        category: str | None = None,
+        search: str | None = None,
         sort: str = "newest",
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Video], int]:
+        limit: int = 20,
+    ) -> tuple[list[Video], int]:
         """
         Retrieves paginated public videos filtered by published state and readiness.
         Supports Option 1 Popularity Score (views + 3*likes) and Option 2 (most_liked).
         """
         try:
             query = Video.select().where(
-                (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                (Video.is_playable == True)
+                (fn.LOWER(Video.status).in_(["published", "ready"]))
+                & (Video.is_playable == True)
             )
 
             if category:
@@ -53,7 +38,8 @@ class MobileVideoRepository:
 
             if search:
                 query = query.where(
-                    (Video.title.contains(search)) | (Video.description.contains(search))
+                    (Video.title.contains(search))
+                    | (Video.description.contains(search))
                 )
 
             total_count = query.count()
@@ -62,9 +48,20 @@ class MobileVideoRepository:
             if sort == "popular":
                 query = query.order_by(Video.popularity_score.desc(), Video.id.desc())
             elif sort == "most_liked":
-                query = query.select(Video, fn.COUNT(VideoLike.id).alias("likes_cnt")).join(
-                    VideoLike, on=(Video.id == VideoLike.video), join_type="LEFT OUTER"
-                ).group_by(Video.id).order_by(fn.COUNT(VideoLike.id).desc(), Video.views.desc(), Video.id.desc())
+                query = (
+                    query.select(Video, fn.COUNT(VideoLike.id).alias("likes_cnt"))
+                    .join(
+                        VideoLike,
+                        on=(Video.id == VideoLike.video),
+                        join_type="LEFT OUTER",
+                    )
+                    .group_by(Video.id)
+                    .order_by(
+                        fn.COUNT(VideoLike.id).desc(),
+                        Video.views.desc(),
+                        Video.id.desc(),
+                    )
+                )
             elif sort == "oldest":
                 query = query.order_by(Video.published_at.asc(), Video.id.asc())
             else:
@@ -74,49 +71,51 @@ class MobileVideoRepository:
             videos = list(query.paginate(page, limit))
             return videos, total_count
         except PeeweeException as e:
-            logger.error(f"Error querying public mobile videos: {str(e)}")
-            raise e
+            logger.error(f"Error querying public mobile videos: {e!s}")
+            raise
 
     def list_subscriber_liked_videos(
-        self,
-        subscriber_id: int,
-        page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Video], int]:
+        self, subscriber_id: int, page: int = 1, limit: int = 20
+    ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready videos liked by a specific subscriber ("My Liked Videos").
         """
         try:
-            query = Video.select().join(
-                VideoLike, on=(Video.id == VideoLike.video)
-            ).where(
-                (VideoLike.subscriber == subscriber_id) &
-                (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                (Video.is_playable == True)
-            ).order_by(VideoLike.created_at.desc())
+            query = (
+                Video.select()
+                .join(VideoLike, on=(Video.id == VideoLike.video))
+                .where(
+                    (VideoLike.subscriber == subscriber_id)
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
+                )
+                .order_by(VideoLike.created_at.desc())
+            )
 
             total_count = query.count()
             videos = list(query.paginate(page, limit))
             return videos, total_count
         except PeeweeException as e:
-            logger.error(f"Error querying subscriber liked videos for subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error querying subscriber liked videos for subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
-    def get_public_video_by_id(self, video_id: int) -> Optional[Video]:
+    def get_public_video_by_id(self, video_id: int) -> Video | None:
         """
         Fetches a single published & ready video by primary key ID.
         """
         try:
             return Video.get_or_none(
-                (Video.id == video_id) &
-                (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                (Video.is_playable == True)
+                (Video.id == video_id)
+                & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                & (Video.is_playable == True)
             )
         except PeeweeException as e:
-            logger.error(f"Error fetching public video {video_id}: {str(e)}")
-            raise e
+            logger.error(f"Error fetching public video {video_id}: {e!s}")
+            raise
 
-    def increment_view_count(self, video_id: int) -> Optional[int]:
+    def increment_view_count(self, video_id: int) -> int | None:
         """
         Atomically increments views for a published video and updates its stored popularity_score.
         """
@@ -140,20 +139,22 @@ class MobileVideoRepository:
         """
         Checks if a specific subscriber has liked a video asset.
         """
-        return VideoLike.select().where(
-            (VideoLike.video == video_id) &
-            (VideoLike.subscriber == subscriber_id)
-        ).exists()
+        return (
+            VideoLike.select()
+            .where(
+                (VideoLike.video == video_id) & (VideoLike.subscriber == subscriber_id)
+            )
+            .exists()
+        )
 
-    def toggle_video_like(self, video_id: int, subscriber_id: int) -> Tuple[bool, int]:
+    def toggle_video_like(self, video_id: int, subscriber_id: int) -> tuple[bool, int]:
         """
         Toggles subscriber like state for a video asset in DB and updates its stored popularity_score.
         Returns (is_liked: bool, total_likes_count: int).
         """
         try:
             existing_like = VideoLike.get_or_none(
-                (VideoLike.video == video_id) &
-                (VideoLike.subscriber == subscriber_id)
+                (VideoLike.video == video_id) & (VideoLike.subscriber == subscriber_id)
             )
 
             if existing_like:
@@ -171,17 +172,22 @@ class MobileVideoRepository:
 
             return is_liked, total_likes
         except PeeweeException as e:
-            logger.error(f"Error toggling video like for video {video_id}, subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error toggling video like for video {video_id}, subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
     def is_video_saved_by_subscriber(self, video_id: int, subscriber_id: int) -> bool:
         """
         Checks if a specific subscriber has saved/bookmarked a video asset.
         """
-        return VideoSave.select().where(
-            (VideoSave.video == video_id) &
-            (VideoSave.subscriber == subscriber_id)
-        ).exists()
+        return (
+            VideoSave.select()
+            .where(
+                (VideoSave.video == video_id) & (VideoSave.subscriber == subscriber_id)
+            )
+            .exists()
+        )
 
     def toggle_video_save(self, video_id: int, subscriber_id: int) -> bool:
         """
@@ -190,8 +196,7 @@ class MobileVideoRepository:
         """
         try:
             existing_save = VideoSave.get_or_none(
-                (VideoSave.video == video_id) &
-                (VideoSave.subscriber == subscriber_id)
+                (VideoSave.video == video_id) & (VideoSave.subscriber == subscriber_id)
             )
 
             if existing_save:
@@ -201,57 +206,63 @@ class MobileVideoRepository:
                 VideoSave.create(video=video_id, subscriber=subscriber_id)
                 return True
         except PeeweeException as e:
-            logger.error(f"Error toggling video save for video {video_id}, subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error toggling video save for video {video_id}, subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
     def list_subscriber_saved_videos(
-        self,
-        subscriber_id: int,
-        page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Video], int]:
+        self, subscriber_id: int, page: int = 1, limit: int = 20
+    ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready videos saved by a specific subscriber ("My Watchlist").
         """
         try:
-            query = Video.select().join(
-                VideoSave, on=(Video.id == VideoSave.video)
-            ).where(
-                (VideoSave.subscriber == subscriber_id) &
-                (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                (Video.is_playable == True)
-            ).order_by(VideoSave.created_at.desc())
+            query = (
+                Video.select()
+                .join(VideoSave, on=(Video.id == VideoSave.video))
+                .where(
+                    (VideoSave.subscriber == subscriber_id)
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
+                )
+                .order_by(VideoSave.created_at.desc())
+            )
 
             total_count = query.count()
             videos = list(query.paginate(page, limit))
             return videos, total_count
         except PeeweeException as e:
-            logger.error(f"Error querying subscriber saved videos for subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error querying subscriber saved videos for subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
     def upsert_watch_progress(
         self,
         video_id: int,
         subscriber_id: int,
         progress_seconds: int,
-        duration_seconds: int
-    ) -> Tuple[int, float]:
+        duration_seconds: int,
+    ) -> tuple[int, float]:
         """
         Upserts subscriber playback progress for a video and returns (last_position_seconds, progress_percentage).
         Automatically marks completed = True if progress_seconds >= 95% of duration.
         """
         try:
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             completed = False
             progress_pct = 0.0
             if duration_seconds > 0:
-                progress_pct = round(min(100.0, (progress_seconds / float(duration_seconds)) * 100.0), 1)
+                progress_pct = round(
+                    min(100.0, (progress_seconds / float(duration_seconds)) * 100.0), 1
+                )
                 if progress_pct >= 95.0:
                     completed = True
 
             history_record = WatchHistory.get_or_none(
-                (WatchHistory.video == video_id) &
-                (WatchHistory.subscriber == subscriber_id)
+                (WatchHistory.video == video_id)
+                & (WatchHistory.subscriber == subscriber_id)
             )
 
             if history_record:
@@ -265,26 +276,25 @@ class MobileVideoRepository:
                     subscriber=subscriber_id,
                     last_position_seconds=progress_seconds,
                     completed=completed,
-                    last_watched_at=now
+                    last_watched_at=now,
                 )
 
             return progress_seconds, progress_pct
         except PeeweeException as e:
-            logger.error(f"Error upserting watch progress for video {video_id}, subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error upserting watch progress for video {video_id}, subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
     def get_subscriber_video_watch_progress(
-        self,
-        video_id: int,
-        subscriber_id: int,
-        duration_seconds: int = 0
-    ) -> Tuple[int, float]:
+        self, video_id: int, subscriber_id: int, duration_seconds: int = 0
+    ) -> tuple[int, float]:
         """
         Retrieves watch progress tuple (last_position_seconds, progress_percentage) for a subscriber.
         """
         history_record = WatchHistory.get_or_none(
-            (WatchHistory.video == video_id) &
-            (WatchHistory.subscriber == subscriber_id)
+            (WatchHistory.video == video_id)
+            & (WatchHistory.subscriber == subscriber_id)
         )
         if not history_record:
             return 0, 0.0
@@ -296,18 +306,20 @@ class MobileVideoRepository:
         return pos, pct
 
     def get_subscriber_watch_progress_map(
-        self,
-        subscriber_id: int,
-        video_ids: List[int]
-    ) -> Dict[int, Tuple[int, float]]:
+        self, subscriber_id: int, video_ids: list[int]
+    ) -> dict[int, tuple[int, float]]:
         """
         Batch fetches watch progress map {video_id: (last_position_seconds, progress_percentage)} for video IDs.
         """
         if not video_ids:
             return {}
-        records = WatchHistory.select(WatchHistory, Video).join(Video).where(
-            (WatchHistory.subscriber == subscriber_id) &
-            (WatchHistory.video.in_(video_ids))
+        records = (
+            WatchHistory.select(WatchHistory, Video)
+            .join(Video)
+            .where(
+                (WatchHistory.subscriber == subscriber_id)
+                & (WatchHistory.video.in_(video_ids))
+            )
         )
         progress_map = {}
         for r in records:
@@ -318,22 +330,24 @@ class MobileVideoRepository:
         return progress_map
 
     def list_continue_watching_videos(
-        self,
-        subscriber_id: int,
-        page: int = 1,
-        limit: int = 10
-    ) -> Tuple[List[Tuple[Video, int, float]], int]:
+        self, subscriber_id: int, page: int = 1, limit: int = 10
+    ) -> tuple[list[tuple[Video, int, float]], int]:
         """
         Retrieves paginated unfinished videos for subscriber 'Continue Watching' carousel.
         """
         try:
-            query = WatchHistory.select(WatchHistory, Video).join(Video).where(
-                (WatchHistory.subscriber == subscriber_id) &
-                (WatchHistory.completed == False) &
-                (WatchHistory.last_position_seconds >= 10) &
-                (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                (Video.is_playable == True)
-            ).order_by(WatchHistory.last_watched_at.desc())
+            query = (
+                WatchHistory.select(WatchHistory, Video)
+                .join(Video)
+                .where(
+                    (WatchHistory.subscriber == subscriber_id)
+                    & (WatchHistory.completed == False)
+                    & (WatchHistory.last_position_seconds >= 10)
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
+                )
+                .order_by(WatchHistory.last_watched_at.desc())
+            )
 
             total_count = query.count()
             records = list(query.paginate(page, limit))
@@ -342,28 +356,34 @@ class MobileVideoRepository:
                 v = wh.video
                 pos = wh.last_position_seconds or 0
                 dur = parse_duration_seconds(v.duration)
-                pct = round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
+                pct = (
+                    round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
+                )
                 items.append((v, pos, pct))
             return items, total_count
         except PeeweeException as e:
-            logger.error(f"Error querying continue watching for subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error querying continue watching for subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
     def list_watch_history(
-        self,
-        subscriber_id: int,
-        page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Tuple[Video, int, float]], int]:
+        self, subscriber_id: int, page: int = 1, limit: int = 20
+    ) -> tuple[list[tuple[Video, int, float]], int]:
         """
         Retrieves paginated watch history for subscriber.
         """
         try:
-            query = WatchHistory.select(WatchHistory, Video).join(Video).where(
-                (WatchHistory.subscriber == subscriber_id) &
-                (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                (Video.is_playable == True)
-            ).order_by(WatchHistory.last_watched_at.desc())
+            query = (
+                WatchHistory.select(WatchHistory, Video)
+                .join(Video)
+                .where(
+                    (WatchHistory.subscriber == subscriber_id)
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
+                )
+                .order_by(WatchHistory.last_watched_at.desc())
+            )
 
             total_count = query.count()
             records = list(query.paginate(page, limit))
@@ -372,34 +392,49 @@ class MobileVideoRepository:
                 v = wh.video
                 pos = wh.last_position_seconds or 0
                 dur = parse_duration_seconds(v.duration)
-                pct = round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
+                pct = (
+                    round(min(100.0, (pos / float(dur)) * 100.0), 1) if dur > 0 else 0.0
+                )
                 items.append((v, pos, pct))
             return items, total_count
         except PeeweeException as e:
-            logger.error(f"Error querying watch history for subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error querying watch history for subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
     def clear_watch_history(self, subscriber_id: int):
         """
         Deletes all watch history records for a subscriber.
         """
         try:
-            WatchHistory.delete().where(WatchHistory.subscriber == subscriber_id).execute()
+            WatchHistory.delete().where(
+                WatchHistory.subscriber == subscriber_id
+            ).execute()
         except PeeweeException as e:
-            logger.error(f"Error clearing watch history for subscriber {subscriber_id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error clearing watch history for subscriber {subscriber_id}: {e!s}"
+            )
+            raise
 
-    def remove_video_from_watch_history(self, video_id: int, subscriber_id: int) -> bool:
+    def remove_video_from_watch_history(
+        self, video_id: int, subscriber_id: int
+    ) -> bool:
         """
         Deletes a single video watch history record for a subscriber.
         """
         try:
-            deleted_count = WatchHistory.delete().where(
-                (WatchHistory.video == video_id) &
-                (WatchHistory.subscriber == subscriber_id)
-            ).execute()
+            deleted_count = (
+                WatchHistory.delete()
+                .where(
+                    (WatchHistory.video == video_id)
+                    & (WatchHistory.subscriber == subscriber_id)
+                )
+                .execute()
+            )
             return deleted_count > 0
         except PeeweeException as e:
-            logger.error(f"Error removing video {video_id} from watch history for subscriber {subscriber_id}: {str(e)}")
-            raise e
-
+            logger.error(
+                f"Error removing video {video_id} from watch history for subscriber {subscriber_id}: {e!s}"
+            )
+            raise

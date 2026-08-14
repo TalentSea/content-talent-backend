@@ -1,20 +1,21 @@
 import logging
-from typing import List
+
 from fastapi import HTTPException, status
 
 from app.repositories.category_repository import CategoryRepository
 from app.schemas.category_schemas import (
     CategoryCreateRequest,
-    CategoryUpdateRequest,
+    CategoryListResponse,
+    CategoryOptionListResponse,
+    CategoryOptionResponse,
     CategoryReorderRequest,
     CategoryResponse,
-    CategoryOptionResponse,
-    CategoryOptionListResponse,
+    CategoryUpdateRequest,
     MobileCategoryResponse,
-    CategoryListResponse
 )
 
 logger = logging.getLogger(__name__)
+
 
 class CategoryService:
     """
@@ -35,7 +36,7 @@ class CategoryService:
             contentCount=content_count,
             order=cat.display_order,
             createdAt=cat.created_at,
-            updatedAt=cat.updated_at
+            updatedAt=cat.updated_at,
         )
 
     def list_mobile_categories(self):
@@ -49,7 +50,7 @@ class CategoryService:
                 name=c.name,
                 slug=c.slug,
                 icon=c.icon or "📁",
-                color=c.color or "#3b82f6"
+                color=c.color or "#3b82f6",
             )
             for c in categories
         ]
@@ -61,13 +62,18 @@ class CategoryService:
         """
         pairs = self.repo.list_categories(user_id, simple=simple)
         if simple:
-            data = [CategoryOptionResponse(id=cat.id, name=cat.name, slug=cat.slug) for cat, _ in pairs]
+            data = [
+                CategoryOptionResponse(id=cat.id, name=cat.name, slug=cat.slug)
+                for cat, _ in pairs
+            ]
             return CategoryOptionListResponse(data=data)
 
         data = [self._to_category_response(cat, count) for cat, count in pairs]
         return CategoryListResponse(data=data)
 
-    def create_category(self, user_id: int, req: CategoryCreateRequest) -> CategoryResponse:
+    def create_category(
+        self, user_id: int, req: CategoryCreateRequest
+    ) -> CategoryResponse:
         """
         Creates a new category ensuring unique category name per creator.
         """
@@ -75,13 +81,15 @@ class CategoryService:
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Category with name '{req.name}' already exists"
+                detail=f"Category with name '{req.name}' already exists",
             )
 
         cat = self.repo.create_category(user_id, req.model_dump())
         return self._to_category_response(cat, content_count=0)
 
-    def update_category(self, category_id: int, user_id: int, req: CategoryUpdateRequest) -> CategoryResponse:
+    def update_category(
+        self, category_id: int, user_id: int, req: CategoryUpdateRequest
+    ) -> CategoryResponse:
         """
         Updates fields for an existing category asset.
         """
@@ -89,7 +97,7 @@ class CategoryService:
         if not cat:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Category with ID {category_id} not found"
+                detail=f"Category with ID {category_id} not found",
             )
 
         if req.name and req.name.strip().lower() != cat.name.lower():
@@ -97,10 +105,12 @@ class CategoryService:
             if existing and existing.id != category_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Category name '{req.name}' is already used by another category"
+                    detail=f"Category name '{req.name}' is already used by another category",
                 )
 
-        updated_cat = self.repo.update_category(category_id, user_id, req.model_dump(exclude_unset=True))
+        updated_cat = self.repo.update_category(
+            category_id, user_id, req.model_dump(exclude_unset=True)
+        )
         # Fetch dynamic count
         pairs = self.repo.list_categories(user_id)
         count = next((cnt for c, cnt in pairs if c.id == category_id), 0)
@@ -114,7 +124,7 @@ class CategoryService:
         if not cat:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Category with ID {category_id} not found"
+                detail=f"Category with ID {category_id} not found",
             )
 
         self.repo.delete_category(category_id, user_id)
@@ -127,7 +137,7 @@ class CategoryService:
         if not req.ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one category ID must be provided"
+                detail="At least one category ID must be provided",
             )
 
         self.repo.reorder_categories(user_id, req.ids)

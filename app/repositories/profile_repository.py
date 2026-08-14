@@ -1,28 +1,32 @@
 import logging
-from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
+
 from peewee import PeeweeException
 
 from app.models.admin import Admin
 
 logger = logging.getLogger(__name__)
 
+
 class ProfileRepository:
     """
     Data access layer for Admin Creator Profile operations (Peewee ORM).
     """
 
-    def get_profile_by_admin_id(self, admin_id: int) -> Optional[Admin]:
+    def get_profile_by_admin_id(self, admin_id: int) -> Admin | None:
         """
         Fetches the admin creator record by primary key ID.
         """
         try:
             return Admin.get_or_none(Admin.id == admin_id)
         except PeeweeException as e:
-            logger.error(f"Error fetching profile for admin {admin_id}: {str(e)}")
-            raise e
+            logger.error(f"Error fetching profile for admin {admin_id}: {e!s}")
+            raise
 
-    def update_profile(self, admin_id: int, update_data: Dict[str, Any]) -> Optional[Admin]:
+    def update_profile(
+        self, admin_id: int, update_data: dict[str, Any]
+    ) -> Admin | None:
         """
         Updates profile textual attributes and social links in database (excluding email).
         """
@@ -31,7 +35,7 @@ class ProfileRepository:
             return None
 
         social = update_data.get("social_links") or {}
-        
+
         if "first_name" in update_data:
             admin.first_name = update_data["first_name"]
         if "last_name" in update_data:
@@ -53,11 +57,11 @@ class ProfileRepository:
         if "instagram" in social:
             admin.instagram_url = social["instagram"]
 
-        admin.updated_at = datetime.now()
+        admin.updated_at = datetime.now(timezone.utc)
         admin.save()
         return admin
 
-    def update_avatar_url(self, admin_id: int, avatar_url: str) -> Optional[Admin]:
+    def update_avatar_url(self, admin_id: int, avatar_url: str) -> Admin | None:
         """
         Persists the newly uploaded avatar CDN URL in DB.
         """
@@ -66,6 +70,6 @@ class ProfileRepository:
             return None
 
         admin.avatar_url = avatar_url
-        admin.updated_at = datetime.now()
+        admin.updated_at = datetime.now(timezone.utc)
         admin.save()
         return admin

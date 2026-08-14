@@ -1,5 +1,6 @@
-from typing import Optional
-from fastapi import Depends, Header, HTTPException, status
+from typing import Annotated, Any
+
+from fastapi import Depends, File, Header, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.config import get_settings
@@ -8,6 +9,7 @@ from app.models.subscriber import Subscriber
 from app.utils.auth import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     """
@@ -21,12 +23,16 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     if token in (static_key, "test_token"):
         admin = Admin.get_or_none(Admin.username == "default_creator")
         if not admin:
-            admin = Admin.create(username="default_creator", email="creator@example.com", role="creator")
+            admin = Admin.create(
+                username="default_creator",
+                email="creator@example.com",
+                role="creator",
+            )
         return {
             "user_id": admin.id,
             "username": admin.username,
             "email": admin.email,
-            "role": getattr(admin, "role", "creator")
+            "role": getattr(admin, "role", "creator"),
         }
 
     payload = decode_access_token(token)
@@ -52,7 +58,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             "user_id": admin.id,
             "username": admin.username,
             "email": admin.email,
-            "role": getattr(admin, "role", "creator")
+            "role": getattr(admin, "role", "creator"),
         }
     else:
         sub = Subscriber.get_or_none(Subscriber.id == user_id)
@@ -66,8 +72,9 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             "user_id": sub.id,
             "username": sub.name or f"subscriber_{sub.id}",
             "email": sub.email,
-            "role": getattr(sub, "role", "subscriber")
+            "role": getattr(sub, "role", "subscriber"),
         }
+
 
 def get_current_subscriber(current_user: dict = Depends(get_current_user)) -> dict:
     """
@@ -75,10 +82,10 @@ def get_current_subscriber(current_user: dict = Depends(get_current_user)) -> di
     """
     if current_user.get("role") not in ("subscriber", "creator", "admin"):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Subscriber access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Subscriber access required"
         )
     return current_user
+
 
 def get_current_admin(current_user: dict = Depends(get_current_user)) -> dict:
     """
@@ -87,11 +94,14 @@ def get_current_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") not in ("creator", "admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin portal authorization required"
+            detail="Admin portal authorization required",
         )
     return current_user
 
-def get_optional_subscriber(authorization: Optional[str] = Header(None)) -> Optional[dict]:
+
+def get_optional_subscriber(
+    authorization: str | None = Header(None),
+) -> dict | None:
     """
     Optional dependency helper that inspects incoming Authorization header.
     If valid Bearer token present, returns subscriber dict; if missing/invalid (Guest), returns None.
@@ -104,3 +114,9 @@ def get_optional_subscriber(authorization: Optional[str] = Header(None)) -> Opti
     except Exception:
         return None
 
+
+# Centralized Modern FastAPI Dependency Aliases (Annotated)
+CurrentAdmin = Annotated[dict[str, Any], Depends(get_current_admin)]
+CurrentSubscriber = Annotated[dict[str, Any], Depends(get_current_subscriber)]
+OptionalSubscriber = Annotated[dict[str, Any] | None, Depends(get_optional_subscriber)]
+FormFile = Annotated[UploadFile, File()]

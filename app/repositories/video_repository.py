@@ -1,10 +1,13 @@
 import logging
-from typing import Optional, List, Tuple
-from datetime import datetime
-from peewee import fn, PeeweeException
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from peewee import PeeweeException, fn
+
 from app.models.video import Video
 
 logger = logging.getLogger(__name__)
+
 
 class VideoRepository:
     """
@@ -17,13 +20,13 @@ class VideoRepository:
         """
         return Video.create(user=user_id, **video_data)
 
-    def get_video_by_id(self, video_id: int, user_id: int) -> Optional[Video]:
+    def get_video_by_id(self, video_id: int, user_id: int) -> Video | None:
         """
         Fetches a video record by integer primary key ID ensuring ownership authorization (user_id).
         """
         return Video.get_or_none((Video.id == video_id) & (Video.user == user_id))
 
-    def get_video_by_bunny_id(self, bunny_video_id: str) -> Optional[Video]:
+    def get_video_by_bunny_id(self, bunny_video_id: str) -> Video | None:
         """
         Fetches a video record by string Bunny GUID (bunny_video_id) for webhook event processing.
         """
@@ -32,15 +35,15 @@ class VideoRepository:
     def get_all_videos_by_user(
         self,
         user_id: int,
-        status: Optional[str] = None,
-        category: Optional[str] = None,
-        search: Optional[str] = None,
-        sort: Optional[str] = "newest",
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
+        status: str | None = None,
+        category: str | None = None,
+        search: str | None = None,
+        sort: str | None = "newest",
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Video], int]:
+        limit: int = 20,
+    ) -> tuple[list[Video], int]:
         """
         Fetches a paginated, filtered, and sorted list of video records owned by the creator.
         """
@@ -75,7 +78,9 @@ class VideoRepository:
         items = list(query.paginate(page, limit))
         return items, total
 
-    def update_video_metadata(self, video_id: int, user_id: int, update_data: dict) -> Optional[Video]:
+    def update_video_metadata(
+        self, video_id: int, user_id: int, update_data: dict
+    ) -> Video | None:
         """
         Updates textual fields (title, description, category, tags) of a video asset in DB.
         """
@@ -94,10 +99,10 @@ class VideoRepository:
         status: str,
         encode_progress: int,
         is_playable: bool,
-        captions_data: Optional[list] = None,
-        available_resolutions: Optional[list] = None,
-        duration: Optional[str] = None
-    ) -> Optional[Video]:
+        captions_data: list | None = None,
+        available_resolutions: list | None = None,
+        duration: str | None = None,
+    ) -> Video | None:
         """
         Updates state machine fields (status, encode_progress, is_playable, captions_data, available_resolutions, duration, published_at) of a video record in DB.
         """
@@ -114,11 +119,11 @@ class VideoRepository:
         if duration:
             video.duration = duration
         if is_playable and not video.published_at:
-            video.published_at = datetime.utcnow()
+            video.published_at = datetime.now(timezone.utc)
         video.save()
         return video
 
-    def publish_video(self, video_id: int, user_id: int) -> Optional[Video]:
+    def publish_video(self, video_id: int, user_id: int) -> Video | None:
         """
         Publishes a video asset immediately, setting status = 'published' and recording ISO UTC timestamp.
         """
@@ -126,12 +131,14 @@ class VideoRepository:
         if not video:
             return None
         video.status = "published"
-        video.published_at = datetime.utcnow()
+        video.published_at = datetime.now(timezone.utc)
         video.scheduled_at = None
         video.save()
         return video
 
-    def schedule_video(self, video_id: int, user_id: int, scheduled_at_dt: datetime) -> Optional[Video]:
+    def schedule_video(
+        self, video_id: int, user_id: int, scheduled_at_dt: datetime
+    ) -> Video | None:
         """
         Schedules a video asset for future publication, setting status = 'scheduled' and target datetime.
         """
@@ -149,17 +156,28 @@ class VideoRepository:
         Flips status = 'published', published_at = scheduled_at, and clears scheduled_at = None.
         """
         try:
-            now = datetime.now()
-            count = (Video
-                     .update(status="published", published_at=Video.scheduled_at, scheduled_at=None)
-                     .where((Video.status == "scheduled") & (Video.scheduled_at.is_null(False)) & (Video.scheduled_at <= now))
-                     .execute())
+            now = datetime.now(ZoneInfo("Asia/Kolkata"))
+            count = (
+                Video.update(
+                    status="published",
+                    published_at=Video.scheduled_at,
+                    scheduled_at=None,
+                )
+                .where(
+                    (Video.status == "scheduled")
+                    & (Video.scheduled_at.is_null(False))
+                    & (Video.scheduled_at <= now)
+                )
+                .execute()
+            )
             return count
         except PeeweeException as e:
-            logger.error(f"Error publishing due scheduled videos: {str(e)}")
+            logger.error(f"Error publishing due scheduled videos: {e!s}")
             return 0
 
-    def swap_main_thumbnail(self, video_id: int, user_id: int, new_main_url: str) -> Optional[Video]:
+    def swap_main_thumbnail(
+        self, video_id: int, user_id: int, new_main_url: str
+    ) -> Video | None:
         """
         Updates main_thumbnail_url and pushes the previous main URL into alt_thumbnail_urls list.
         """
@@ -177,7 +195,9 @@ class VideoRepository:
         video.save()
         return video
 
-    def delete_alt_thumbnail_url(self, video_id: int, user_id: int, target_url: str) -> Optional[Video]:
+    def delete_alt_thumbnail_url(
+        self, video_id: int, user_id: int, target_url: str
+    ) -> Video | None:
         """
         Removes a target thumbnail URL entry from alt_thumbnail_urls array in DB.
         """
@@ -191,7 +211,9 @@ class VideoRepository:
             video.save()
         return video
 
-    def update_thumbnail_url(self, video_id: int, user_id: int, slot: int, new_url: str) -> Optional[Video]:
+    def update_thumbnail_url(
+        self, video_id: int, user_id: int, slot: int, new_url: str
+    ) -> Video | None:
         """
         Updates main_thumbnail_url (slot 0) or alt_thumbnail_urls list (slot 1 or 2) in DB.
         """
@@ -221,11 +243,13 @@ class VideoRepository:
         video.delete_instance(recursive=True)
         return True
 
-    def bulk_delete_videos(self, video_ids: List[int], user_id: int) -> List[Video]:
+    def bulk_delete_videos(self, video_ids: list[int], user_id: int) -> list[Video]:
         """
         Fetches and deletes multiple video assets by ID array owned by creator. Returns deleted Video instances.
         """
-        videos = list(Video.select().where((Video.id.in_(video_ids)) & (Video.user == user_id)))
+        videos = list(
+            Video.select().where((Video.id.in_(video_ids)) & (Video.user == user_id))
+        )
         for video in videos:
             video.delete_instance(recursive=True)
         return videos

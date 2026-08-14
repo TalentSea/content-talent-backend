@@ -1,12 +1,12 @@
 import logging
-from typing import Optional, List, Tuple, Dict
-from datetime import datetime
+
 from peewee import PeeweeException, fn
 
 from app.models.playlist import Playlist, PlaylistVideo
 from app.models.video import Video, VideoLike, VideoSave, WatchHistory
 
 logger = logging.getLogger(__name__)
+
 
 class MobilePlaylistRepository:
     """
@@ -16,11 +16,11 @@ class MobilePlaylistRepository:
 
     def list_public_playlists(
         self,
-        search: Optional[str] = None,
+        search: str | None = None,
         sort: str = "newest",
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Tuple[Playlist, int]], int]:
+        limit: int = 20,
+    ) -> tuple[list[tuple[Playlist, int]], int]:
         """
         Retrieves paginated public creator playlists with batched count of published & ready videos.
         """
@@ -45,12 +45,15 @@ class MobilePlaylistRepository:
             # Batch count only published & ready videos for each playlist
             pl_ids = [p.id for p in playlists]
             counts_query = (
-                PlaylistVideo.select(PlaylistVideo.playlist, fn.COUNT(PlaylistVideo.video).alias("v_count"))
+                PlaylistVideo.select(
+                    PlaylistVideo.playlist,
+                    fn.COUNT(PlaylistVideo.video).alias("v_count"),
+                )
                 .join(Video, on=(PlaylistVideo.video == Video.id))
                 .where(
-                    (PlaylistVideo.playlist.in_(pl_ids)) &
-                    (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                    (Video.is_playable == True)
+                    (PlaylistVideo.playlist.in_(pl_ids))
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
                 )
                 .group_by(PlaylistVideo.playlist)
             )
@@ -59,26 +62,26 @@ class MobilePlaylistRepository:
             results = [(p, counts_map.get(p.id, 0)) for p in playlists]
             return results, total
         except PeeweeException as e:
-            logger.error(f"Error querying mobile public playlists: {str(e)}")
-            raise e
+            logger.error(f"Error querying mobile public playlists: {e!s}")
+            raise
 
-    def get_public_playlist_by_id(self, playlist_id: int) -> Optional[Playlist]:
+    def get_public_playlist_by_id(self, playlist_id: int) -> Playlist | None:
         """
         Fetches a single playlist by primary key ID.
         """
         try:
             return Playlist.get_or_none(Playlist.id == playlist_id)
         except PeeweeException as e:
-            logger.error(f"Error fetching mobile playlist {playlist_id}: {str(e)}")
-            raise e
+            logger.error(f"Error fetching mobile playlist {playlist_id}: {e!s}")
+            raise
 
     def get_playlist_videos_with_subscriber_overlay(
         self,
         playlist: Playlist,
-        subscriber_id: Optional[int] = None,
+        subscriber_id: int | None = None,
         page: int = 1,
-        limit: int = 20
-    ) -> Tuple[List[Dict], int]:
+        limit: int = 20,
+    ) -> tuple[list[dict], int]:
         """
         Retrieves paginated published & ready videos for a playlist with order and subscriber engagement overlay.
         """
@@ -87,9 +90,9 @@ class MobilePlaylistRepository:
                 Video.select(Video, PlaylistVideo.order)
                 .join(PlaylistVideo, on=(Video.id == PlaylistVideo.video))
                 .where(
-                    (PlaylistVideo.playlist == playlist) &
-                    (fn.LOWER(Video.status).in_(["published", "ready"])) &
-                    (Video.is_playable == True)
+                    (PlaylistVideo.playlist == playlist)
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
                 )
                 .order_by(PlaylistVideo.order.asc())
             )
@@ -108,27 +111,36 @@ class MobilePlaylistRepository:
 
             if subscriber_id:
                 liked_query = VideoLike.select(VideoLike.video).where(
-                    (VideoLike.subscriber == subscriber_id) & (VideoLike.video.in_(video_ids))
+                    (VideoLike.subscriber == subscriber_id)
+                    & (VideoLike.video.in_(video_ids))
                 )
                 liked_set = {row.video_id for row in liked_query}
 
                 saved_query = VideoSave.select(VideoSave.video).where(
-                    (VideoSave.subscriber == subscriber_id) & (VideoSave.video.in_(video_ids))
+                    (VideoSave.subscriber == subscriber_id)
+                    & (VideoSave.video.in_(video_ids))
                 )
                 saved_set = {row.video_id for row in saved_query}
 
-                watch_query = WatchHistory.select(WatchHistory, Video).join(Video).where(
-                    (WatchHistory.subscriber == subscriber_id) & (WatchHistory.video.in_(video_ids))
+                watch_query = (
+                    WatchHistory.select(WatchHistory, Video)
+                    .join(Video)
+                    .where(
+                        (WatchHistory.subscriber == subscriber_id)
+                        & (WatchHistory.video.in_(video_ids))
+                    )
                 )
                 for w in watch_query:
                     watch_map[w.video_id] = {
                         "last_position_seconds": w.last_position_seconds,
-                        "completion_percentage": w.completion_percentage
+                        "completion_percentage": w.completion_percentage,
                     }
 
             # Batch likes count for returned videos
             likes_count_query = (
-                VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id).alias("l_count"))
+                VideoLike.select(
+                    VideoLike.video, fn.COUNT(VideoLike.id).alias("l_count")
+                )
                 .where(VideoLike.video.in_(video_ids))
                 .group_by(VideoLike.video)
             )
@@ -136,17 +148,21 @@ class MobilePlaylistRepository:
 
             items = []
             for v in paginated_videos:
-                order_val = getattr(v.playlistvideo, 'order', 0)
-                items.append({
-                    "video": v,
-                    "order": order_val,
-                    "likes": likes_map.get(v.id, 0),
-                    "is_liked": v.id in liked_set,
-                    "is_saved": v.id in saved_set,
-                    "watch_progress": watch_map.get(v.id)
-                })
+                order_val = getattr(v.playlistvideo, "order", 0)
+                items.append(
+                    {
+                        "video": v,
+                        "order": order_val,
+                        "likes": likes_map.get(v.id, 0),
+                        "is_liked": v.id in liked_set,
+                        "is_saved": v.id in saved_set,
+                        "watch_progress": watch_map.get(v.id),
+                    }
+                )
 
             return items, total
         except PeeweeException as e:
-            logger.error(f"Error fetching mobile playlist videos for playlist {playlist.id}: {str(e)}")
-            raise e
+            logger.error(
+                f"Error fetching mobile playlist videos for playlist {playlist.id}: {e!s}"
+            )
+            raise

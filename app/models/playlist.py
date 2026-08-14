@@ -1,13 +1,24 @@
 from datetime import datetime
-from peewee import CharField, TextField, IntegerField, DateTimeField, ForeignKeyField, CompositeKey
-from app.models.base import BaseModel
+
+from peewee import (
+    CharField,
+    CompositeKey,
+    DateTimeField,
+    ForeignKeyField,
+    IntegerField,
+    TextField,
+)
+
 from app.models.admin import Admin
+from app.models.base import BaseModel
 from app.models.video import Video
+
 
 class Playlist(BaseModel):
     """
     Container for custom video collections owned by an Admin creator.
     """
+
     user = ForeignKeyField(
         model=Admin,
         field=Admin.id,
@@ -24,10 +35,12 @@ class Playlist(BaseModel):
     class Meta:
         table_name = "playlists"
 
+
 class PlaylistVideo(BaseModel):
     """
     Junction table linking Playlists and Videos in a Many-to-Many structure.
     """
+
     playlist = ForeignKeyField(
         model=Playlist,
         field=Playlist.id,
