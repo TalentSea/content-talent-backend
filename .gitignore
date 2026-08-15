@@ -74,3 +74,8 @@ coverage.xml
 logs/
 tmp/
 scratch/
+
+# Package exports & Archives
+backend-package/
+*.tar
+*.zip

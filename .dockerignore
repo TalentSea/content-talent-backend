@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Environment variables & secrets (passed via runtime --env-file or Kubernetes/ECS secrets)
+.env
+.env.*
+!.env.example
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local databases & storage
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests & Documentation
+tests/
+docs/
+*.md
+
+# Package exports
+backend-package/
+*.tar
