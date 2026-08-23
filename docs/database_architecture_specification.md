@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **13 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **14 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -12,6 +12,7 @@ erDiagram
     ADMIN ||--o{ CATEGORY : "creates & manages (1:N)"
     ADMIN ||--o{ VIDEO : "uploads & owns (1:N)"
     ADMIN ||--o{ PLAYLIST : "curates & owns (1:N)"
+    ADMIN ||--o{ FEATURED_VIDEO : "curates home carousel (1:N)"
     ADMIN ||--o{ SUBSCRIBER : "hosts / tenants (1:N)"
 
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
@@ -25,6 +26,7 @@ erDiagram
     VIDEO ||--o{ VIDEO_SAVE : "has saved bookmarks (1:N)"
     VIDEO ||--o{ WATCH_HISTORY : "has watch histories (1:N)"
     VIDEO ||--o{ PLAYLIST_VIDEO : "included in playlists (1:N)"
+    VIDEO ||--o{ FEATURED_VIDEO : "featured in home carousel (1:N)"
     VIDEO ||--o{ COMMENT : "has comments (1:N)"
 
     PLAYLIST ||--o{ PLAYLIST_VIDEO : "contains ordered videos (1:N)"
@@ -115,11 +117,11 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of the branding record |
 | `user_id` | `INTEGER` | **FK ➔ `admins.id` (UNIQUE, CASCADE)** | NO | None | Admin creator who owns this studio branding |
-| `creator_name` | `VARCHAR(255)` | Standard | NO | None | Mandatory public studio display name |
-| `tagline` | `VARCHAR(255)` | Standard | NO | None | Mandatory studio app tagline |
-| `description` | `TEXT` | Standard | NO | None | Mandatory studio channel description |
-| `banner_url` | `VARCHAR(500)` | Standard | NO | None | Mandatory CDN cover banner URL |
-| `logo_url` | `VARCHAR(500)` | Standard | NO | None | Mandatory CDN white-label app logo URL |
+| `creator_name` | `VARCHAR(255)` | Standard | YES | `NULL` | Public studio display name |
+| `tagline` | `VARCHAR(255)` | Standard | YES | `NULL` | Studio app tagline |
+| `description` | `TEXT` | Standard | YES | `NULL` | Studio channel description |
+| `banner_url` | `VARCHAR(500)` | Standard | YES | `NULL` | CDN cover banner URL |
+| `logo_url` | `VARCHAR(500)` | Standard | YES | `NULL` | CDN white-label app logo URL |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Record creation timestamp |
 | `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Record last modification timestamp |
 
@@ -307,3 +309,19 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `user_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Subscriber who liked the comment |
 | `comment_id` | `INTEGER` | **FK ➔ `comments.id` (CASCADE)** | NO | None | Comment liked |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Like timestamp |
+
+---
+
+### 14. `featured_videos` Table (Admin Home Screen Carousel Curation)
+* **Model File**: [`app/models/featured_video.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/featured_video.py)
+* **Table Name**: `featured_videos`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Admin Creator who featured the video |
+| `video_id` | `INTEGER` | **FK ➔ `videos.id` (CASCADE)** | NO | None | Featured video asset |
+| `position` | `INTEGER` | Standard (Index) | NO | `0` | 1-indexed display order on home carousel |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Timestamp when video was featured |
+
+* **Unique Composite Index**: `(("creator", "video"), True)` — Enforces 1 unique featured entry per video per creator studio.

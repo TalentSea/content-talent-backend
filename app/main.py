@@ -15,6 +15,7 @@ from app.routes.admin import (
     admin_branding_router,
     admin_category_router,
     admin_comment_router,
+    admin_featured_video_router,
     admin_playlist_router,
     admin_profile_router,
     admin_video_router,
@@ -23,6 +24,9 @@ from app.routes.mobile.auth_routes import router as auth_router
 from app.routes.mobile.branding_routes import router as mobile_branding_router
 from app.routes.mobile.category_routes import router as mobile_category_router
 from app.routes.mobile.comment_routes import router as mobile_comment_router
+from app.routes.mobile.featured_video_routes import (
+    router as mobile_featured_video_router,
+)
 from app.routes.mobile.playlist_routes import router as mobile_playlist_router
 from app.routes.mobile.video_routes import router as mobile_video_router
 from app.routes.webhook_routes import router as webhook_router
@@ -90,6 +94,7 @@ app.include_router(mobile_category_router)
 app.include_router(mobile_playlist_router)
 app.include_router(mobile_comment_router)
 app.include_router(mobile_branding_router)
+app.include_router(mobile_featured_video_router)
 app.include_router(webhook_router)
 app.include_router(admin_video_router)
 app.include_router(admin_playlist_router)
@@ -97,6 +102,7 @@ app.include_router(admin_profile_router)
 app.include_router(admin_branding_router)
 app.include_router(admin_comment_router)
 app.include_router(admin_category_router)
+app.include_router(admin_featured_video_router)
 
 
 @app.get("/docs", include_in_schema=False)

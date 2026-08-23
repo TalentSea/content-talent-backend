@@ -12,7 +12,7 @@ The project strictly follows a **5-Layer Clean Architecture** separating routing
 content-talent-backend/
 ├── .agents/                      # Team AI Agent Skills & Architecture Playbooks
 ├── docs/                         # Architecture & API Specifications
-│   ├── database_architecture_specification.md # Complete 13-Table Database Schema Specification
+│   ├── database_architecture_specification.md # Complete 14-Table Database Schema Specification
 │   ├── admin/                    # Admin Portal API Specifications
 │   └── mobile/                   # Mobile Application API Specifications
 ├── app/
@@ -28,6 +28,7 @@ content-talent-backend/
 │   │   ├── admin.py              # Web Admin Creator profile identity entity
 │   │   ├── branding.py           # Public White-Label Studio Branding & Assets entity
 │   │   ├── category.py           # Content category and display order entity
+│   │   ├── featured_video.py     # Home Screen Featured Carousel curation entity
 │   │   ├── subscriber.py         # Mobile App Subscriber profile identity entity
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave and WatchHistory entities
@@ -37,6 +38,8 @@ content-talent-backend/
 │   │   ├── auth_repository.py    # Social & guest subscriber repository with automated stale cleanup
 │   │   ├── branding_repository.py# Creator branding and studio identity repository
 │   │   ├── category_repository.py# Category CRUD and batch reordering repository
+│   │   ├── featured_video_repository.py # Admin featured videos curation repository
+│   │   ├── mobile_featured_video_repository.py # Mobile home screen featured carousel repository
 │   │   ├── video_repository.py   # Admin video repository with scheduled publication queries
 │   │   ├── mobile_video_repository.py # Mobile catalog, watch history, likes and saves repository
 │   │   ├── playlist_repository.py# Playlist curation repository
@@ -46,14 +49,17 @@ content-talent-backend/
 │   │   ├── webhook_routes.py     # Public Bunny Stream Webhooks (/api/v1/webhooks)
 │   │   ├── mobile/               # Mobile Application Endpoints
 │   │   │   ├── auth_routes.py    # Mobile Social & Guest Auth (/api/v1/auth)
+│   │   │   ├── branding_routes.py# Mobile Studio Branding (/api/v1/mobile/branding)
 │   │   │   ├── category_routes.py# Mobile Category Catalog (/api/v1/mobile/categories)
 │   │   │   ├── comment_routes.py # Mobile Video Comments (/api/v1/mobile)
+│   │   │   ├── featured_video_routes.py # Mobile Featured Videos Feed (/api/v1/mobile/featured-videos)
 │   │   │   ├── playlist_routes.py# Mobile Public Playlists (/api/v1/mobile/playlists)
 │   │   │   └── video_routes.py   # Mobile Video Catalog & HLS Player (/api/v1/mobile/videos)
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── branding_routes.py# Admin Studio Branding & Customization (/api/v1/admin/branding)
 │   │       ├── category_routes.py# Admin Categories & Reordering (/api/v1/admin/categories)
 │   │       ├── comment_routes.py # Admin Comment Moderation (/api/v1/admin/comments)
+│   │       ├── featured_video_routes.py # Admin Featured Videos Curation (/api/v1/admin/featured-videos)
 │   │       ├── playlist_routes.py# Admin Playlist Management (/api/v1/admin/playlists)
 │   │       ├── profile_routes.py # Admin Account Profile & Social Links (/api/v1/admin/profile)
 │   │       └── video_routes.py   # Admin Video Management & Scheduling (/api/v1/admin/videos)
@@ -62,6 +68,8 @@ content-talent-backend/
 │   │   ├── branding_schemas.py   # Studio branding and asset upload DTOs
 │   │   ├── category_schemas.py   # Category CRUD and reorder DTOs
 │   │   ├── common_schemas.py     # Generic pagination and action success envelopes
+│   │   ├── featured_video_schemas.py # Admin featured video request and response DTOs
+│   │   ├── mobile_featured_video_schemas.py # Mobile featured video DTOs
 │   │   ├── video_schemas.py      # Admin video request and response DTOs
 │   │   ├── mobile_video_schemas.py # Mobile lightweight video feed and streaming DTOs
 │   │   ├── playlist_schemas.py   # Playlist DTOs
@@ -71,6 +79,8 @@ content-talent-backend/
 │   │   ├── auth_service.py       # Mobile social login, guest session and JWT token rotation service
 │   │   ├── branding_service.py   # Creator branding, logo and cover banner orchestration
 │   │   ├── category_service.py   # Category management and batch reordering service
+│   │   ├── featured_video_service.py # Admin featured video curation service
+│   │   ├── mobile_featured_video_service.py # Mobile featured video feed service
 │   │   ├── video_service.py      # Admin video orchestration, scheduling and thumbnail service
 │   │   ├── mobile_video_service.py # Mobile video streaming and watch progress service
 │   │   ├── playlist_service.py   # Playlist curation and banner service
@@ -87,12 +97,14 @@ content-talent-backend/
 │   │   ├── branding_management_api_specification.md
 │   │   ├── categories_management_api_specification.md
 │   │   ├── comments_management_api_specification.md
+│   │   ├── featured_videos_management_api_specification.md
 │   │   ├── playlist_management_api_specification.md
 │   │   ├── settings_profile_api_specification.md
 │   │   └── video_management_api_specification.md
 │   └── mobile/                   # Mobile Application API Specifications
 │       ├── categories_api_specification.md
 │       ├── comments_api_specification.md
+│       ├── featured_videos_api_specification.md
 │       ├── playlists_api_specification.md
 │       ├── social_authentication_api_specification.md
 │       └── video_streaming_api_specification.md
@@ -266,14 +278,23 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Technical specifications and architecture documentation:
 
+### 🏛️ Database Architecture
+- [Complete 14-Table Database Schema Specification](docs/database_architecture_specification.md)
+
+### 💻 Admin Web Portal API Specifications
 - [Branding Management API Specification](docs/admin/branding_management_api_specification.md)
 - [Video Management API Specification](docs/admin/video_management_api_specification.md)
 - [Playlist Management API Specification](docs/admin/playlist_management_api_specification.md)
 - [Categories Management API Specification](docs/admin/categories_management_api_specification.md)
+- [Featured Videos Management API Specification](docs/admin/featured_videos_management_api_specification.md)
 - [Settings Profile API Specification](docs/admin/settings_profile_api_specification.md)
 - [Comments Management API Specification](docs/admin/comments_management_api_specification.md)
+
+### 📱 Mobile Application API Specifications
 - [Mobile Social Authentication Specification](docs/mobile/social_authentication_api_specification.md)
+- [Mobile Branding Specification](docs/mobile/branding_api_specification.md)
 - [Mobile Video Streaming Specification](docs/mobile/video_streaming_api_specification.md)
 - [Mobile Categories Specification](docs/mobile/categories_api_specification.md)
 - [Mobile Playlists Specification](docs/mobile/playlists_api_specification.md)
 - [Mobile Comments Specification](docs/mobile/comments_api_specification.md)
+- [Mobile Featured Videos Specification](docs/mobile/featured_videos_api_specification.md)
