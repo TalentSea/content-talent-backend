@@ -15,14 +15,6 @@ class BrandingRepository:
         """
         return Branding.get_or_none(Branding.user_id == user_id)
 
-    def get_first_branding(self, creator_id: int | None = None) -> Branding | None:
-        """
-        Retrieves creator branding record for public mobile application display.
-        """
-        if creator_id is not None:
-            return Branding.get_or_none(Branding.user_id == creator_id)
-        return Branding.select().first()
-
     def get_or_create_branding(self, user_id: int) -> Branding:
         """
         Retrieves or initializes a default branding record for an admin creator.

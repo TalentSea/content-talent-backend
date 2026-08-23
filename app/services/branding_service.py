@@ -34,24 +34,40 @@ class BrandingService:
 
     def get_branding(self, user_id: int) -> BrandingResponse:
         """
-        Retrieves current branding identity and assets for the authenticated creator.
-        Initializes an empty default record if one does not yet exist.
+        Retrieves current branding identity for the authenticated creator.
+        Returns a read-only response with null fields if no record exists yet.
         """
-        branding = self.repo.get_or_create_branding(user_id)
+        branding = self.repo.get_by_user_id(user_id)
+        if not branding:
+            return BrandingResponse(
+                creator_name=None,
+                tagline=None,
+                description=None,
+                banner_url=None,
+                logo_url=None,
+                updated_at=None,
+            )
         return self._to_branding_response(branding)
 
-    def get_public_mobile_branding(
-        self, creator_id: int | None = None
-    ) -> BrandingResponse:
+    def get_public_mobile_branding(self, creator_id: int) -> BrandingResponse:
         """
-        Retrieves studio branding identity for mobile subscribers on app startup.
-        Raises HTTP 404 NOT FOUND if creator branding has not been created in database.
+        Retrieves studio branding identity for mobile subscribers on app startup by creator_id.
+        Returns a read-only response with null fields if creator branding has not been configured.
         """
-        branding = self.repo.get_first_branding(creator_id=creator_id)
-        if not branding:
+        if not creator_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Creator branding not found",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="creator_id authentication is required to fetch branding",
+            )
+        branding = self.repo.get_by_user_id(creator_id)
+        if not branding:
+            return BrandingResponse(
+                creator_name=None,
+                tagline=None,
+                description=None,
+                banner_url=None,
+                logo_url=None,
+                updated_at=None,
             )
         return self._to_branding_response(branding)
 

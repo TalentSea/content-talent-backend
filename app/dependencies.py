@@ -64,15 +64,10 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
 
     # Static API Key & Dev token override for Admin Portal testing
     if token in (static_key, "test_token"):
-        admin = Admin.get_or_none(Admin.email == "creator@example.com")
-        if not admin:
-            admin = Admin.select().first()
-        if not admin:
-            admin = Admin.create(
-                email="creator@example.com",
-                first_name="Creator",
-                last_name="Admin",
-            )
+        admin, _ = Admin.get_or_create(
+            email="creator@example.com",
+            defaults={"first_name": "Creator", "last_name": "Admin"},
+        )
         return {
             "user_id": admin.id,
             "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip() or "Creator Admin",

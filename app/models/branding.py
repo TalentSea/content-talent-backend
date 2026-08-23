@@ -19,11 +19,11 @@ class Branding(BaseModel):
         unique=True,
         on_delete="CASCADE",
     )
-    creator_name = CharField(max_length=255, null=False)
-    tagline = CharField(max_length=255, null=False)
-    description = TextField(null=False)
-    banner_url = CharField(max_length=500, null=False)
-    logo_url = CharField(max_length=500, null=False)
+    creator_name = CharField(max_length=255, null=True)
+    tagline = CharField(max_length=255, null=True)
+    description = TextField(null=True)
+    banner_url = CharField(max_length=500, null=True)
+    logo_url = CharField(max_length=500, null=True)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 

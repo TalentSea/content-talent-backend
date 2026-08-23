@@ -10,7 +10,7 @@ This document details the public API endpoint for Mobile Application subscribers
 * **Authentication**: **Subscriber Protected** (`Authorization: Bearer <subscriber_access_token>`).
 * **Multi-Tenant Isolation**: The backend extracts `current_subscriber["creator_id"]` from the JWT token and fetches the matching `Branding` record (`Branding.user == creator_id`).
 * **Caching Strategy**: HTTP Header `Cache-Control: public, max-age=3600` is returned to enable local mobile client caching for fast cold-boot times (< 50ms).
-* **Error Handling**: If creator branding has not been configured in the database, returns HTTP `404 NOT FOUND` with `{"detail": "Creator branding not found"}`.
+* **Unconfigured Fallback**: If creator branding has not been configured in the database, returns HTTP `200 OK` with `null` fields to enable smooth mobile app cold-boot rendering.
 
 ---
 
@@ -18,7 +18,7 @@ This document details the public API endpoint for Mobile Application subscribers
 
 ### `GET /api/v1/mobile/branding`
 
-#### Response Envelope (`200 OK`)
+#### Response Envelope (`200 OK`) — Configured Studio
 
 ```json
 {
@@ -31,9 +31,15 @@ This document details the public API endpoint for Mobile Application subscribers
 }
 ```
 
-#### Error Envelope (`404 Not Found`)
+#### Response Envelope (`200 OK`) — Unconfigured Fallback
+
 ```json
 {
-  "detail": "Creator branding not found"
+  "creator_name": null,
+  "tagline": null,
+  "description": null,
+  "banner_url": null,
+  "logo_url": null,
+  "updated_at": null
 }
 ```
