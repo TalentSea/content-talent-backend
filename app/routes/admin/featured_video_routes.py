@@ -12,7 +12,7 @@ from app.schemas.featured_video_schemas import (
 )
 from app.services.featured_video_service import FeaturedVideoService
 
-router = APIRouter(prefix="/featured-videos", tags=["Admin Featured Videos"])
+router = APIRouter(prefix="/api/v1/admin/featured-videos", tags=["Admin Featured Videos"])
 service = FeaturedVideoService()
 
 
