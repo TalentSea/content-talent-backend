@@ -9,6 +9,7 @@ from app.models.subscriber import Subscriber
 from app.utils.auth import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login", auto_error=False)
 
 
 def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
@@ -37,6 +38,20 @@ def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
         "user_id": sub.id,
         "creator_id": sub.creator_id,
     }
+
+
+def get_optional_subscriber(
+    token: str | None = Depends(oauth2_scheme_optional),
+) -> dict | None:
+    """
+    Optional authentication for endpoints that allow guest access or guest account upgrade.
+    """
+    if not token:
+        return None
+    try:
+        return get_current_subscriber(token)
+    except HTTPException:
+        return None
 
 
 def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
@@ -86,6 +101,8 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
 # Centralized Modern FastAPI Dependency Aliases (Annotated)
 CurrentAdmin = Annotated[dict[str, Any], Depends(get_current_admin)]
 CurrentSubscriber = Annotated[dict[str, Any], Depends(get_current_subscriber)]
+OptionalSubscriber = Annotated[dict[str, Any] | None, Depends(get_optional_subscriber)]
+FormFile = Annotated[UploadFile, File(...)]
 
 
 def validate_image_file(file: UploadFile = File(...)) -> UploadFile:
