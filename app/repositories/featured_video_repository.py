@@ -2,13 +2,12 @@ import logging
 
 from peewee import PeeweeException
 
+from app.config import get_settings
 from app.database import db_proxy
 from app.models.featured_video import FeaturedVideo
 from app.models.video import Video
 
 logger = logging.getLogger(__name__)
-
-MAX_FEATURED_VIDEOS_PER_CREATOR = 10
 
 
 class FeaturedVideoRepository:
@@ -46,13 +45,13 @@ class FeaturedVideoRepository:
         self, creator_id: int, video_ids: list[int]
     ) -> tuple[int, int]:
         """
-        Validates ownership, checks max 10 cap, and appends valid videos at next position sequence.
+        Validates ownership, checks max cap from settings, and appends valid videos at next position sequence.
         Returns (added_count, new_total).
         """
         try:
             with db_proxy.atomic():
                 current_count = self.get_featured_count(creator_id)
-                max_allowed = MAX_FEATURED_VIDEOS_PER_CREATOR
+                max_allowed = get_settings().MAX_FEATURED_VIDEOS_PER_CREATOR
 
                 # 1 Single SQL Subquery: Find valid videos owned by creator that are not already featured
                 valid_videos = list(

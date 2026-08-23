@@ -22,6 +22,7 @@ def init_db():
     from app.models.branding import Branding
     from app.models.category import Category
     from app.models.comment import Comment, CommentLike
+    from app.models.featured_video import FeaturedVideo
     from app.models.playlist import Playlist, PlaylistVideo
     from app.models.refresh_token import RefreshToken
     from app.models.subscriber import Subscriber
@@ -45,6 +46,7 @@ def init_db():
             Comment,
             CommentLike,
             Category,
+            FeaturedVideo,
         ],
         safe=True,
     )
