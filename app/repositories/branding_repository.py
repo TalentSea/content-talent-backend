@@ -15,20 +15,16 @@ class BrandingRepository:
         """
         return Branding.get_or_none(Branding.user_id == user_id)
 
-    def get_or_create_branding(self, user_id: int) -> Branding:
-        """
-        Retrieves or initializes a default branding record for an admin creator.
-        """
-        branding, _ = Branding.get_or_create(user_id=user_id)
-        return branding
-
     def update_branding_text(
         self, user_id: int, fields: dict[str, Any]
     ) -> Branding:
         """
-        Applies partial updates to text fields (creator_name, tagline, description) and updates updated_at.
+        Applies partial updates to text fields, creating record with fields if it doesn't exist yet.
         """
-        branding = self.get_or_create_branding(user_id)
+        branding = self.get_by_user_id(user_id)
+        if not branding:
+            return Branding.create(user_id=user_id, **fields)
+
         for key, value in fields.items():
             if value is not None and hasattr(branding, key):
                 setattr(branding, key, value)
@@ -40,7 +36,10 @@ class BrandingRepository:
         """
         Updates the logo_url and updated_at timestamp.
         """
-        branding = self.get_or_create_branding(user_id)
+        branding = self.get_by_user_id(user_id)
+        if not branding:
+            return Branding.create(user_id=user_id, logo_url=logo_url)
+
         branding.logo_url = logo_url
         branding.updated_at = datetime.now(timezone.utc)
         branding.save()
@@ -50,7 +49,10 @@ class BrandingRepository:
         """
         Updates the banner_url and updated_at timestamp.
         """
-        branding = self.get_or_create_branding(user_id)
+        branding = self.get_by_user_id(user_id)
+        if not branding:
+            return Branding.create(user_id=user_id, banner_url=banner_url)
+
         branding.banner_url = banner_url
         branding.updated_at = datetime.now(timezone.utc)
         branding.save()

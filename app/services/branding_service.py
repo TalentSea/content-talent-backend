@@ -87,7 +87,8 @@ class BrandingService:
         """
         Validates and uploads a creator logo image to Bunny Storage.
         """
-        branding = self.repo.get_or_create_branding(user_id)
+        branding = self.repo.get_by_user_id(user_id)
+        old_logo_url = branding.logo_url if branding else None
         settings = get_settings()
         timestamp = int(time.time())
 
@@ -95,7 +96,7 @@ class BrandingService:
             file=file,
             storage_path_without_ext=f"assets/branding/logo_{user_id}_{timestamp}",
             max_size_mb=settings.MAX_LOGO_SIZE_MB,
-            old_file_url=branding.logo_url,
+            old_file_url=old_logo_url,
             old_file_storage_folder="assets/branding",
         )
         self.repo.update_logo_url(user_id, cdn_url)
@@ -107,7 +108,8 @@ class BrandingService:
         """
         Validates and uploads a creator cover banner image to Bunny Storage.
         """
-        branding = self.repo.get_or_create_branding(user_id)
+        branding = self.repo.get_by_user_id(user_id)
+        old_banner_url = branding.banner_url if branding else None
         settings = get_settings()
         timestamp = int(time.time())
 
@@ -115,7 +117,7 @@ class BrandingService:
             file=file,
             storage_path_without_ext=f"assets/branding/banner_{user_id}_{timestamp}",
             max_size_mb=settings.MAX_BANNER_SIZE_MB,
-            old_file_url=branding.banner_url,
+            old_file_url=old_banner_url,
             old_file_storage_folder="assets/branding",
         )
         self.repo.update_banner_url(user_id, cdn_url)
