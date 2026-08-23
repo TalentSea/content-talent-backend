@@ -95,6 +95,25 @@ class CommentRepository:
             logger.error("Error counting replies for comment %s: %s", comment_id, e)
             return 0
 
+    def get_batch_reply_counts(self, comment_ids: list[int]) -> dict[int, int]:
+        """
+        Batches reply counts for a list of parent comment IDs in 1 single query.
+        """
+        if not comment_ids:
+            return {}
+        try:
+            counts_query = (
+                Comment.select(
+                    Comment.parent, fn.COUNT(Comment.id).alias("r_count")
+                )
+                .where(Comment.parent.in_(comment_ids))
+                .group_by(Comment.parent)
+            )
+            return {row.parent_id: row.r_count for row in counts_query}
+        except PeeweeException as e:
+            logger.error("Error batch fetching reply counts: %s", e)
+            return {}
+
     def get_replies_for_comment(
         self,
         comment_id: int,
