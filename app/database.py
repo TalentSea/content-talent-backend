@@ -19,6 +19,7 @@ def init_db():
 
     # Import models here to prevent circular dependency
     from app.models.admin import Admin
+    from app.models.branding import Branding
     from app.models.category import Category
     from app.models.comment import Comment, CommentLike
     from app.models.playlist import Playlist, PlaylistVideo
@@ -32,6 +33,7 @@ def init_db():
     db_proxy.create_tables(
         [
             Admin,
+            Branding,
             Subscriber,
             RefreshToken,
             Video,
@@ -50,7 +52,6 @@ def init_db():
     # Ensure at least one default test creator exists in admins table for development/auth testing
     if Admin.select().count() == 0:
         Admin.create(
-            username="default_creator",
             email="creator@example.com",
             first_name="Creator",
             last_name="Name",
@@ -61,7 +62,6 @@ def init_db():
             twitter_url="https://twitter.com/username",
             youtube_url="https://youtube.com/@username",
             instagram_url="https://instagram.com/username",
-            role="creator",
         )
 
     if not db_proxy.is_closed():

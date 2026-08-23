@@ -10,11 +10,12 @@ Authorization: Bearer <subscriber_access_token>
 ```
 
 ### Author DTO Object Standard
-All comment endpoints encapsulate author metadata inside a unified `author` object:
+All comment endpoints encapsulate author metadata inside a unified `author` object with real-time profile consistency:
 - `id` (integer): ID of the comment author.
-- `name` (string): Display name of the author.
-- `avatar_url` (string or null): Avatar image URL.
+- `name` (string): Live display name of the author.
+- `avatar_url` (string or null): Live avatar image URL.
 - `is_creator` (boolean): `true` if posted by the content creator (Admin), `false` if posted by a subscriber.
+- `is_hearted_by_creator` (boolean): `true` if the Admin Creator gave this comment a **"❤️ Creator Heart"** badge, `false` otherwise.
 
 ---
 
@@ -58,10 +59,11 @@ Authorization: Bearer <subscriber_access_token>  # Optional
         "is_creator": false
       },
       "likes": 42,
+      "is_hearted_by_creator": true,
       "is_liked": true,
       "reply_count": 14,
       "is_owner": false,
-      "created_at": "2024-06-18T14:22:00Z"
+      "created_at": "2026-08-18T14:22:00Z"
     }
   ]
 }
@@ -101,18 +103,19 @@ Content-Type: application/json
     "is_creator": false
   },
   "likes": 0,
+  "is_hearted_by_creator": false,
   "is_liked": false,
   "reply_count": 0,
   "is_owner": true,
-  "created_at": "2024-08-12T10:00:00Z"
+  "created_at": "2026-08-22T01:00:00Z"
 }
 ```
 
 ---
 
-### 3. `GET /api/v1/mobile/comments/{id}/replies` — Fetch Thread Replies (Paginated)
+### 3. `GET /api/v1/mobile/comments/{comment_id}/replies` — Get Thread Replies (Paginated)
 
-Retrieves a paginated list of child replies nested under a specific top-level comment.
+Retrieves a paginated list of nested reply comments for a specific parent comment.
 
 #### Request Headers
 ```http
@@ -120,38 +123,37 @@ Authorization: Bearer <subscriber_access_token>  # Optional
 ```
 
 #### Path Parameters
-- `id` (integer, required): ID of the top-level parent comment.
+- `comment_id` (integer, required): ID of the parent comment.
 
 #### Request Query Parameters
 
 | Param | Type | Required | Description |
 |---|---|---|---|
-| `sort` | `string` | No | Sort order: `oldest` (default, thread chronological order) or `newest` |
 | `page` | `integer` | No | Page number (default `1`) |
-| `limit` | `integer` | No | Items per page (default `20`, max `100`) |
+| `limit` | `integer` | No | Items per page (default `10`, max `50`) |
 
 #### Response Specification (`200 OK`)
 ```json
 {
   "total": 14,
   "page": 1,
-  "limit": 20,
-  "total_pages": 1,
+  "limit": 10,
+  "total_pages": 2,
   "items": [
     {
-      "id": 9001,
-      "comment_id": 8912,
-      "text": "Thank you Sarah! Glad you found it useful.",
+      "id": 9202,
+      "text": "Thank you Sarah! Glad you liked it.",
       "author": {
-        "id": 101,
-        "name": "Alex Tech",
-        "avatar_url": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg",
+        "id": 1,
+        "name": "TechNics Training",
+        "avatar_url": "https://talentsea77999.b-cdn.net/avatars/creator_1.jpg",
         "is_creator": true
       },
       "likes": 12,
-      "is_liked": true,
+      "is_hearted_by_creator": false,
+      "is_liked": false,
       "is_owner": false,
-      "created_at": "2024-06-18T15:00:00Z"
+      "created_at": "2026-08-22T01:05:00Z"
     }
   ]
 }
@@ -159,9 +161,9 @@ Authorization: Bearer <subscriber_access_token>  # Optional
 
 ---
 
-### 4. `POST /api/v1/mobile/comments/{id}/replies` — Post Reply to Comment / Sub-Comment
+### 4. `POST /api/v1/mobile/comments/{comment_id}/replies` — Post Thread Reply
 
-Posts a reply to a comment or sub-comment. Automatically links to the root top-level parent comment thread.
+Posts a reply nested under a parent comment.
 
 #### Request Headers
 ```http
@@ -170,21 +172,20 @@ Content-Type: application/json
 ```
 
 #### Path Parameters
-- `id` (integer, required): ID of the parent comment or sub-comment being replied to.
+- `comment_id` (integer, required): ID of the parent comment.
 
 #### Request Body
 ```json
 {
-  "text": "@Alex when is Part 4 coming out?"
+  "text": "I had the same question too!"
 }
 ```
 
 #### Response Specification (`201 Created`)
 ```json
 {
-  "id": 9302,
-  "comment_id": 8912,
-  "text": "@Alex when is Part 4 coming out?",
+  "id": 9203,
+  "text": "I had the same question too!",
   "author": {
     "id": 4512,
     "name": "Sarah Connor",
@@ -192,17 +193,18 @@ Content-Type: application/json
     "is_creator": false
   },
   "likes": 0,
+  "is_hearted_by_creator": false,
   "is_liked": false,
   "is_owner": true,
-  "created_at": "2024-08-12T10:15:00Z"
+  "created_at": "2026-08-22T01:10:00Z"
 }
 ```
 
 ---
 
-### 5. `POST /api/v1/mobile/comments/{id}/like` — Toggle Comment Like
+### 5. `POST /api/v1/mobile/comments/{comment_id}/like` — Toggle Comment Like
 
-Toggles authenticated subscriber's like state on a comment or reply.
+Toggles like on a comment for the authenticated subscriber.
 
 #### Request Headers
 ```http
@@ -210,24 +212,22 @@ Authorization: Bearer <subscriber_access_token>
 ```
 
 #### Path Parameters
-- `id` (integer, required): ID of the comment to like/unlike.
-
-#### Request Body — None
+- `comment_id` (integer, required): ID of the comment to like/unlike.
 
 #### Response Specification (`200 OK`)
 ```json
 {
-  "status": "success",
-  "is_liked": true,
-  "likes": 43
+  "comment_id": 9201,
+  "likes_count": 43,
+  "is_liked": true
 }
 ```
 
 ---
 
-### 6. `DELETE /api/v1/mobile/comments/{id}` — Delete Own Comment
+### 6. `DELETE /api/v1/mobile/comments/{comment_id}` — Delete Own Comment
 
-Deletes a comment permanently. Allowed only if the comment belongs to the authenticated subscriber (`comment.user == subscriber_id`).
+Deletes a comment posted by the authenticated subscriber.
 
 #### Request Headers
 ```http
@@ -235,11 +235,12 @@ Authorization: Bearer <subscriber_access_token>
 ```
 
 #### Path Parameters
-- `id` (integer, required): ID of the comment to remove.
+- `comment_id` (integer, required): ID of the comment to delete.
 
 #### Response Specification (`200 OK`)
 ```json
 {
-  "status": "success"
+  "success": true,
+  "message": "Comment deleted successfully"
 }
 ```

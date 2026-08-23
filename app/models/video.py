@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from peewee import (
     BooleanField,
@@ -29,9 +29,9 @@ class Video(BaseModel):
         on_delete="CASCADE",
     )
     bunny_video_id = CharField(unique=True, max_length=255)
-    title = CharField(max_length=255)
-    description = TextField(null=True)
-    category = CharField(max_length=100, null=True)
+    title = CharField(max_length=255, null=False)
+    description = TextField(null=False)
+    category = CharField(max_length=100, null=False)
     status = CharField(max_length=20, default="PENDING")
     encode_progress = IntegerField(default=0)
     is_playable = BooleanField(default=False)
@@ -45,7 +45,7 @@ class Video(BaseModel):
     views = IntegerField(default=0)
     popularity_score = IntegerField(default=0, index=True)
     duration = CharField(max_length=50, null=True)
-    created_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "videos"
@@ -58,7 +58,7 @@ class VideoLike(BaseModel):
 
     video = ForeignKeyField(Video, backref="likes", on_delete="CASCADE")
     subscriber = ForeignKeyField(Subscriber, backref="video_likes", on_delete="CASCADE")
-    created_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "video_likes"
@@ -72,7 +72,7 @@ class VideoSave(BaseModel):
 
     video = ForeignKeyField(Video, backref="saves", on_delete="CASCADE")
     subscriber = ForeignKeyField(Subscriber, backref="video_saves", on_delete="CASCADE")
-    created_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "video_saves"
@@ -90,8 +90,8 @@ class WatchHistory(BaseModel):
     )
     last_position_seconds = IntegerField(default=0)
     completed = BooleanField(default=False)
-    last_watched_at = DateTimeField(default=datetime.now)
-    created_at = DateTimeField(default=datetime.now)
+    last_watched_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     @property
     def completion_percentage(self) -> float:

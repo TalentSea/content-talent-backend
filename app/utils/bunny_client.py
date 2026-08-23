@@ -30,21 +30,24 @@ def create_bunny_video(title: str) -> dict:
             return response.json()
         if response.status_code in (401, 403):
             logger.error(
-                f"Invalid Bunny Stream API Key or Library ID (HTTP {response.status_code}). Please verify credentials in .env"
+                "Invalid Bunny Stream API Key or Library ID (HTTP %s). Please verify credentials in .env",
+                response.status_code,
             )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Invalid Bunny Stream API Key or Library ID (HTTP {response.status_code})",
             )
         logger.error(
-            f"Bunny Stream POST Error ({response.status_code}): {response.text}"
+            "Bunny Stream POST Error (%s): %s",
+            response.status_code,
+            response.text,
         )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to create video container on Bunny Stream (HTTP {response.status_code})",
         )
     except requests.RequestException as e:
-        logger.error(f"Bunny Stream connection exception: {e!s}")
+        logger.error("Bunny Stream connection exception: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Bunny Stream service is currently unreachable",
@@ -65,21 +68,24 @@ def get_bunny_video_status(bunny_video_id: str) -> dict:
             return response.json()
         if response.status_code in (401, 403):
             logger.error(
-                f"Invalid Bunny Stream API Key or Library ID (HTTP {response.status_code})"
+                "Invalid Bunny Stream API Key or Library ID (HTTP %s)",
+                response.status_code,
             )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Invalid Bunny Stream API Key or Library ID (HTTP {response.status_code})",
             )
         logger.error(
-            f"Bunny Stream GET Error ({response.status_code}): {response.text}"
+            "Bunny Stream GET Error (%s): %s",
+            response.status_code,
+            response.text,
         )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to fetch video status from Bunny Stream (HTTP {response.status_code})",
         )
     except requests.RequestException as e:
-        logger.error(f"Bunny Stream status fetch exception: {e!s}")
+        logger.error("Bunny Stream status fetch exception: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Bunny Stream service is currently unreachable",
@@ -98,7 +104,7 @@ def delete_bunny_video(bunny_video_id: str) -> bool:
         response = requests.delete(url, headers=headers, timeout=10)
         return response.status_code == 200
     except requests.RequestException as e:
-        logger.error(f"Bunny Stream DELETE exception: {e!s}")
+        logger.error("Bunny Stream DELETE exception: %s", e)
         return False
 
 
@@ -117,7 +123,7 @@ def delete_bunny_storage_file(file_path: str) -> bool:
         response = requests.delete(url, headers=headers, timeout=10)
         return response.status_code in (200, 204)
     except requests.RequestException as e:
-        logger.error(f"Bunny Storage DELETE exception: {e!s}")
+        logger.error("Bunny Storage DELETE exception: %s", e)
         return False
 
 
@@ -142,14 +148,16 @@ def upload_bunny_storage_file(
         if response.status_code in (200, 201):
             return True
         logger.error(
-            f"Bunny Storage upload error ({response.status_code}): {response.text}"
+            "Bunny Storage upload error (%s): %s",
+            response.status_code,
+            response.text,
         )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to upload asset to Bunny Storage (HTTP {response.status_code})",
         )
     except requests.RequestException as e:
-        logger.error(f"Bunny Storage upload exception: {e!s}")
+        logger.error("Bunny Storage upload exception: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Bunny Storage service is currently unreachable",

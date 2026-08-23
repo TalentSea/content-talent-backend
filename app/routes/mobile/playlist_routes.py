@@ -26,7 +26,11 @@ def list_public_playlists(
     Requires subscriber/guest Bearer token.
     """
     return playlist_service.list_public_playlists(
-        search=search, sort=sort, page=page, limit=limit
+        creator_id=current_subscriber.get("creator_id"),
+        search=search,
+        sort=sort,
+        page=page,
+        limit=limit,
     )
 
 
@@ -47,7 +51,8 @@ def get_playlist_details(
     """
     return playlist_service.get_playlist_details(
         playlist_id=playlist_id,
-        subscriber_id=current_subscriber["user_id"],
+        subscriber_id=current_subscriber.get("user_id"),
+        creator_id=current_subscriber.get("creator_id"),
         page=page,
         limit=limit,
     )

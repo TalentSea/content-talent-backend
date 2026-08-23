@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from peewee import CharField, DateTimeField, ForeignKeyField, IntegerField, TextField
 
@@ -24,8 +24,8 @@ class Category(BaseModel):
     icon = CharField(max_length=50, default="📁")
     color = CharField(max_length=30, default="#3b82f6")
     display_order = IntegerField(default=0)
-    created_at = DateTimeField(default=datetime.now)
-    updated_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "categories"

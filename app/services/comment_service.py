@@ -30,18 +30,21 @@ class CommentService:
         self.video_repo = VideoRepository()
 
     def _build_author_response(self, c) -> CommentAuthorResponse:
-        """Helper to construct canonical CommentAuthorResponse object."""
+        """Helper to construct canonical CommentAuthorResponse object with real-time profile consistency."""
         if c.user:
             return CommentAuthorResponse(
                 id=c.user.id,
-                name=c.user_name,
-                avatar_url=c.user_avatar,
+                name=c.user.name or f"Subscriber {c.user.id}",
+                avatar_url=c.user.avatar_url,
                 is_creator=False,
             )
         # For Admin Creator posts where c.user is None
-        creator_id = c.video.user.id if (c.video and hasattr(c.video.user, "id")) else 0
+        creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
+        creator_id = creator.id if creator else 0
+        name = f"{creator.first_name or ''} {creator.last_name or ''}".strip() if creator else "Creator Admin"
+        avatar_url = creator.avatar_url if creator else None
         return CommentAuthorResponse(
-            id=creator_id, name=c.user_name, avatar_url=c.user_avatar, is_creator=True
+            id=creator_id, name=name or "Creator Admin", avatar_url=avatar_url, is_creator=True
         )
 
     def create_top_level_comment(
@@ -74,18 +77,21 @@ class CommentService:
             video, creator_user, payload.text.strip()
         )
 
+        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or "Creator Admin"
+
         return CommentItemResponse(
             id=comment.id,
             text=comment.text,
             author=CommentAuthorResponse(
                 id=creator_user.id,
-                name=comment.user_name,
-                avatar_url=comment.user_avatar,
+                name=creator_name,
+                avatar_url=creator_user.avatar_url,
                 is_creator=True,
             ),
             video_id=video.id,
             video_title=video.title,
             likes=0,
+            is_hearted_by_creator=False,
             is_liked=False,
             reply_count=0,
             created_at=comment.created_at,
@@ -118,10 +124,16 @@ class CommentService:
             limit=limit,
         )
 
+        comment_ids = [c.id for c in comments]
+        reply_counts_map = self.comment_repo.get_batch_reply_counts(comment_ids)
+        liked_set = self.comment_repo.get_user_liked_comment_ids(
+            comment_ids, creator_id
+        )
+
         items: list[CommentItemResponse] = []
         for c in comments:
-            reply_count = self.comment_repo.get_reply_count_for_comment(c.id)
-            is_liked = self.comment_repo.is_comment_liked_by_user(c.id, creator_id)
+            reply_count = reply_counts_map.get(c.id, 0)
+            is_liked = c.id in liked_set
 
             item = CommentItemResponse(
                 id=c.id,
@@ -130,16 +142,15 @@ class CommentService:
                 video_id=c.video.id,
                 video_title=c.video.title,
                 likes=c.likes,
+                is_hearted_by_creator=getattr(c, "is_hearted_by_creator", False),
                 is_liked=is_liked,
                 reply_count=reply_count,
                 created_at=c.created_at,
             )
             items.append(item)
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def get_comment_replies(
@@ -164,9 +175,14 @@ class CommentService:
             comment_id=comment_id, sort=sort, page=page, limit=limit
         )
 
+        reply_ids = [r.id for r in replies_raw]
+        liked_set = self.comment_repo.get_user_liked_comment_ids(
+            reply_ids, creator_id
+        )
+
         items: list[CommentReplyResponse] = []
         for r in replies_raw:
-            is_liked = self.comment_repo.is_comment_liked_by_user(r.id, creator_id)
+            is_liked = r.id in liked_set
             items.append(
                 CommentReplyResponse(
                     id=r.id,
@@ -174,15 +190,14 @@ class CommentService:
                     text=r.text,
                     author=self._build_author_response(r),
                     likes=r.likes or 0,
+                    is_hearted_by_creator=getattr(r, "is_hearted_by_creator", False),
                     is_liked=is_liked,
                     created_at=r.created_at,
                 )
             )
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def create_reply(
@@ -206,6 +221,7 @@ class CommentService:
             )
 
         reply = self.comment_repo.create_reply(comment, creator_user, payload.text)
+        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or "Creator Admin"
 
         return CommentReplyCreateResponse(
             id=reply.id,
@@ -213,11 +229,12 @@ class CommentService:
             text=reply.text,
             author=CommentAuthorResponse(
                 id=creator_user.id,
-                name=reply.user_name,
-                avatar_url=reply.user_avatar,
+                name=creator_name,
+                avatar_url=creator_user.avatar_url,
                 is_creator=True,
             ),
             likes=0,
+            is_hearted_by_creator=False,
             is_liked=False,
             created_at=reply.created_at,
         )
@@ -226,7 +243,7 @@ class CommentService:
         self, creator_id: int, comment_id: int
     ) -> CommentLikeResponse:
         """
-        Toggles creator like state in comment_likes table matching spec doc API 4.
+        Toggles creator heart state on comment matching spec doc API 4.
         """
         comment = self.comment_repo.get_comment_by_id(comment_id, creator_id)
         if not comment:
@@ -235,9 +252,9 @@ class CommentService:
                 detail=f"Comment {comment_id} not found",
             )
 
-        is_liked, likes = self.comment_repo.toggle_like(comment, creator_id)
+        is_hearted, likes = self.comment_repo.toggle_creator_heart(comment)
 
-        return CommentLikeResponse(status="success", is_liked=is_liked, likes=likes)
+        return CommentLikeResponse(status="success", is_liked=is_hearted, likes=likes)
 
     def delete_comment(self, creator_id: int, comment_id: int) -> ActionSuccessResponse:
         """

@@ -24,14 +24,18 @@ class CategoryRepository:
     Uses Approach 1 (Dynamic SQL Aggregation for contentCount).
     """
 
-    def list_public_mobile_categories(self) -> list[Category]:
+    def list_public_mobile_categories(self, creator_id: int | None = None) -> list[Category]:
         """
         Retrieves all public categories ordered by display_order ascending for mobile catalog filter chips.
+        Optionally filters by creator_id for tenant isolation.
         """
         try:
-            return list(Category.select().order_by(Category.display_order.asc()))
+            query = Category.select()
+            if creator_id is not None:
+                query = query.where(Category.user == creator_id)
+            return list(query.order_by(Category.display_order.asc()))
         except PeeweeException as e:
-            logger.error(f"Error querying public mobile categories: {e!s}")
+            logger.error("Error querying public mobile categories: %s", e)
             raise
 
     def list_categories(
@@ -69,7 +73,7 @@ class CategoryRepository:
 
             return results
         except PeeweeException as e:
-            logger.error(f"Error querying categories for user {user_id}: {e!s}")
+            logger.error("Error querying categories for user %s: %s", user_id, e)
             raise
 
     def get_category_by_id(self, category_id: int, user_id: int) -> Category | None:
@@ -81,7 +85,7 @@ class CategoryRepository:
                 (Category.id == category_id) & (Category.user == user_id)
             )
         except PeeweeException as e:
-            logger.error(f"Error fetching category {category_id}: {e!s}")
+            logger.error("Error fetching category %s: %s", category_id, e)
             raise
 
     def get_category_by_name(self, name: str, user_id: int) -> Category | None:
@@ -94,7 +98,7 @@ class CategoryRepository:
                 & (Category.user == user_id)
             )
         except PeeweeException as e:
-            logger.error(f"Error fetching category by name '{name}': {e!s}")
+            logger.error("Error fetching category by name '%s': %s", name, e)
             raise
 
     def create_category(self, user_id: int, data: dict) -> Category:
@@ -126,7 +130,7 @@ class CategoryRepository:
                 updated_at=datetime.now(timezone.utc),
             )
         except PeeweeException as e:
-            logger.error(f"Error creating category for user {user_id}: {e!s}")
+            logger.error("Error creating category for user %s: %s", user_id, e)
             raise
 
     def update_category(
@@ -154,7 +158,7 @@ class CategoryRepository:
             cat.save()
             return cat
         except PeeweeException as e:
-            logger.error(f"Error updating category {category_id}: {e!s}")
+            logger.error("Error updating category %s: %s", category_id, e)
             raise
 
     def delete_category(self, category_id: int, user_id: int) -> bool:
@@ -174,7 +178,7 @@ class CategoryRepository:
             cat.delete_instance()
             return True
         except PeeweeException as e:
-            logger.error(f"Error deleting category {category_id}: {e!s}")
+            logger.error("Error deleting category %s: %s", category_id, e)
             raise
 
     def reorder_categories(self, user_id: int, category_ids: list[int]) -> bool:
@@ -188,5 +192,5 @@ class CategoryRepository:
                 ).execute()
             return True
         except PeeweeException as e:
-            logger.error(f"Error reordering categories for user {user_id}: {e!s}")
+            logger.error("Error reordering categories for user %s: %s", user_id, e)
             raise

@@ -33,13 +33,16 @@ class MobileCommentService:
         if c.user:
             return MobileCommentAuthorResponse(
                 id=c.user.id,
-                name=c.user_name,
-                avatar_url=c.user_avatar,
+                name=c.user.name or f"Subscriber {c.user.id}",
+                avatar_url=c.user.avatar_url,
                 is_creator=False,
             )
-        creator_id = c.video.user.id if (c.video and hasattr(c.video.user, "id")) else 0
+        creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
         return MobileCommentAuthorResponse(
-            id=creator_id, name=c.user_name, avatar_url=c.user_avatar, is_creator=True
+            id=creator.id if creator else 0,
+            name=creator.name if creator else "Admin Creator",
+            avatar_url=creator.avatar_url if creator else None,
+            is_creator=True,
         )
 
     def list_video_comments(
@@ -49,11 +52,12 @@ class MobileCommentService:
         page: int = 1,
         limit: int = 20,
         subscriber_id: int | None = None,
+        creator_id: int | None = None,
     ) -> PaginatedResponse[MobileCommentItemResponse]:
         """
         Retrieves paginated top-level comments for a video matching spec doc API 1.
         """
-        video = self.video_repo.get_public_video_by_id(video_id)
+        video = self.video_repo.get_public_video_by_id(video_id, creator_id=creator_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -64,14 +68,16 @@ class MobileCommentService:
             video_id=video_id, sort=sort, page=page, limit=limit
         )
 
+        comment_ids = [c.id for c in comments]
+        reply_counts_map = self.comment_repo.get_batch_reply_counts(comment_ids)
+        liked_set = self.comment_repo.get_subscriber_liked_comment_ids(
+            comment_ids, subscriber_id
+        )
+
         items: list[MobileCommentItemResponse] = []
         for c in comments:
-            reply_count = self.comment_repo.get_reply_count(c.id)
-            is_liked = (
-                self.comment_repo.is_comment_liked_by_subscriber(c.id, subscriber_id)
-                if subscriber_id
-                else False
-            )
+            reply_count = reply_counts_map.get(c.id, 0)
+            is_liked = c.id in liked_set
             is_owner = bool(subscriber_id and c.user and c.user.id == subscriber_id)
 
             items.append(
@@ -80,6 +86,7 @@ class MobileCommentService:
                     text=c.text,
                     author=self._build_author_response(c),
                     likes=c.likes or 0,
+                    is_hearted_by_creator=getattr(c, "is_hearted_by_creator", False),
                     is_liked=is_liked,
                     reply_count=reply_count,
                     is_owner=is_owner,
@@ -87,30 +94,25 @@ class MobileCommentService:
                 )
             )
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def create_video_comment(
-        self, video_id: int, subscriber_id: int, payload: MobileCommentCreateRequest
+        self,
+        video_id: int,
+        subscriber_id: int,
+        payload: MobileCommentCreateRequest,
+        creator_id: int | None = None,
     ) -> MobileCommentItemResponse:
         """
         Posts a new top-level comment under a video matching spec doc API 2.
         """
-        video = self.video_repo.get_public_video_by_id(video_id)
+        video = self.video_repo.get_public_video_by_id(video_id, creator_id=creator_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Video {video_id} not found",
-            )
-
-        subscriber = self.auth_repo.get_user_by_id(subscriber_id)
-        if not subscriber:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscriber account not found",
             )
 
         if not payload.text or not payload.text.strip():
@@ -120,19 +122,15 @@ class MobileCommentService:
             )
 
         comment = self.comment_repo.create_top_level_comment(
-            video, subscriber, payload.text.strip()
+            video, subscriber_id, payload.text.strip()
         )
 
         return MobileCommentItemResponse(
             id=comment.id,
             text=comment.text,
-            author=MobileCommentAuthorResponse(
-                id=subscriber.id,
-                name=comment.user_name,
-                avatar_url=comment.user_avatar,
-                is_creator=False,
-            ),
+            author=self._build_author_response(comment),
             likes=0,
+            is_hearted_by_creator=False,
             is_liked=False,
             reply_count=0,
             is_owner=True,
@@ -146,11 +144,14 @@ class MobileCommentService:
         page: int = 1,
         limit: int = 20,
         subscriber_id: int | None = None,
+        creator_id: int | None = None,
     ) -> PaginatedResponse[MobileCommentReplyResponse]:
         """
         Retrieves paginated child replies nested under a parent comment matching spec doc API 3.
         """
-        parent_comment = self.comment_repo.get_comment_by_id(comment_id)
+        parent_comment = self.comment_repo.get_comment_by_id(
+            comment_id, creator_id=creator_id
+        )
         if not parent_comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -161,13 +162,14 @@ class MobileCommentService:
             comment_id=comment_id, sort=sort, page=page, limit=limit
         )
 
+        reply_ids = [r.id for r in replies_raw]
+        liked_set = self.comment_repo.get_subscriber_liked_comment_ids(
+            reply_ids, subscriber_id
+        )
+
         items: list[MobileCommentReplyResponse] = []
         for r in replies_raw:
-            is_liked = (
-                self.comment_repo.is_comment_liked_by_subscriber(r.id, subscriber_id)
-                if subscriber_id
-                else False
-            )
+            is_liked = r.id in liked_set
             is_owner = bool(subscriber_id and r.user and r.user.id == subscriber_id)
 
             items.append(
@@ -177,36 +179,34 @@ class MobileCommentService:
                     text=r.text,
                     author=self._build_author_response(r),
                     likes=r.likes or 0,
+                    is_hearted_by_creator=getattr(r, "is_hearted_by_creator", False),
                     is_liked=is_liked,
                     is_owner=is_owner,
                     created_at=r.created_at,
                 )
             )
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def create_comment_reply(
-        self, comment_id: int, subscriber_id: int, payload: MobileCommentCreateRequest
+        self,
+        comment_id: int,
+        subscriber_id: int,
+        payload: MobileCommentCreateRequest,
+        creator_id: int | None = None,
     ) -> MobileCommentReplyResponse:
         """
         Posts a reply to a comment or sub-comment matching spec doc API 4.
         """
-        parent_comment = self.comment_repo.get_comment_by_id(comment_id)
+        parent_comment = self.comment_repo.get_comment_by_id(
+            comment_id, creator_id=creator_id
+        )
         if not parent_comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Comment {comment_id} not found",
-            )
-
-        subscriber = self.auth_repo.get_user_by_id(subscriber_id)
-        if not subscriber:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscriber account not found",
             )
 
         if not payload.text or not payload.text.strip():
@@ -216,32 +216,30 @@ class MobileCommentService:
             )
 
         reply = self.comment_repo.create_subscriber_reply(
-            parent_comment, subscriber, payload.text.strip()
+            parent_comment, subscriber_id, payload.text.strip()
         )
 
         return MobileCommentReplyResponse(
             id=reply.id,
             comment_id=reply.parent.id,
             text=reply.text,
-            author=MobileCommentAuthorResponse(
-                id=subscriber.id,
-                name=reply.user_name,
-                avatar_url=reply.user_avatar,
-                is_creator=False,
-            ),
+            author=self._build_author_response(reply),
             likes=0,
+            is_hearted_by_creator=False,
             is_liked=False,
             is_owner=True,
             created_at=reply.created_at,
         )
 
     def toggle_comment_like(
-        self, comment_id: int, subscriber_id: int
+        self, comment_id: int, subscriber_id: int, creator_id: int | None = None
     ) -> MobileCommentLikeResponse:
         """
         Toggles subscriber like state on a comment or reply matching spec doc API 5.
         """
-        comment = self.comment_repo.get_comment_by_id(comment_id)
+        comment = self.comment_repo.get_comment_by_id(
+            comment_id, creator_id=creator_id
+        )
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -255,12 +253,14 @@ class MobileCommentService:
         )
 
     def delete_comment(
-        self, comment_id: int, subscriber_id: int
+        self, comment_id: int, subscriber_id: int, creator_id: int | None = None
     ) -> ActionSuccessResponse:
         """
         Deletes a subscriber's own comment matching spec doc API 6.
         """
-        comment = self.comment_repo.get_comment_by_id(comment_id)
+        comment = self.comment_repo.get_comment_by_id(
+            comment_id, creator_id=creator_id
+        )
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

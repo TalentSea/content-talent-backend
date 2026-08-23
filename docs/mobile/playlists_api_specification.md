@@ -5,7 +5,7 @@
 The **Mobile Playlist Feed API** powers curated video series, collections, and course playlists for mobile subscribers across iOS and Android apps. It allows mobile users to discover public creator playlists, view playlist details, and stream videos in ordered sequence with personalized watch progress, like states, and bookmarking.
 
 ### Key Technical Rules:
-1. **Public & Subscriber Authentication**: Endpoints support both Guest Users (unauthenticated) and Logged-in Subscribers (`get_optional_subscriber`).
+1. **Multi-Tenant Isolation**: Decodes `current_subscriber["creator_id"]` from the JWT Bearer token (< 1ms) and filters playlists by `user == creator_id`.
 2. **Read-Only Access**: Mobile clients consume public creator playlists. Playlist creation, editing, thumbnail uploads, and video reordering are managed exclusively via Creator Admin APIs.
 3. **Only Playable & Published Videos**: Playlist video feeds strictly include videos with `status == "published"` and `transcoding_status == "READY"`. Unready or draft videos are hidden.
 4. **Personalized Subscriber Overlay**: For authenticated subscribers, responses include `is_liked`, `is_saved`, and `watch_progress` (`last_position_seconds`, `completion_percentage`). For guest users, these default to `false` / `null`.

@@ -44,19 +44,20 @@ class AuthService:
             email=subscriber.email,
             avatar_url=subscriber.avatar_url,
             provider=subscriber.provider or "google",
-            role=subscriber.role or "subscriber",
+            role="subscriber" if subscriber.provider != "guest" else "guest",
             created_at=subscriber.created_at,
         )
 
     def _process_social_user_login(
         self,
+        creator_id: int,
         provider: str,
         identity_data: dict[str, Any],
         device_info: str | None = None,
         guest_subscriber_id: int | None = None,
     ) -> AuthTokenResponse:
         """
-        Common subscriber provisioning, account upgrade, and token issuance pipeline.
+        Common subscriber provisioning, account upgrade, and token issuance pipeline bound to creator_id.
         """
         provider_id = identity_data.get("sub")
         email = identity_data.get("email")
@@ -76,6 +77,7 @@ class AuthService:
             if guest_sub and guest_sub.provider == "guest":
                 subscriber = self.repo.upgrade_guest_subscriber(
                     guest_subscriber_id=guest_subscriber_id,
+                    creator_id=creator_id,
                     provider=provider,
                     provider_id=provider_id,
                     email=email,
@@ -83,19 +85,19 @@ class AuthService:
                     avatar_url=avatar_url,
                 )
 
-        # 2. Otherwise find existing subscriber or create a new subscriber record
+        # 2. Otherwise find existing subscriber or create a new subscriber record bound to creator_id
         if not subscriber:
             subscriber = self.repo.find_user_by_provider_or_email(
-                provider, provider_id, email
+                creator_id, provider, provider_id, email
             )
             if not subscriber:
                 subscriber = self.repo.create_social_user(
+                    creator_id=creator_id,
                     provider=provider,
                     provider_id=provider_id,
                     email=email,
                     name=name,
                     avatar_url=avatar_url,
-                    role="subscriber",
                 )
             else:
                 subscriber = self.repo.update_user_profile_info(
@@ -106,12 +108,12 @@ class AuthService:
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-        # Generate App JWT Access Token and Refresh Token
+        # Generate App JWT Access Token containing user_id and creator_id
         username_str = subscriber.name or f"subscriber_{subscriber.id}"
         access_token = create_access_token(
             user_id=subscriber.id,
             username=username_str,
-            role=subscriber.role or "subscriber",
+            creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,
         )
         refresh_token = self.repo.create_refresh_token_record(
@@ -130,9 +132,11 @@ class AuthService:
 
     def authenticate_guest(self, payload: GuestAuthRequest) -> AuthTokenResponse:
         """
-        Handles Anonymous Guest Session ("Skip Signup") authentication.
+        Handles Anonymous Guest Session ("Skip Signup") authentication bound to creator_id.
         """
-        subscriber = self.repo.get_or_create_guest_subscriber(payload.device_id)
+        subscriber = self.repo.get_or_create_guest_subscriber(
+            creator_id=payload.creator_id, device_id=payload.device_id
+        )
 
         settings = get_settings()
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -141,7 +145,7 @@ class AuthService:
         access_token = create_access_token(
             user_id=subscriber.id,
             username=subscriber.name or f"guest_{subscriber.id}",
-            role="guest",
+            creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,
         )
         refresh_token = self.repo.create_refresh_token_record(
@@ -168,9 +172,10 @@ class AuthService:
         """
         identity_data = verify_google_id_token(payload.id_token)
         return self._process_social_user_login(
-            "google",
-            identity_data,
-            payload.device_info,
+            creator_id=payload.creator_id,
+            provider="google",
+            identity_data=identity_data,
+            device_info=payload.device_info,
             guest_subscriber_id=guest_subscriber_id,
         )
 
@@ -182,9 +187,10 @@ class AuthService:
         """
         identity_data = verify_facebook_access_token(payload.access_token)
         return self._process_social_user_login(
-            "facebook",
-            identity_data,
-            payload.device_info,
+            creator_id=payload.creator_id,
+            provider="facebook",
+            identity_data=identity_data,
+            device_info=payload.device_info,
             guest_subscriber_id=guest_subscriber_id,
         )
 
@@ -203,7 +209,7 @@ class AuthService:
         if not subscriber or not subscriber.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Subscriber account disabled or deleted",
+                detail="Subscriber account is disabled",
             )
 
         # Revoke old refresh token (Token Rotation)
@@ -218,7 +224,7 @@ class AuthService:
         new_access_token = create_access_token(
             user_id=subscriber.id,
             username=username_str,
-            role=subscriber.role or "subscriber",
+            creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,
         )
         new_refresh_token = self.repo.create_refresh_token_record(
@@ -249,7 +255,7 @@ class AuthService:
         Retrieves subscriber profile metadata by user_id.
         """
         subscriber = self.repo.get_user_by_id(user_id)
-        if not subscriber:
+        if not subscriber or not subscriber.is_active:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Subscriber account {user_id} not found",

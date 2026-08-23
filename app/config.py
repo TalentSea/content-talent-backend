@@ -35,6 +35,25 @@ class Settings(BaseSettings):
     FACEBOOK_APP_ID: str = ""
     FACEBOOK_APP_SECRET: str = ""
 
+    # Image Upload Configuration
+    ALLOWED_IMAGE_EXTENSIONS: str = "jpg,jpeg,png,webp,svg"
+    MAX_AVATAR_SIZE_MB: int = 2
+    MAX_THUMBNAIL_SIZE_MB: int = 5
+    MAX_PLAYLIST_COVER_SIZE_MB: int = 5
+    MAX_LOGO_SIZE_MB: int = 5
+    MAX_BANNER_SIZE_MB: int = 10
+
+    @property
+    def allowed_image_extensions_tuple(self) -> tuple[str, ...]:
+        """
+        Returns parsed tuple of lowercase allowed image extensions from .env.
+        """
+        return tuple(
+            ext.strip().lower()
+            for ext in self.ALLOWED_IMAGE_EXTENSIONS.split(",")
+            if ext.strip()
+        )
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

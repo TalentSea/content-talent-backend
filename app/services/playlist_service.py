@@ -22,7 +22,8 @@ from app.schemas.playlist_schemas import (
     PlaylistUpdateRequest,
     PlaylistUpdateResponse,
 )
-from app.utils.bunny_client import delete_bunny_storage_file, upload_bunny_storage_file
+from app.utils.bunny_client import delete_bunny_storage_file
+from app.utils.image_uploader import validate_and_upload_image
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +81,8 @@ class PlaylistService:
             for p, v_count in playlists_with_counts
         ]
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def get_playlist_details(
@@ -136,7 +135,7 @@ class PlaylistService:
         self, user_id: int, playlist_id: int, file: UploadFile
     ) -> PlaylistThumbnailUploadResponse:
         """
-        Uploads playlist banner image binary to Bunny Storage (assets/playlists/playlist_{id}.jpg) via server proxy.
+        Uploads playlist banner image binary to Bunny Storage via centralized image uploader.
         """
         playlist = self.repo.get_playlist_by_id(playlist_id, user_id)
         if not playlist:
@@ -145,28 +144,16 @@ class PlaylistService:
                 detail=f"Playlist {playlist_id} not found",
             )
 
-        allowed_mime_types = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-        content_type = (file.content_type or "").lower()
-        if content_type not in allowed_mime_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file format '{file.content_type}'. Only JPEG, PNG, and WebP images are allowed.",
-            )
-
-        file_bytes = file.file.read()
         settings = get_settings()
-        pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
-
         timestamp = int(time.time())
-        ext = (
-            "png"
-            if "png" in content_type
-            else ("webp" if "webp" in content_type else "jpg")
-        )
-        banner_path = f"assets/playlists/pl_{playlist_id}_{timestamp}.{ext}"
-        thumbnail_url = f"{pull_zone}/{banner_path}"
 
-        upload_bunny_storage_file(banner_path, file_bytes, content_type)
+        thumbnail_url = validate_and_upload_image(
+            file=file,
+            storage_path_without_ext=f"assets/playlists/pl_{playlist_id}_{timestamp}",
+            max_size_mb=settings.MAX_PLAYLIST_COVER_SIZE_MB,
+            old_file_url=playlist.thumbnail_url,
+            old_file_storage_folder="assets/playlists",
+        )
 
         playlist.thumbnail_url = thumbnail_url
         playlist.save()
@@ -240,10 +227,8 @@ class PlaylistService:
             for v, order_val, added_at_val in video_tuples
         ]
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def add_videos_to_playlist(
@@ -344,7 +329,7 @@ class PlaylistService:
                 status=v.status,
                 is_playable=v.is_playable,
                 views=v.views or 0,
-                likes=VideoLike.select().where(VideoLike.video == v.id).count(),
+                likes=v.likes or 0,
                 duration=v.duration,
                 main_thumbnail_url=v.main_thumbnail_url,
                 created_at=v.created_at,
@@ -352,8 +337,6 @@ class PlaylistService:
             for v in videos
         ]
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )

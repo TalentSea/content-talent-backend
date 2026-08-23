@@ -1,4 +1,3 @@
-import logging
 import time
 
 from fastapi import HTTPException, UploadFile, status
@@ -12,9 +11,7 @@ from app.schemas.profile_schemas import (
     ProfileUpdateRequest,
     SocialLinksSchema,
 )
-from app.utils.bunny_client import delete_bunny_storage_file, upload_bunny_storage_file
-
-logger = logging.getLogger(__name__)
+from app.utils.image_uploader import validate_and_upload_image
 
 
 class ProfileService:
@@ -22,18 +19,18 @@ class ProfileService:
     Business logic layer for Creator Admin Profile & Avatar operations.
     """
 
-    def __init__(self):
-        self.repo = ProfileRepository()
+    def __init__(self, repo: ProfileRepository | None = None) -> None:
+        self.repo = repo or ProfileRepository()
 
     def get_profile(self, admin_id: int) -> ProfileResponse:
         """
-        Retrieves detailed profile information and social links for authenticated creator admin.
+        Retrieves profile info and social links for Settings -> Profile UI page.
         """
         admin = self.repo.get_profile_by_admin_id(admin_id)
         if not admin:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Creator profile not found",
+                detail="Creator account associated with this session was not found",
             )
 
         social_links = SocialLinksSchema(
@@ -59,14 +56,34 @@ class ProfileService:
         self, admin_id: int, payload: ProfileUpdateRequest
     ) -> ActionSuccessResponse:
         """
-        Updates creator profile information and social links in DB.
+        Updates creator profile and social links in database (excluding email).
         """
-        update_data = payload.model_dump(exclude_unset=True)
-        admin = self.repo.update_profile(admin_id, update_data)
-        if not admin:
+        update_data = {}
+        for field in [
+            "first_name",
+            "last_name",
+            "bio",
+            "website",
+            "phone",
+            "location",
+        ]:
+            val = getattr(payload, field)
+            if val is not None:
+                update_data[field] = val
+
+        if payload.social_links is not None:
+            if payload.social_links.twitter is not None:
+                update_data["twitter_url"] = payload.social_links.twitter
+            if payload.social_links.youtube is not None:
+                update_data["youtube_url"] = payload.social_links.youtube
+            if payload.social_links.instagram is not None:
+                update_data["instagram_url"] = payload.social_links.instagram
+
+        success = self.repo.update_profile(admin_id, update_data)
+        if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Creator profile not found",
+                detail="Creator account associated with this session was not found",
             )
 
         return ActionSuccessResponse(status="success")
@@ -81,49 +98,19 @@ class ProfileService:
         if not admin:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Creator profile not found",
-            )
-
-        allowed_mime_types = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-        content_type = (file.content_type or "").lower()
-        if content_type not in allowed_mime_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file format '{file.content_type}'. Only JPEG, PNG, and WebP image files are allowed.",
-            )
-
-        file_bytes = file.file.read()
-        if len(file_bytes) > 2 * 1024 * 1024:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File size exceeds maximum allowed limit of 2MB.",
+                detail="Creator account associated with this session was not found",
             )
 
         settings = get_settings()
-        pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
-
-        # Delete previous avatar file from Bunny Storage if present on CDN
-        if admin.avatar_url and "talentsea77999.b-cdn.net" in admin.avatar_url:
-            try:
-                old_filename = admin.avatar_url.split("/")[-1]
-                delete_bunny_storage_file(f"assets/avatars/{old_filename}")
-            except Exception as e:  # noqa: BLE001
-                logger.warning(
-                    "Failed to delete old avatar file for admin %s: %s",
-                    admin_id,
-                    e,
-                )
-
-        ext = content_type.split("/")[-1]
-        if ext == "jpeg":
-            ext = "jpg"
         timestamp = int(time.time())
-        filename = f"avatar_{admin_id}_{timestamp}.{ext}"
-        storage_path = f"assets/avatars/{filename}"
 
-        upload_bunny_storage_file(storage_path, file_bytes, content_type)
+        avatar_url = validate_and_upload_image(
+            file=file,
+            storage_path_without_ext=f"assets/avatars/avatar_{admin_id}_{timestamp}",
+            max_size_mb=settings.MAX_AVATAR_SIZE_MB,
+            old_file_url=admin.avatar_url,
+            old_file_storage_folder="assets/avatars",
+        )
 
-        avatar_url = f"{pull_zone}/{storage_path}"
         self.repo.update_avatar_url(admin_id, avatar_url)
-
         return ProfilePhotoUploadResponse(avatar_url=avatar_url)

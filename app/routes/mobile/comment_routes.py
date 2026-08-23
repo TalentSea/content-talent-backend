@@ -37,7 +37,8 @@ def list_video_comments(
         sort=sort,
         page=page,
         limit=limit,
-        subscriber_id=current_subscriber["user_id"],
+        subscriber_id=current_subscriber.get("user_id"),
+        creator_id=current_subscriber.get("creator_id"),
     )
 
 
@@ -55,9 +56,12 @@ def create_video_comment(
     POST /api/v1/mobile/videos/{video_id}/comments — Post a new top-level video comment matching spec API 2.
     Requires subscriber authentication.
     """
-    subscriber_id = current_subscriber["user_id"]
+    subscriber_id = current_subscriber.get("user_id")
     return comment_service.create_video_comment(
-        video_id=video_id, subscriber_id=subscriber_id, payload=payload
+        video_id=video_id,
+        subscriber_id=subscriber_id,
+        payload=payload,
+        creator_id=current_subscriber.get("creator_id"),
     )
 
 
@@ -82,7 +86,8 @@ def get_comment_replies(
         sort=sort,
         page=page,
         limit=limit,
-        subscriber_id=current_subscriber["user_id"],
+        subscriber_id=current_subscriber.get("user_id"),
+        creator_id=current_subscriber.get("creator_id"),
     )
 
 
@@ -98,9 +103,12 @@ def create_comment_reply(
     POST /api/v1/mobile/comments/{id}/replies — Post reply to a comment or sub-comment matching spec API 4.
     Requires subscriber authentication.
     """
-    subscriber_id = current_subscriber["user_id"]
+    subscriber_id = current_subscriber.get("user_id")
     return comment_service.create_comment_reply(
-        comment_id=id, subscriber_id=subscriber_id, payload=payload
+        comment_id=id,
+        subscriber_id=subscriber_id,
+        payload=payload,
+        creator_id=current_subscriber.get("creator_id"),
     )
 
 
@@ -114,9 +122,11 @@ def toggle_comment_like(id: int, current_subscriber: CurrentSubscriber):
     POST /api/v1/mobile/comments/{id}/like — Toggle subscriber like state on a comment matching spec API 5.
     Requires subscriber authentication.
     """
-    subscriber_id = current_subscriber["user_id"]
+    subscriber_id = current_subscriber.get("user_id")
     return comment_service.toggle_comment_like(
-        comment_id=id, subscriber_id=subscriber_id
+        comment_id=id,
+        subscriber_id=subscriber_id,
+        creator_id=current_subscriber.get("creator_id"),
     )
 
 
@@ -130,5 +140,9 @@ def delete_comment(id: int, current_subscriber: CurrentSubscriber):
     DELETE /api/v1/mobile/comments/{id} — Delete subscriber's own comment matching spec API 6.
     Requires subscriber authentication.
     """
-    subscriber_id = current_subscriber["user_id"]
-    return comment_service.delete_comment(comment_id=id, subscriber_id=subscriber_id)
+    subscriber_id = current_subscriber.get("user_id")
+    return comment_service.delete_comment(
+        comment_id=id,
+        subscriber_id=subscriber_id,
+        creator_id=current_subscriber.get("creator_id"),
+    )

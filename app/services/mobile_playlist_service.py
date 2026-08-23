@@ -26,6 +26,7 @@ class MobilePlaylistService:
 
     def list_public_playlists(
         self,
+        creator_id: int | None = None,
         search: str | None = None,
         sort: str = "newest",
         page: int = 1,
@@ -35,7 +36,7 @@ class MobilePlaylistService:
         Retrieves paginated public creator playlists feed matching spec API 1.
         """
         results, total = self.repo.list_public_playlists(
-            search=search, sort=sort, page=page, limit=limit
+            creator_id=creator_id, search=search, sort=sort, page=page, limit=limit
         )
 
         items = [
@@ -49,23 +50,22 @@ class MobilePlaylistService:
             for playlist, video_count in results
         ]
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return MobilePlaylistListResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return MobilePlaylistListResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def get_playlist_details(
         self,
         playlist_id: int,
         subscriber_id: int | None = None,
+        creator_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> MobilePlaylistDetailsResponse:
         """
         Retrieves single public playlist header alongside paginated video items matching spec API 2.
         """
-        playlist = self.repo.get_public_playlist_by_id(playlist_id)
+        playlist = self.repo.get_public_playlist_by_id(playlist_id, creator_id=creator_id)
         if not playlist:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -106,14 +106,8 @@ class MobilePlaylistService:
                 )
             )
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        videos_envelope = MobilePlaylistVideosResponse(
-            total=total,
-            page=page,
-            limit=limit,
-            total_pages=total_pages,
-            items=formatted_video_items,
+        videos_envelope = MobilePlaylistVideosResponse.create(
+            items=formatted_video_items, total=total, page=page, limit=limit
         )
 
         return MobilePlaylistDetailsResponse(

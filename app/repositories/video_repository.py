@@ -172,7 +172,7 @@ class VideoRepository:
             )
             return count
         except PeeweeException as e:
-            logger.error(f"Error publishing due scheduled videos: {e!s}")
+            logger.error("Error publishing due scheduled videos: %s", e)
             return 0
 
     def swap_main_thumbnail(

@@ -1,6 +1,6 @@
 import logging
 
-from peewee import IntegrityError, PeeweeException
+from peewee import IntegrityError, PeeweeException, fn
 
 from app.database import db_proxy
 from app.models.comment import Comment, CommentLike
@@ -37,22 +37,26 @@ class MobileCommentRepository:
             comments = list(query.paginate(page, limit))
             return comments, total
         except PeeweeException as e:
-            logger.error(f"Error fetching mobile comments for video {video_id}: {e!s}")
+            logger.error("Error fetching mobile comments for video %s: %s", video_id, e)
             return [], 0
 
-    def get_comment_by_id(self, comment_id: int) -> Comment | None:
+    def get_comment_by_id(
+        self, comment_id: int, creator_id: int | None = None
+    ) -> Comment | None:
         """
-        Fetches a comment by ID regardless of parent state.
+        Fetches a comment by ID with optional creator_id isolation.
         """
         try:
-            return (
-                Comment.select(Comment, Video)
-                .join(Video)
-                .where(Comment.id == comment_id)
-                .first()
-            )
+            query = Comment.select(Comment, Video).join(Video)
+            if creator_id is not None:
+                query = query.where(
+                    (Comment.id == comment_id) & (Video.user == creator_id)
+                )
+            else:
+                query = query.where(Comment.id == comment_id)
+            return query.first()
         except PeeweeException as e:
-            logger.error(f"Error fetching comment {comment_id}: {e!s}")
+            logger.error("Error fetching comment %s: %s", comment_id, e)
             return None
 
     def get_replies_for_comment(
@@ -77,7 +81,7 @@ class MobileCommentRepository:
             replies = list(query.paginate(page, limit))
             return replies, total
         except PeeweeException as e:
-            logger.error(f"Error fetching replies for comment {comment_id}: {e!s}")
+            logger.error("Error fetching replies for comment %s: %s", comment_id, e)
             return [], 0
 
     def get_reply_count(self, comment_id: int) -> int:
@@ -87,8 +91,27 @@ class MobileCommentRepository:
         try:
             return Comment.select().where(Comment.parent == comment_id).count()
         except PeeweeException as e:
-            logger.error(f"Error counting replies for comment {comment_id}: {e!s}")
+            logger.error("Error counting replies for comment %s: %s", comment_id, e)
             return 0
+
+    def get_batch_reply_counts(self, comment_ids: list[int]) -> dict[int, int]:
+        """
+        Batches reply counts for a list of parent comment IDs in 1 single query.
+        """
+        if not comment_ids:
+            return {}
+        try:
+            counts_query = (
+                Comment.select(
+                    Comment.parent, fn.COUNT(Comment.id).alias("r_count")
+                )
+                .where(Comment.parent.in_(comment_ids))
+                .group_by(Comment.parent)
+            )
+            return {row.parent_id: row.r_count for row in counts_query}
+        except PeeweeException as e:
+            logger.error("Error batch fetching reply counts: %s", e)
+            return {}
 
     def is_comment_liked_by_subscriber(
         self, comment_id: int, subscriber_id: int
@@ -108,42 +131,50 @@ class MobileCommentRepository:
                 .exists()
             )
         except PeeweeException as e:
-            logger.error(f"Error checking like state for comment {comment_id}: {e!s}")
+            logger.error("Error checking like state for comment %s: %s", comment_id, e)
             return False
 
+    def get_subscriber_liked_comment_ids(
+        self, comment_ids: list[int], subscriber_id: int | None
+    ) -> set[int]:
+        """
+        Batches liked comment IDs for a subscriber in 1 single query.
+        """
+        if not comment_ids or not subscriber_id:
+            return set()
+        try:
+            liked_query = CommentLike.select(CommentLike.comment).where(
+                (CommentLike.user == subscriber_id)
+                & (CommentLike.comment.in_(comment_ids))
+            )
+            return {row.comment_id for row in liked_query}
+        except PeeweeException as e:
+            logger.error("Error batch fetching liked comment IDs: %s", e)
+            return set()
+
     def create_top_level_comment(
-        self, video: Video, subscriber: Subscriber, text: str
+        self, video: Video, subscriber_id: int, text: str
     ) -> Comment:
         """
-        Creates a new top-level comment by a mobile subscriber.
+        Creates a new top-level comment by a mobile subscriber using raw subscriber_id.
         """
-        user_name = subscriber.name or (
-            subscriber.email.split("@")[0] if subscriber.email else "Subscriber"
-        )
         return Comment.create(
             video=video.id,
-            user=subscriber.id,
-            user_name=user_name,
-            user_avatar=subscriber.avatar_url,
+            user=subscriber_id,
             text=text,
             parent=None,
         )
 
     def create_subscriber_reply(
-        self, parent_comment: Comment, subscriber: Subscriber, text: str
+        self, parent_comment: Comment, subscriber_id: int, text: str
     ) -> Comment:
         """
         Creates a new reply nested under the root top-level parent comment.
         """
         root_parent = parent_comment.parent if parent_comment.parent else parent_comment
-        user_name = subscriber.name or (
-            subscriber.email.split("@")[0] if subscriber.email else "Subscriber"
-        )
         return Comment.create(
             video=root_parent.video,
-            user=subscriber.id,
-            user_name=user_name,
-            user_avatar=subscriber.avatar_url,
+            user=subscriber_id,
             text=text,
             parent=root_parent,
         )
@@ -183,7 +214,7 @@ class MobileCommentRepository:
 
                 return is_liked, total_likes
         except PeeweeException as e:
-            logger.error(f"Error toggling comment like: {e!s}")
+            logger.error("Error toggling comment like: %s", e)
             raise
 
     def delete_comment(self, comment: Comment) -> bool:
@@ -194,5 +225,5 @@ class MobileCommentRepository:
             comment.delete_instance(recursive=True)
             return True
         except PeeweeException as e:
-            logger.error(f"Error deleting comment {comment.id}: {e!s}")
+            logger.error("Error deleting comment %s: %s", comment.id, e)
             return False

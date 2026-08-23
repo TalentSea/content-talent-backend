@@ -11,11 +11,11 @@ from app.config import get_settings
 def create_access_token(
     user_id: int,
     username: str = "",
-    role: str = "subscriber",
+    creator_id: int | None = None,
     expires_delta_minutes: int | None = None,
 ) -> str:
     """
-    Encodes user_id, username, and role into a signed JWT access token.
+    Encodes user_id, username, and creator_id into a signed JWT access token.
     """
     settings = get_settings()
     if expires_delta_minutes is None:
@@ -27,7 +27,7 @@ def create_access_token(
         "sub": str(user_id),
         "user_id": user_id,
         "username": username or f"user_{user_id}",
-        "role": role,
+        "creator_id": creator_id,
         "exp": expire,
     }
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=settings.JWT_ALGORITHM)

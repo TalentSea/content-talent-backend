@@ -20,6 +20,7 @@ class CommentReplyResponse(BaseModel):
     text: str
     author: CommentAuthorResponse
     likes: int = 0
+    is_hearted_by_creator: bool = False
     is_liked: bool = False
     created_at: datetime | None = None
 
@@ -33,6 +34,7 @@ class CommentItemResponse(BaseModel):
     video_id: int
     video_title: str
     likes: int = 0
+    is_hearted_by_creator: bool = False
     is_liked: bool = False
     reply_count: int = 0
     created_at: datetime | None = None

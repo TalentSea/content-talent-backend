@@ -65,17 +65,13 @@ class MobileVideoService:
     def _build_paginated_response(
         self, items: list, total_count: int, page: int, limit: int
     ) -> PaginatedResponse:
-        total_pages = math.ceil(total_count / limit) if limit > 0 else 0
-        return PaginatedResponse(
-            items=items,
-            total=total_count,
-            page=page,
-            limit=limit,
-            total_pages=total_pages,
+        return PaginatedResponse.create(
+            items=items, total=total_count, page=page, limit=limit
         )
 
     def list_public_videos(
         self,
+        creator_id: int | None = None,
         category: str | None = None,
         search: str | None = None,
         sort: str = "newest",
@@ -88,19 +84,27 @@ class MobileVideoService:
         Attaches personalized watch progress if subscriber_id is provided.
         """
         videos, total_count = self.repo.list_public_videos(
-            category=category, search=search, sort=sort, page=page, limit=limit
+            creator_id=creator_id,
+            category=category,
+            search=search,
+            sort=sort,
+            page=page,
+            limit=limit,
         )
         items = self._build_list_item_responses(videos, subscriber_id=subscriber_id)
         return self._build_paginated_response(items, total_count, page, limit)
 
     def get_video_details(
-        self, video_id: int, subscriber_id: int | None = None
+        self,
+        video_id: int,
+        subscriber_id: int | None = None,
+        creator_id: int | None = None,
     ) -> MobileVideoDetailResponse:
         """
         Fetches detailed video metadata and generates presigned HLS streaming URL + MP4 download URLs.
         Dynamically calculates total likes count, is_liked, is_saved, and watch progress.
         """
-        video = self.repo.get_public_video_by_id(video_id)
+        video = self.repo.get_public_video_by_id(video_id, creator_id=creator_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -170,7 +174,7 @@ class MobileVideoService:
             is_liked = self.repo.is_video_liked_by_subscriber(video.id, subscriber_id)
             is_saved = self.repo.is_video_saved_by_subscriber(video.id, subscriber_id)
             last_pos, progress_pct = self.repo.get_subscriber_video_watch_progress(
-                video.id, subscriber_id, duration_secs
+                video.id, subscriber_id
             )
 
         return MobileVideoDetailResponse(
@@ -193,105 +197,138 @@ class MobileVideoService:
             published_at=video.published_at,
         )
 
-    def record_video_view(self, video_id: int) -> MobileViewCountResponse:
+    def record_video_view(
+        self, video_id: int, creator_id: int | None = None
+    ) -> MobileViewCountResponse:
         """
         Increments views counter for a published video asset.
         """
-        new_views = self.repo.increment_view_count(video_id)
+        new_views = self.repo.increment_view_count(video_id, creator_id=creator_id)
         if new_views is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Published video with ID {video_id} not found",
             )
-
         return MobileViewCountResponse(status="success", views_count=new_views)
 
     def toggle_video_like(
-        self, video_id: int, subscriber_id: int
+        self,
+        video_id: int,
+        subscriber_id: int,
+        creator_id: int | None = None,
     ) -> MobileVideoLikeResponse:
         """
         Toggles subscriber like state for a published video asset.
         """
-        video = self.repo.get_public_video_by_id(video_id)
-        if not video:
+        result = self.repo.toggle_video_like(
+            video_id, subscriber_id, creator_id=creator_id
+        )
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Published video with ID {video_id} not found",
             )
 
-        is_liked, total_likes = self.repo.toggle_video_like(video_id, subscriber_id)
+        is_liked, total_likes = result
         return MobileVideoLikeResponse(is_liked=is_liked, likes_count=total_likes)
 
     def toggle_video_save(
-        self, video_id: int, subscriber_id: int
+        self,
+        video_id: int,
+        subscriber_id: int,
+        creator_id: int | None = None,
     ) -> MobileVideoSaveResponse:
         """
         Toggles subscriber save/bookmark state for a published video asset.
         """
-        video = self.repo.get_public_video_by_id(video_id)
-        if not video:
+        is_saved = self.repo.toggle_video_save(
+            video_id, subscriber_id, creator_id=creator_id
+        )
+        if is_saved is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Published video with ID {video_id} not found",
             )
 
-        is_saved = self.repo.toggle_video_save(video_id, subscriber_id)
         return MobileVideoSaveResponse(is_saved=is_saved)
 
     def update_watch_progress(
-        self, video_id: int, subscriber_id: int, progress_seconds: int
+        self,
+        video_id: int,
+        subscriber_id: int,
+        progress_seconds: int,
+        creator_id: int | None = None,
     ):
         """
         Updates playback watch position from subscriber mobile player heartbeat.
         """
-        video = self.repo.get_public_video_by_id(video_id)
-        if not video:
+        success = self.repo.update_watch_progress(
+            video_id=video_id,
+            subscriber_id=subscriber_id,
+            progress_seconds=progress_seconds,
+            creator_id=creator_id,
+        )
+        if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Published video with ID {video_id} not found",
             )
 
-        self.repo.upsert_watch_progress(
-            video_id=video_id,
-            subscriber_id=subscriber_id,
-            progress_seconds=progress_seconds,
-            duration_seconds=parse_duration_seconds(video.duration),
-        )
-
     def list_subscriber_liked_videos(
-        self, subscriber_id: int, page: int = 1, limit: int = 20
+        self,
+        subscriber_id: int,
+        creator_id: int | None = None,
+        page: int = 1,
+        limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
         """
         Retrieves a paginated list of videos liked by the calling subscriber ("My Liked Videos").
         """
         videos, total_count = self.repo.list_subscriber_liked_videos(
-            subscriber_id=subscriber_id, page=page, limit=limit
+            subscriber_id=subscriber_id,
+            creator_id=creator_id,
+            page=page,
+            limit=limit,
         )
 
         items = self._build_list_item_responses(videos, subscriber_id=subscriber_id)
         return self._build_paginated_response(items, total_count, page, limit)
 
     def list_subscriber_saved_videos(
-        self, subscriber_id: int, page: int = 1, limit: int = 20
+        self,
+        subscriber_id: int,
+        creator_id: int | None = None,
+        page: int = 1,
+        limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
         """
         Retrieves a paginated list of videos saved by the calling subscriber ("My Watchlist").
         """
         videos, total_count = self.repo.list_subscriber_saved_videos(
-            subscriber_id=subscriber_id, page=page, limit=limit
+            subscriber_id=subscriber_id,
+            creator_id=creator_id,
+            page=page,
+            limit=limit,
         )
 
         items = self._build_list_item_responses(videos, subscriber_id=subscriber_id)
         return self._build_paginated_response(items, total_count, page, limit)
 
     def list_continue_watching_videos(
-        self, subscriber_id: int, page: int = 1, limit: int = 10
+        self,
+        subscriber_id: int,
+        creator_id: int | None = None,
+        page: int = 1,
+        limit: int = 10,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
         """
         Retrieves paginated unfinished videos for subscriber 'Continue Watching' carousel.
         """
         tuples_list, total_count = self.repo.list_continue_watching_videos(
-            subscriber_id=subscriber_id, page=page, limit=limit
+            subscriber_id=subscriber_id,
+            creator_id=creator_id,
+            page=page,
+            limit=limit,
         )
 
         items = [
@@ -301,13 +338,20 @@ class MobileVideoService:
         return self._build_paginated_response(items, total_count, page, limit)
 
     def list_watch_history(
-        self, subscriber_id: int, page: int = 1, limit: int = 20
+        self,
+        subscriber_id: int,
+        creator_id: int | None = None,
+        page: int = 1,
+        limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
         """
         Retrieves paginated watch history for calling subscriber.
         """
         tuples_list, total_count = self.repo.list_watch_history(
-            subscriber_id=subscriber_id, page=page, limit=limit
+            subscriber_id=subscriber_id,
+            creator_id=creator_id,
+            page=page,
+            limit=limit,
         )
 
         items = [
@@ -316,20 +360,25 @@ class MobileVideoService:
         ]
         return self._build_paginated_response(items, total_count, page, limit)
 
-    def clear_watch_history(self, subscriber_id: int):
+    def clear_watch_history(
+        self, subscriber_id: int, creator_id: int | None = None
+    ):
         """
         Deletes all watch history for calling subscriber.
         """
-        self.repo.clear_watch_history(subscriber_id)
+        self.repo.clear_watch_history(subscriber_id, creator_id=creator_id)
 
-    def remove_video_from_watch_history(self, video_id: int, subscriber_id: int):
+    def remove_video_from_watch_history(
+        self, video_id: int, subscriber_id: int, creator_id: int | None = None
+    ):
         """
         Deletes single video watch history record for calling subscriber.
         """
-        video = self.repo.get_public_video_by_id(video_id)
-        if not video:
+        success = self.repo.remove_video_from_watch_history(
+            video_id=video_id, subscriber_id=subscriber_id, creator_id=creator_id
+        )
+        if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Published video with ID {video_id} not found",
             )
-        self.repo.remove_video_from_watch_history(video_id, subscriber_id)

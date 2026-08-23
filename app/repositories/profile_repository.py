@@ -21,7 +21,7 @@ class ProfileRepository:
         try:
             return Admin.get_or_none(Admin.id == admin_id)
         except PeeweeException as e:
-            logger.error(f"Error fetching profile for admin {admin_id}: {e!s}")
+            logger.error("Error fetching profile for admin %s: %s", admin_id, e)
             raise
 
     def update_profile(

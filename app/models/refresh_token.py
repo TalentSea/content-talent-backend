@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from peewee import BooleanField, CharField, DateTimeField, ForeignKeyField
 
@@ -22,7 +22,7 @@ class RefreshToken(BaseModel):
     device_info = CharField(max_length=255, null=True)
     expires_at = DateTimeField(index=True)
     is_revoked = BooleanField(default=False)
-    created_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "refresh_tokens"

@@ -8,6 +8,7 @@ class GoogleAuthRequest(BaseModel):
     Dedicated payload for Google OIDC Sign-In.
     """
 
+    creator_id: int = Field(..., description="Target Admin Creator studio ID")
     id_token: str = Field(..., description="Google OIDC id_token JWT string")
     device_info: str | None = Field(
         None, description="Client device description string"
@@ -19,6 +20,7 @@ class FacebookAuthRequest(BaseModel):
     Dedicated payload for Facebook OAuth 2.0 Sign-In.
     """
 
+    creator_id: int = Field(..., description="Target Admin Creator studio ID")
     access_token: str = Field(..., description="Facebook OAuth 2.0 access_token string")
     device_info: str | None = Field(
         None, description="Client device description string"
@@ -30,6 +32,7 @@ class GuestAuthRequest(BaseModel):
     Dedicated payload for Anonymous Guest Session ("Skip Signup").
     """
 
+    creator_id: int = Field(..., description="Target Admin Creator studio ID")
     device_id: str = Field(..., description="Unique mobile device hardware ID")
     device_info: str | None = Field(
         None, description="Client device description string"

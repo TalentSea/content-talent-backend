@@ -39,11 +39,11 @@ class CategoryService:
             updatedAt=cat.updated_at,
         )
 
-    def list_mobile_categories(self):
+    def list_mobile_categories(self, creator_id: int | None = None):
         """
         Retrieves lightweight categories for mobile catalog filter chips.
         """
-        categories = self.repo.list_public_mobile_categories()
+        categories = self.repo.list_public_mobile_categories(creator_id)
         data = [
             MobileCategoryResponse(
                 id=c.id,

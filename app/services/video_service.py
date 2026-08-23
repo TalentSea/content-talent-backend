@@ -30,13 +30,13 @@ from app.utils.bunny_client import (
     delete_bunny_storage_file,
     delete_bunny_video,
     get_bunny_video_status,
-    upload_bunny_storage_file,
 )
 from app.utils.bunny_signature import (
     generate_signed_mp4_url,
     generate_signed_playback_url,
     generate_tus_signature,
 )
+from app.utils.image_uploader import validate_and_upload_image
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -495,10 +495,8 @@ class VideoService:
             updated_videos.append(v)
 
         items = [self._to_video_list_item_response(v) for v in updated_videos]
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
-        return PaginatedResponse(
-            total=total, page=page, limit=limit, total_pages=total_pages, items=items
+        return PaginatedResponse.create(
+            items=items, total=total, page=page, limit=limit
         )
 
     def get_video_details(self, user_id: int, video_id: int) -> VideoResponse:
@@ -619,28 +617,12 @@ class VideoService:
                 detail="Thumbnail slot must be 0, 1, or 2",
             )
 
-        allowed_mime_types = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-        content_type = (file.content_type or "").lower()
-        if content_type not in allowed_mime_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file format '{file.content_type}'. Only JPEG, PNG, and WebP images are allowed.",
-            )
-
-        file_bytes = file.file.read()
-        ext = (
-            "png"
-            if "png" in content_type
-            else ("webp" if "webp" in content_type else "jpg")
-        )
-        filename = f"thumb_{slot + 1}.{ext}"
-
-        file_path = f"{video.bunny_video_id}/{filename}"
-        upload_bunny_storage_file(file_path, file_bytes, content_type)
-
         settings = get_settings()
-        storage_pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
-        new_url = f"{storage_pull_zone}/{video.bunny_video_id}/{filename}"
+        new_url = validate_and_upload_image(
+            file=file,
+            storage_path_without_ext=f"{video.bunny_video_id}/thumb_{slot + 1}",
+            max_size_mb=settings.MAX_THUMBNAIL_SIZE_MB,
+        )
         self.repo.update_thumbnail_url(video_id, user_id, slot, new_url)
 
         return ActionSuccessResponse(status="success")

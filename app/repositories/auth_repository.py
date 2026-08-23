@@ -17,16 +17,17 @@ class AuthRepository:
     """
 
     def find_user_by_provider_or_email(
-        self, provider: str, provider_id: str, email: str | None = None
+        self, creator_id: int, provider: str, provider_id: str, email: str | None = None
     ) -> Subscriber | None:
         """
-        Finds existing subscriber by (provider, provider_id) pair or matching email address.
+        Finds existing subscriber bound to creator_id by (provider, provider_id) pair or matching email address.
         """
         try:
             sub = (
                 Subscriber.select()
                 .where(
-                    (Subscriber.provider == provider)
+                    (Subscriber.creator == creator_id)
+                    & (Subscriber.provider == provider)
                     & (Subscriber.provider_id == provider_id)
                 )
                 .first()
@@ -36,7 +37,9 @@ class AuthRepository:
 
             if email:
                 sub_by_email = (
-                    Subscriber.select().where(Subscriber.email == email).first()
+                    Subscriber.select()
+                    .where((Subscriber.creator == creator_id) & (Subscriber.email == email))
+                    .first()
                 )
                 if sub_by_email:
                     sub_by_email.provider = provider
@@ -45,28 +48,29 @@ class AuthRepository:
                     return sub_by_email
             return None
         except PeeweeException as e:
-            logger.error(f"Error querying subscriber by provider/email: {e!s}")
+            logger.error("Error querying subscriber by provider/email: %s", e)
             return None
 
     def create_social_user(
         self,
+        creator_id: int,
         provider: str,
         provider_id: str,
         email: str | None = None,
         name: str | None = None,
         avatar_url: str | None = None,
-        role: str = "subscriber",
     ) -> Subscriber:
         """
-        Creates a new social subscriber in the database.
+        Creates a new social subscriber bound to creator_id in the database.
         """
         sub = Subscriber.create(
+            creator=creator_id,
             email=email,
             name=name,
             avatar_url=avatar_url,
             provider=provider,
             provider_id=provider_id,
-            role=role,
+            role="subscriber",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -118,19 +122,24 @@ class AuthRepository:
 
     def get_valid_refresh_token(self, raw_token: str) -> RefreshToken | None:
         """
-        Validates raw refresh token against database records.
+        Validates raw refresh token against database records and eagerly joins Subscriber.
         """
-        token_hash_str = hash_refresh_token(raw_token)
-        token_record = (
-            RefreshToken.select()
-            .where(
-                (RefreshToken.token_hash == token_hash_str)
-                & (RefreshToken.is_revoked == False)
-                & (RefreshToken.expires_at > datetime.now(timezone.utc))
+        try:
+            token_hash_str = hash_refresh_token(raw_token)
+            token_record = (
+                RefreshToken.select(RefreshToken, Subscriber)
+                .join(Subscriber)
+                .where(
+                    (RefreshToken.token_hash == token_hash_str)
+                    & (RefreshToken.is_revoked == False)
+                    & (RefreshToken.expires_at > datetime.now(timezone.utc))
+                )
+                .first()
             )
-            .first()
-        )
-        return token_record
+            return token_record
+        except PeeweeException as e:
+            logger.error("Error validating refresh token: %s", e)
+            return None
 
     def revoke_refresh_token(self, raw_token: str) -> bool:
         """
@@ -152,16 +161,18 @@ class AuthRepository:
         except PeeweeException:
             return None
 
-    def get_or_create_guest_subscriber(self, device_id: str) -> Subscriber:
+    def get_or_create_guest_subscriber(self, creator_id: int, device_id: str) -> Subscriber:
         """
-        Finds existing guest subscriber by device_id or creates a new anonymous guest subscriber.
+        Finds existing guest subscriber bound to creator_id by device_id or creates a new anonymous guest subscriber.
         Refreshes updated_at timestamp on active guest sessions.
         """
         now = datetime.now(timezone.utc)
         sub = (
             Subscriber.select()
             .where(
-                (Subscriber.provider == "guest") & (Subscriber.provider_id == device_id)
+                (Subscriber.creator == creator_id)
+                & (Subscriber.provider == "guest")
+                & (Subscriber.provider_id == device_id)
             )
             .first()
         )
@@ -172,6 +183,7 @@ class AuthRepository:
             return sub
 
         sub = Subscriber.create(
+            creator=creator_id,
             name="Guest User",
             email=None,
             avatar_url=None,
@@ -187,6 +199,7 @@ class AuthRepository:
     def upgrade_guest_subscriber(
         self,
         guest_subscriber_id: int,
+        creator_id: int,
         provider: str,
         provider_id: str,
         email: str | None = None,
@@ -194,30 +207,42 @@ class AuthRepository:
         avatar_url: str | None = None,
     ) -> Subscriber:
         """
-        Upgrades an existing Guest subscriber record in-place to a permanent Google/Facebook subscriber.
-        Preserves all Watch History, Watchlist, and Liked Videos attached to subscriber ID!
+        Upgrades a Guest subscriber, or returns existing social subscriber if user is returning.
+        Cleans up temporary guest subscriber record on returning user login.
         """
+        # 1. If this social user ALREADY has an account, return existing subscriber!
+        existing_user = self.find_user_by_provider_or_email(
+            creator_id, provider, provider_id, email
+        )
+        if existing_user:
+            guest_sub = self.get_user_by_id(guest_subscriber_id)
+            if guest_sub and guest_sub.provider == "guest":
+                guest_sub.delete_instance()
+            return self.update_user_profile_info(existing_user, name, avatar_url)
+
+        # 2. Otherwise, upgrade the guest row in-place for new users
         sub = self.get_user_by_id(guest_subscriber_id)
         if not sub:
             return self.create_social_user(
+                creator_id=creator_id,
                 provider=provider,
                 provider_id=provider_id,
                 email=email,
                 name=name,
                 avatar_url=avatar_url,
-                role="subscriber",
             )
 
         now = datetime.now(timezone.utc)
+        sub.creator = creator_id
         sub.provider = provider
         sub.provider_id = provider_id
+        sub.role = "subscriber"
         if email:
             sub.email = email
         if name:
             sub.name = name
         if avatar_url:
             sub.avatar_url = avatar_url
-        sub.role = "subscriber"
         sub.updated_at = now
         sub.save()
         return sub
@@ -232,7 +257,6 @@ class AuthRepository:
             Subscriber.delete()
             .where(
                 (Subscriber.provider == "guest")
-                & (Subscriber.role == "guest")
                 & (Subscriber.updated_at < cutoff_date)
             )
             .execute()

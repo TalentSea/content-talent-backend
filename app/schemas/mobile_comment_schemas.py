@@ -19,6 +19,7 @@ class MobileCommentItemResponse(BaseModel):
     text: str
     author: MobileCommentAuthorResponse
     likes: int = 0
+    is_hearted_by_creator: bool = False
     is_liked: bool = False
     reply_count: int = 0
     is_owner: bool = False
@@ -39,6 +40,7 @@ class MobileCommentReplyResponse(BaseModel):
     text: str
     author: MobileCommentAuthorResponse
     likes: int = 0
+    is_hearted_by_creator: bool = False
     is_liked: bool = False
     is_owner: bool = False
     created_at: datetime | None = None

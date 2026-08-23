@@ -16,6 +16,7 @@ class MobilePlaylistRepository:
 
     def list_public_playlists(
         self,
+        creator_id: int | None = None,
         search: str | None = None,
         sort: str = "newest",
         page: int = 1,
@@ -23,9 +24,13 @@ class MobilePlaylistRepository:
     ) -> tuple[list[tuple[Playlist, int]], int]:
         """
         Retrieves paginated public creator playlists with batched count of published & ready videos.
+        Optionally filters by creator_id for tenant isolation.
         """
         try:
             query = Playlist.select()
+
+            if creator_id is not None:
+                query = query.where(Playlist.user == creator_id)
 
             if search:
                 query = query.where(Playlist.name.contains(search))
@@ -62,17 +67,22 @@ class MobilePlaylistRepository:
             results = [(p, counts_map.get(p.id, 0)) for p in playlists]
             return results, total
         except PeeweeException as e:
-            logger.error(f"Error querying mobile public playlists: {e!s}")
+            logger.error("Error querying mobile public playlists: %s", e)
             raise
 
-    def get_public_playlist_by_id(self, playlist_id: int) -> Playlist | None:
+    def get_public_playlist_by_id(
+        self, playlist_id: int, creator_id: int | None = None
+    ) -> Playlist | None:
         """
-        Fetches a single playlist by primary key ID.
+        Fetches a single playlist by primary key ID, optionally filtered by creator_id for tenant isolation.
         """
         try:
-            return Playlist.get_or_none(Playlist.id == playlist_id)
+            query = Playlist.select().where(Playlist.id == playlist_id)
+            if creator_id is not None:
+                query = query.where(Playlist.user == creator_id)
+            return query.first()
         except PeeweeException as e:
-            logger.error(f"Error fetching mobile playlist {playlist_id}: {e!s}")
+            logger.error("Error fetching mobile playlist %s: %s", playlist_id, e)
             raise
 
     def get_playlist_videos_with_subscriber_overlay(
