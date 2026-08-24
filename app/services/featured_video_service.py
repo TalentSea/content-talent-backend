@@ -44,7 +44,7 @@ class FeaturedVideoService:
         Retrieves featured videos list for creator_id matching spec doc API 3.1.
         """
         rows = self.repo.get_featured_videos(creator_id)
-        return [self._map_item(f_row, v_row) for f_row, v_row in rows]
+        return [self._map_item(f_row, f_row.video) for f_row in rows]
 
     def sync_featured_videos(
         self, creator_id: int, payload: FeaturedVideoSyncRequest
@@ -62,7 +62,7 @@ class FeaturedVideoService:
         updated_rows = self.repo.sync_featured_videos(
             creator_id=creator_id, video_ids=payload.video_ids
         )
-        items = [self._map_item(f_row, v_row) for f_row, v_row in updated_rows]
+        items = [self._map_item(f_row, f_row.video) for f_row in updated_rows]
 
         return FeaturedVideoSyncResponse(
             status="success",
