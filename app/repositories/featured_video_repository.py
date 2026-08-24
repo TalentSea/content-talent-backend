@@ -64,7 +64,10 @@ class FeaturedVideoRepository:
                         for v in Video.select().where(
                             (Video.user == creator_id)
                             & (Video.id.in_(unique_ids))
-                            & (Video.status == "published")
+                            & (
+                                (fn.LOWER(Video.status).in_(["published", "ready"]))
+                                | (Video.is_playable == True)
+                            )
                         )
                     }
                     ordered_videos = [
@@ -113,7 +116,10 @@ class FeaturedVideoRepository:
             )
             query = Video.select().where(
                 (Video.user == creator_id)
-                & (Video.status == "published")
+                & (
+                    (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    | (Video.is_playable == True)
+                )
                 & (Video.id.not_in(featured_subquery))
             )
 

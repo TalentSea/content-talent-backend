@@ -53,7 +53,10 @@ class MobileFeaturedVideoRepository:
                 .join(Video)
                 .where(
                     (FeaturedVideo.creator == creator_id)
-                    & (Video.status == "published")
+                    & (
+                        (fn.LOWER(Video.status).in_(["published", "ready"]))
+                        | (Video.is_playable == True)
+                    )
                 )
                 .order_by(FeaturedVideo.position.asc(), FeaturedVideo.created_at.asc())
             )
