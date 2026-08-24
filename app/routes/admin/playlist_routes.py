@@ -8,7 +8,6 @@ from app.schemas.playlist_schemas import (
     PlaylistBulkRemoveVideosRequest,
     PlaylistCreateRequest,
     PlaylistCreateResponse,
-    PlaylistDetailsResponse,
     PlaylistItemVideoResponse,
     PlaylistListItemResponse,
     PlaylistReorderVideosRequest,
@@ -56,18 +55,6 @@ def list_playlists(
         page=page,
         limit=limit,
     )
-
-
-@router.get(
-    "/{playlist_id}",
-    response_model=PlaylistDetailsResponse,
-    status_code=status.HTTP_200_OK,
-)
-def get_playlist_details(playlist_id: int, current_user: CurrentAdmin):
-    """
-    GET /api/v1/admin/playlists/{playlist_id} — Retrieves full metadata for a single playlist container.
-    """
-    return playlist_service.get_playlist_details(current_user["user_id"], playlist_id)
 
 
 @router.put(

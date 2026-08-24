@@ -1,47 +1,27 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
-class FeaturedVideoAddRequest(BaseModel):
+class FeaturedVideoSyncRequest(BaseModel):
     """
-    Request payload to add video(s) to creator's featured list.
-    """
-
-    video_ids: list[int] = Field(
-        ..., min_items=1, description="List of video IDs to add to featured list"
-    )
-
-
-class FeaturedVideoReorderRequest(BaseModel):
-    """
-    Request payload to reorder positions of featured videos.
+    Request payload for synchronizing the active featured videos list matching spec doc API 3.2.
+    Passing an ordered array of video_ids replaces the creator's featured list in exact sequence.
     """
 
-    video_ids: list[int] = Field(
-        ..., min_items=1, description="List of video IDs in new position sequence"
-    )
-
-
-class FeaturedVideoBulkDeleteRequest(BaseModel):
-    """
-    Request payload to bulk delete video(s) from featured list.
-    """
-
-    video_ids: list[int] = Field(
-        ..., min_items=1, description="List of video IDs to remove from featured list"
-    )
+    video_ids: list[int]
 
 
 class FeaturedVideoItemResponse(BaseModel):
     """
-    DTO representing a video currently in the creator's featured carousel list.
+    Response DTO representing a single featured video item matching spec doc API 3.1 & 3.2.
     """
 
     id: int
     video_id: int
     position: int
     title: str
+    description: str | None = None
     category: str | None = None
     main_thumbnail_url: str | None = None
     duration: str | None = None
@@ -51,19 +31,19 @@ class FeaturedVideoItemResponse(BaseModel):
     created_at: datetime | None = None
 
 
-class FeaturedVideoAddResponse(BaseModel):
+class FeaturedVideoSyncResponse(BaseModel):
     """
-    Response returned after adding videos to featured list.
+    Response envelope returned after synchronizing featured videos matching spec doc API 3.2.
     """
 
     status: str = "success"
-    added_count: int
     total_featured: int
+    items: list[FeaturedVideoItemResponse]
 
 
 class FeaturedAvailableVideoResponse(BaseModel):
     """
-    DTO for available published videos picker endpoint.
+    Response DTO representing an unattached video in the available picker modal matching spec doc API 3.3.
     """
 
     id: int

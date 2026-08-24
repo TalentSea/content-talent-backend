@@ -9,9 +9,10 @@ This document details the RESTful API endpoints for Web Admin Creators to manage
 * **Base Prefix**: `/api/v1/admin/featured-videos`
 * **Authentication**: **Admin Creator Protected** (`Authorization: Bearer <admin_access_token>`).
 * **Multi-Tenant Isolation**: Extracted `current_user["user_id"]` from JWT context guarantees creators can only feature, reorder, or delete their own videos.
-* **Ordering Model**: Dedicated `featured_videos` table maintains 1-indexed `position` attributes supporting drag-and-drop reordering.
-* **Maximum Cap**: Up to **10 featured videos** can be active per creator studio at a time.
-* **IDOR Protection**: All mutations validate `Video.user == current_user["user_id"]`.
+* **Full State Sync Pattern (`PUT`)**: A single `PUT` endpoint handles adding, reordering, single deletion, and bulk deletion by receiving the complete ordered array of active featured `video_ids`.
+* **Ordering Model**: Dedicated `featured_videos` table maintains 1-indexed `position` attributes corresponding to the index order in the request payload (`position = index + 1`).
+* **Maximum Cap**: Up to **10 featured videos** can be active per creator studio at a time (`MAX_FEATURED_VIDEOS_PER_CREATOR`).
+* **IDOR Protection**: All state updates validate `Video.user == current_user["user_id"]`.
 
 ---
 
@@ -20,11 +21,8 @@ This document details the RESTful API endpoints for Web Admin Creators to manage
 | Method | Endpoint Path | Description |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/admin/featured-videos` | List all featured videos with current ordering positions |
-| `POST` | `/api/v1/admin/featured-videos` | Add video(s) to the featured list |
-| `PUT` | `/api/v1/admin/featured-videos/reorder` | Batch reorder featured video positions |
-| `DELETE` | `/api/v1/admin/featured-videos` | Bulk remove selected videos from the featured list |
-| `DELETE` | `/api/v1/admin/featured-videos/{video_id}` | Remove a single video from the featured list |
-| `GET` | `/api/v1/admin/featured-videos/available` | List creator videos available to be featured (picker with sort) |
+| `PUT` | `/api/v1/admin/featured-videos` | Full State Sync (Add, Reorder, Single Delete, and Bulk Delete in 1 API) |
+| `GET` | `/api/v1/admin/featured-videos/available` | List creator videos available to be featured (picker modal with sort & search) |
 
 ---
 
@@ -47,6 +45,7 @@ Authorization: Bearer <admin_access_token>
     "video_id": 45,
     "position": 1,
     "title": "Introduction to Clean Architecture in FastAPI",
+    "description": "Learn how to build production-grade FastAPI applications using 5-layer clean architecture.",
     "category": "Backend Development",
     "main_thumbnail_url": "https://talentsea77999.b-cdn.net/thumbnails/v45_slot0.jpg",
     "duration": "14:20",
@@ -60,6 +59,7 @@ Authorization: Bearer <admin_access_token>
     "video_id": 48,
     "position": 2,
     "title": "Mastering Bunny Stream & TUS Uploads",
+    "description": "Deep dive into HMAC signed TUS resumable uploads and HLS token security.",
     "category": "Video Engineering",
     "main_thumbnail_url": "https://talentsea77999.b-cdn.net/thumbnails/v48_slot0.jpg",
     "duration": "22:15",
@@ -73,9 +73,13 @@ Authorization: Bearer <admin_access_token>
 
 ---
 
-### 3.2 `POST /api/v1/admin/featured-videos`
+### 3.2 `PUT /api/v1/admin/featured-videos` — Full State Sync
 
-Adds one or more creator video IDs to the featured list. Appends new items at the next available `position`.
+Replaces and synchronizes the active featured videos list for the authenticated creator. 
+This single endpoint performs all mutation operations:
+* ➕ **Add Video(s)**: Include new video ID(s) in `video_ids`.
+* ↕️ **Reorder Videos**: Arrange array sequence in the exact desired carousel display order.
+* ❌ **Single / Bulk Delete**: Exclude video ID(s) from `video_ids`.
 
 #### Headers
 ```http
@@ -86,125 +90,87 @@ Content-Type: application/json
 #### Request Payload
 ```json
 {
-  "video_ids": [45, 48]
+  "video_ids": [45, 48, 12, 88]
 }
 ```
 
-#### Response Envelope (`201 Created`)
+#### Payload Rules & Validations:
+1. Max cap validation (`len(video_ids) <= 10`). Returns `400 Bad Request` if payload exceeds 10 items.
+2. Ownership validation: Excludes invalid or unowned `video_ids` automatically.
+3. Empty list supported: Passing `{"video_ids": []}` clears all featured videos for the creator.
+
+#### Response Envelope (`200 OK`)
 ```json
 {
   "status": "success",
-  "added_count": 2,
-  "total_featured": 5
-}
-```
-
-#### Error Envelopes
-* **`400 Bad Request`** (Cap Limit Exceeded):
-  ```json
-  {
-    "detail": "Cannot exceed maximum of 10 featured videos. Currently featured: 9."
-  }
-  ```
-* **`404 Not Found`** (Video Not Found / Unauthorized):
-  ```json
-  {
-    "detail": "Video 99 not found or does not belong to creator."
-  }
-  ```
-
----
-
-### 3.3 `PUT /api/v1/admin/featured-videos/reorder`
-
-Reorders featured video positions using a batch sequence of video IDs matching the desired visual order.
-
-#### Headers
-```http
-Authorization: Bearer <admin_access_token>
-Content-Type: application/json
-```
-
-#### Request Payload
-```json
-{
-  "video_ids": [48, 45]
-}
-```
-
-#### Response Envelope (`200 OK`)
-```json
-{
-  "status": "success"
+  "total_featured": 2,
+  "items": [
+    {
+      "id": 12,
+      "video_id": 45,
+      "position": 1,
+      "title": "Introduction to Clean Architecture in FastAPI",
+      "description": "Learn how to build production-grade FastAPI applications using 5-layer clean architecture.",
+      "category": "Backend Development",
+      "main_thumbnail_url": "https://talentsea77999.b-cdn.net/thumbnails/v45_slot0.jpg",
+      "duration": "14:20",
+      "views": 1420,
+      "likes": 88,
+      "status": "published",
+      "created_at": "2026-08-20T10:00:00Z"
+    },
+    {
+      "id": 13,
+      "video_id": 48,
+      "position": 2,
+      "title": "Mastering Bunny Stream & TUS Uploads",
+      "description": "Deep dive into HMAC signed TUS resumable uploads and HLS token security.",
+      "category": "Video Engineering",
+      "main_thumbnail_url": "https://talentsea77999.b-cdn.net/thumbnails/v48_slot0.jpg",
+      "duration": "22:15",
+      "views": 950,
+      "likes": 64,
+      "status": "published",
+      "created_at": "2026-08-21T12:30:00Z"
+    }
+  ]
 }
 ```
 
 ---
 
-### 3.4 `DELETE /api/v1/admin/featured-videos`
+### 3.3 `GET /api/v1/admin/featured-videos/available` — Get Available Videos Picker
 
-Bulk removes multiple selected videos from the creator's featured list and automatically re-compacts position sequence.
-
-#### Headers
-```http
-Authorization: Bearer <admin_access_token>
-Content-Type: application/json
-```
-
-#### Request Payload
-```json
-{
-  "video_ids": [45, 48]
-}
-```
-
-#### Response Envelope (`200 OK`)
-```json
-{
-  "status": "success"
-}
-```
-
----
-
-### 3.5 `DELETE /api/v1/admin/featured-videos/{video_id}`
-
-Removes a single video from the featured list and automatically adjusts remaining positions (`position - 1`).
+Retrieves a paginated list of creator's published videos that are **not currently featured**, used for populating the "Select Videos to Feature" picker modal.
 
 #### Headers
 ```http
 Authorization: Bearer <admin_access_token>
 ```
-
-#### Response Envelope (`200 OK`)
-```json
-{
-  "status": "success"
-}
-```
-
----
-
-### 3.6 `GET /api/v1/admin/featured-videos/available`
-
-Retrieves a paginated list of published creator videos that are **not** currently in the featured list (used by video picker modals in the admin panel). Supports sorting by newest, oldest, popular (most viewed), and most liked.
 
 #### Query Parameters
-| Parameter | Type | Required | Default | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `search` | `string` | No | `null` | Substring search within video titles |
-| `category` | `string` | No | `null` | Filter by category slug |
-| `sort` | `string` | No | `newest` | Sort criteria: `newest`, `oldest`, `popular` (or `most_viewed`), `most_liked` |
-| `page` | `integer` | No | `1` | Page number |
-| `limit` | `integer` | No | `20` | Items per page (max 100) |
+- `search` (string, optional): Filter by title substring.
+- `category` (string, optional): Filter by category slug/name.
+- `sort` (string, optional, default: `"popular"`): Sort ordering (`"popular"`, `"most_viewed"`, `"oldest"`, `"newest"`).
+  * `"popular"`: Sorts by indexed `popularity_score DESC` (`views + 3*likes`).
+  * `"most_viewed"`: Sorts by `views DESC`.
+  * `"oldest"`: Sorts by `created_at ASC`.
+  * `"newest"`: Sorts by `created_at DESC`.
+- `page` (integer, optional, default: `1`): Page number.
+- `limit` (integer, optional, default: `20`, max: `100`): Items per page.
+
+#### Example Request URL
+```http
+GET /api/v1/admin/featured-videos/available?sort=popular&page=1&limit=20
+```
 
 #### Response Envelope (`200 OK`)
 ```json
 {
-  "total": 15,
+  "total": 45,
   "page": 1,
   "limit": 20,
-  "total_pages": 1,
+  "total_pages": 3,
   "items": [
     {
       "id": 52,

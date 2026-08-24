@@ -26,6 +26,7 @@ class PlaylistListItemResponse(BaseModel):
 
     id: int
     name: str
+    description: str | None = None
     thumbnail_url: str | None = None
     video_count: int = 0
     created_at: datetime | None = None
@@ -36,18 +37,6 @@ class PlaylistThumbnailUploadResponse(BaseModel):
     """Response payload returned when a playlist thumbnail image is uploaded matching spec doc API 5."""
 
     thumbnail_url: str
-
-
-class PlaylistDetailsResponse(BaseModel):
-    """Detailed DTO for single playlist views matching spec doc API 3."""
-
-    id: int
-    name: str
-    description: str | None = None
-    thumbnail_url: str | None = None
-    video_count: int = 0
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
 
 class PlaylistUpdateRequest(BaseModel):

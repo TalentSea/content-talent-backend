@@ -17,7 +17,7 @@ class MobileFeaturedVideoRepository:
         self, creator_id: int, subscriber_id: int | None = None
     ) -> list[dict]:
         """
-        Retrieves creator featured videos in 1 SINGLE SQL query, enriched with subscriber is_liked and is_saved flags.
+        Retrieves creator featured videos in 1 SINGLE SQL query, enriched with description and subscriber interaction flags.
         """
         try:
             # 1-Query SQL Subquery Expressions for Subscriber Flags
@@ -66,6 +66,7 @@ class MobileFeaturedVideoRepository:
                         "id": v.id,
                         "position": row.position,
                         "title": v.title,
+                        "description": v.description,
                         "category": v.category,
                         "main_thumbnail_url": v.main_thumbnail_url,
                         "duration": v.duration,

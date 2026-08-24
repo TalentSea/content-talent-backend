@@ -151,22 +151,24 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ---
 
-## API Summary Breakdown (70 Total Endpoints)
+## API Summary Breakdown (73 Total Endpoints)
 
-- **Admin Endpoints (41)**:
+- **Admin Endpoints (43)**:
   - Video Management & Scheduling: 11 endpoints
-  - Playlist Management: 12 endpoints
+  - Playlist Management: 11 endpoints
   - Category Management & Reordering: 5 endpoints
   - Comment Moderation: 6 endpoints
   - Studio Branding & Customization: 4 endpoints
   - Account Profile & Social Links: 3 endpoints
-- **Mobile Endpoints (28)**:
+  - Featured Videos Curation: 3 endpoints
+- **Mobile Endpoints (29)**:
   - Video Catalog, Player, History, Likes & Saves: 12 endpoints
   - Comments & Replies: 6 endpoints
   - Authentication, Guest & Profiles: 6 endpoints
   - Playlists Catalog: 2 endpoints
   - Category Catalog: 1 endpoint
   - Studio Branding Identity: 1 endpoint
+  - Featured Videos Feed: 1 endpoint
 - **Webhook Endpoints (1)**:
   - Bunny Stream Transcoding Webhook: 1 endpoint
 

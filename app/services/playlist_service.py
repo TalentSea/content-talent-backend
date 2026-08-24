@@ -14,7 +14,6 @@ from app.schemas.playlist_schemas import (
     PlaylistBulkRemoveVideosRequest,
     PlaylistCreateRequest,
     PlaylistCreateResponse,
-    PlaylistDetailsResponse,
     PlaylistItemVideoResponse,
     PlaylistListItemResponse,
     PlaylistReorderVideosRequest,
@@ -73,6 +72,7 @@ class PlaylistService:
             PlaylistListItemResponse(
                 id=p.id,
                 name=p.name,
+                description=p.description,
                 thumbnail_url=p.thumbnail_url,
                 video_count=v_count,
                 created_at=p.created_at,
@@ -83,31 +83,6 @@ class PlaylistService:
 
         return PaginatedResponse.create(
             items=items, total=total, page=page, limit=limit
-        )
-
-    def get_playlist_details(
-        self, user_id: int, playlist_id: int
-    ) -> PlaylistDetailsResponse:
-        """
-        Retrieves detailed metadata for a single playlist matching spec doc API 3.
-        """
-        playlist = self.repo.get_playlist_by_id(playlist_id, user_id)
-        if not playlist:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Playlist {playlist_id} not found",
-            )
-
-        video_count = self.repo.get_playlist_video_count(playlist)
-
-        return PlaylistDetailsResponse(
-            id=playlist.id,
-            name=playlist.name,
-            description=playlist.description,
-            thumbnail_url=playlist.thumbnail_url,
-            video_count=video_count,
-            created_at=playlist.created_at,
-            updated_at=playlist.updated_at,
         )
 
     def update_playlist_metadata(

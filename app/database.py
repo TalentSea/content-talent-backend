@@ -13,7 +13,13 @@ def init_db():
     settings = get_settings()
     db = SqliteDatabase(
         settings.SQLITE_DB_PATH,
-        pragmas={"foreign_keys": 1, "journal_mode": "wal", "synchronous": "normal"},
+        timeout=30,
+        pragmas={
+            "foreign_keys": 1,
+            "journal_mode": "wal",
+            "synchronous": "normal",
+            "busy_timeout": 30000,
+        },
     )
     db_proxy.initialize(db)
 

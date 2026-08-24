@@ -6,12 +6,13 @@ from pydantic import BaseModel
 class MobileFeaturedVideoResponse(BaseModel):
     """
     Response DTO representing a featured video item on the mobile home screen carousel,
-    enriched with subscriber personal interaction flags (is_liked, is_saved).
+    enriched with description and subscriber personal interaction flags (is_liked, is_saved).
     """
 
     id: int
     position: int
     title: str
+    description: str | None = None
     category: str | None = None
     main_thumbnail_url: str | None = None
     duration: str | None = None
