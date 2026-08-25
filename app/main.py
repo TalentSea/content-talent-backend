@@ -9,8 +9,8 @@ from app.config import get_settings
 from app.database import init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
-from app.repositories.auth_repository import AuthRepository
-from app.repositories.video_repository import VideoRepository
+from app.repositories.mobile.auth_repository import AuthRepository
+from app.repositories.admin.video_repository import VideoRepository
 from app.routes.admin import (
     admin_branding_router,
     admin_category_router,

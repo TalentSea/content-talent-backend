@@ -3,9 +3,9 @@ import logging
 from fastapi import HTTPException, status
 
 from app.config import get_settings
-from app.repositories.featured_video_repository import FeaturedVideoRepository
-from app.schemas.common_schemas import PaginatedResponse
-from app.schemas.featured_video_schemas import (
+from app.repositories.admin.featured_video_repository import FeaturedVideoRepository
+from app.schemas.shared.common_schemas import PaginatedResponse
+from app.schemas.admin.featured_video_schemas import (
     FeaturedAvailableVideoResponse,
     FeaturedVideoItemResponse,
     FeaturedVideoSyncRequest,

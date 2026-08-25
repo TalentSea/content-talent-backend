@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status
 
 from app.dependencies import CurrentSubscriber
-from app.schemas.category_schemas import MobileCategoryListResponse
-from app.services.category_service import CategoryService
+from app.schemas.shared.category_schemas import MobileCategoryListResponse
+from app.services.shared.category_service import CategoryService
 
 router = APIRouter(prefix="/api/v1/mobile/categories", tags=["Mobile Categories"])
 category_service = CategoryService()

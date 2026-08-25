@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from app.dependencies import CurrentSubscriber, OptionalSubscriber
-from app.schemas.auth_schemas import (
+from app.schemas.mobile.auth_schemas import (
     AuthTokenResponse,
     FacebookAuthRequest,
     GoogleAuthRequest,
@@ -9,8 +9,8 @@ from app.schemas.auth_schemas import (
     RefreshTokenRequest,
     UserProfileResponse,
 )
-from app.schemas.common_schemas import ActionSuccessResponse
-from app.services.auth_service import AuthService
+from app.schemas.shared.common_schemas import ActionSuccessResponse
+from app.services.mobile.auth_service import AuthService
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Mobile Social Authentication"])
 auth_service = AuthService()

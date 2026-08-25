@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status
 
-from app.schemas.common_schemas import ActionSuccessResponse
-from app.schemas.video_schemas import BunnyWebhookPayload
-from app.services.video_service import VideoService
+from app.schemas.shared.common_schemas import ActionSuccessResponse
+from app.schemas.admin.video_schemas import BunnyWebhookPayload
+from app.services.admin.video_service import VideoService
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 video_service = VideoService()

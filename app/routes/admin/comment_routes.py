@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentAdmin
-from app.schemas.comment_schemas import (
+from app.schemas.admin.comment_schemas import (
     CommentItemResponse,
     CommentLikeResponse,
     CommentReplyCreateRequest,
     CommentReplyCreateResponse,
     CommentReplyResponse,
 )
-from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
-from app.services.comment_service import CommentService
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
+from app.services.admin.comment_service import CommentService
 
 router = APIRouter(prefix="/api/v1/admin/comments", tags=["Admin Comments"])
 comment_service = CommentService()

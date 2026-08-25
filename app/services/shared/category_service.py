@@ -2,8 +2,8 @@ import logging
 
 from fastapi import HTTPException, status
 
-from app.repositories.category_repository import CategoryRepository
-from app.schemas.category_schemas import (
+from app.repositories.shared.category_repository import CategoryRepository
+from app.schemas.shared.category_schemas import (
     CategoryCreateRequest,
     CategoryListResponse,
     CategoryOptionListResponse,

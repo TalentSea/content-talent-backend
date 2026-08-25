@@ -4,9 +4,9 @@ import math
 from fastapi import HTTPException, status
 
 from app.config import get_settings
-from app.repositories.mobile_video_repository import MobileVideoRepository
-from app.schemas.common_schemas import PaginatedResponse
-from app.schemas.mobile_video_schemas import (
+from app.repositories.mobile.video_repository import MobileVideoRepository
+from app.schemas.shared.common_schemas import PaginatedResponse
+from app.schemas.mobile.video_schemas import (
     MobileVideoCaptionResponse,
     MobileVideoDetailResponse,
     MobileVideoDownloadUrlResponse,

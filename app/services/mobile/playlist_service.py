@@ -3,15 +3,15 @@ import math
 
 from fastapi import HTTPException, status
 
-from app.repositories.mobile_playlist_repository import MobilePlaylistRepository
-from app.schemas.mobile_playlist_schemas import (
+from app.repositories.mobile.playlist_repository import MobilePlaylistRepository
+from app.schemas.mobile.playlist_schemas import (
     MobilePlaylistDetailsResponse,
     MobilePlaylistListItemResponse,
     MobilePlaylistListResponse,
     MobilePlaylistVideoItemResponse,
     MobilePlaylistVideosResponse,
 )
-from app.schemas.mobile_video_schemas import WatchProgressResponse
+from app.schemas.mobile.video_schemas import WatchProgressResponse
 
 logger = logging.getLogger(__name__)
 

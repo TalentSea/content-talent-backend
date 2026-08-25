@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from app.dependencies import CurrentAdmin
-from app.schemas.category_schemas import (
+from app.schemas.shared.category_schemas import (
     CategoryCreateRequest,
     CategoryListResponse,
     CategoryOptionListResponse,
@@ -9,7 +9,7 @@ from app.schemas.category_schemas import (
     CategoryResponse,
     CategoryUpdateRequest,
 )
-from app.services.category_service import CategoryService
+from app.services.shared.category_service import CategoryService
 
 router = APIRouter(prefix="/api/v1/admin/categories", tags=["Admin Categories"])
 category_service = CategoryService()

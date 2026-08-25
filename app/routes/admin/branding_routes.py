@@ -1,13 +1,13 @@
 from fastapi import APIRouter, status
 
 from app.dependencies import CurrentAdmin, FormFile
-from app.schemas.branding_schemas import (
+from app.schemas.shared.branding_schemas import (
     BrandingBannerUploadResponse,
     BrandingLogoUploadResponse,
     BrandingResponse,
     BrandingUpdateRequest,
 )
-from app.services.branding_service import BrandingService
+from app.services.shared.branding_service import BrandingService
 
 router = APIRouter(prefix="/api/v1/admin/branding", tags=["Admin Branding"])
 branding_service = BrandingService()

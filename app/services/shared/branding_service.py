@@ -3,8 +3,8 @@ import time
 from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
-from app.repositories.branding_repository import BrandingRepository
-from app.schemas.branding_schemas import (
+from app.repositories.shared.branding_repository import BrandingRepository
+from app.schemas.shared.branding_schemas import (
     BrandingBannerUploadResponse,
     BrandingLogoUploadResponse,
     BrandingResponse,

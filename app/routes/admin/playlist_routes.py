@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentAdmin, FormFile
-from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
-from app.schemas.playlist_schemas import (
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
+from app.schemas.admin.playlist_schemas import (
     PlaylistAddVideosRequest,
     PlaylistAvailableVideoResponse,
     PlaylistBulkRemoveVideosRequest,
@@ -15,7 +15,7 @@ from app.schemas.playlist_schemas import (
     PlaylistUpdateRequest,
     PlaylistUpdateResponse,
 )
-from app.services.playlist_service import PlaylistService
+from app.services.admin.playlist_service import PlaylistService
 
 router = APIRouter(prefix="/api/v1/admin/playlists", tags=["Admin Playlists"])
 playlist_service = PlaylistService()

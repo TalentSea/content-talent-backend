@@ -35,16 +35,21 @@ content-talent-backend/
 │   │   ├── playlist.py           # Playlist and junction entities
 │   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
-│   │   ├── auth_repository.py    # Social & guest subscriber repository with automated stale cleanup
-│   │   ├── branding_repository.py# Creator branding and studio identity repository
-│   │   ├── category_repository.py# Category CRUD and batch reordering repository
-│   │   ├── featured_video_repository.py # Admin featured videos curation repository
-│   │   ├── mobile_featured_video_repository.py # Mobile home screen featured carousel repository
-│   │   ├── video_repository.py   # Admin video repository with scheduled publication queries
-│   │   ├── mobile_video_repository.py # Mobile catalog, watch history, likes and saves repository
-│   │   ├── playlist_repository.py# Playlist curation repository
-│   │   ├── profile_repository.py # Creator account settings repository
-│   │   └── comment_repository.py # Comment moderation and replies repository
+│   │   ├── admin/                # Creator Admin Repositories
+│   │   │   ├── video_repository.py
+│   │   │   ├── playlist_repository.py
+│   │   │   ├── comment_repository.py
+│   │   │   ├── profile_repository.py
+│   │   │   └── featured_video_repository.py
+│   │   ├── mobile/               # Mobile Subscriber Repositories
+│   │   │   ├── auth_repository.py
+│   │   │   ├── video_repository.py
+│   │   │   ├── playlist_repository.py
+│   │   │   ├── comment_repository.py
+│   │   │   └── featured_video_repository.py
+│   │   └── shared/               # Shared Repositories
+│   │       ├── branding_repository.py
+│   │       └── category_repository.py
 │   ├── routes/                   # FastAPI Endpoint Route Handlers
 │   │   ├── webhook_routes.py     # Public Bunny Stream Webhooks (/api/v1/webhooks)
 │   │   ├── mobile/               # Mobile Application Endpoints
@@ -64,50 +69,24 @@ content-talent-backend/
 │   │       ├── profile_routes.py # Admin Account Profile & Social Links (/api/v1/admin/profile)
 │   │       └── video_routes.py   # Admin Video Management & Scheduling (/api/v1/admin/videos)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
-│   │   ├── auth_schemas.py       # Mobile social login, guest auth and token DTOs
-│   │   ├── branding_schemas.py   # Studio branding and asset upload DTOs
-│   │   ├── category_schemas.py   # Category CRUD and reorder DTOs
-│   │   ├── common_schemas.py     # Generic pagination and action success envelopes
-│   │   ├── featured_video_schemas.py # Admin featured video request and response DTOs
-│   │   ├── mobile_featured_video_schemas.py # Mobile featured video DTOs
-│   │   ├── video_schemas.py      # Admin video request and response DTOs
-│   │   ├── mobile_video_schemas.py # Mobile lightweight video feed and streaming DTOs
-│   │   ├── playlist_schemas.py   # Playlist DTOs
-│   │   ├── profile_schemas.py    # Profile and avatar upload DTOs
-│   │   └── comment_schemas.py    # Comment and thread reply DTOs
+│   │   ├── admin/                # Creator Admin DTO Schemas
+│   │   ├── mobile/               # Mobile Subscriber DTO Schemas
+│   │   └── shared/               # Shared DTO Schemas
+│   │       ├── common_schemas.py
+│   │       ├── branding_schemas.py
+│   │       └── category_schemas.py
 │   ├── services/                 # Business Logic & Cloud Orchestration
-│   │   ├── auth_service.py       # Mobile social login, guest session and JWT token rotation service
-│   │   ├── branding_service.py   # Creator branding, logo and cover banner orchestration
-│   │   ├── category_service.py   # Category management and batch reordering service
-│   │   ├── featured_video_service.py # Admin featured video curation service
-│   │   ├── mobile_featured_video_service.py # Mobile featured video feed service
-│   │   ├── video_service.py      # Admin video orchestration, scheduling and thumbnail service
-│   │   ├── mobile_video_service.py # Mobile video streaming and watch progress service
-│   │   ├── playlist_service.py   # Playlist curation and banner service
-│   │   ├── profile_service.py    # Profile and avatar upload service
-│   │   └── comment_service.py    # Comment moderation and reply service
+│   │   ├── admin/                # Creator Admin Services
+│   │   ├── mobile/               # Mobile Subscriber Services
+│   │   └── shared/               # Shared Services
+│   │       ├── branding_service.py
+│   │       └── category_service.py
 │   └── utils/                    # Cloud Helper Utilities & Cryptography
 │       ├── auth.py               # JWT token encoding and decoding
-│       ├── social_verifiers.py   # Google OIDC RSA and Facebook Graph API verifiers
+│       ├── idp_verifiers.py      # Google OIDC RSA and Facebook Graph API verifiers
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
 │       ├── bunny_signature.py    # TUS and HLS presigned token signature helpers
 │       └── image_uploader.py     # Unified cloud image validation and storage engine
-├── docs/                         # Domain Architecture Specifications
-│   ├── admin/                    # Creator Admin API Specifications
-│   │   ├── branding_management_api_specification.md
-│   │   ├── categories_management_api_specification.md
-│   │   ├── comments_management_api_specification.md
-│   │   ├── featured_videos_management_api_specification.md
-│   │   ├── playlist_management_api_specification.md
-│   │   ├── settings_profile_api_specification.md
-│   │   └── video_management_api_specification.md
-│   └── mobile/                   # Mobile Application API Specifications
-│       ├── categories_api_specification.md
-│       ├── comments_api_specification.md
-│       ├── featured_videos_api_specification.md
-│       ├── playlists_api_specification.md
-│       ├── social_authentication_api_specification.md
-│       └── video_streaming_api_specification.md
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template
@@ -263,15 +242,17 @@ Access the interactive API documentation upon startup:
 ## Running Locally
 
 ```bash
-# 1. Initialize virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# 1. Initialize virtual environment (if not created yet)
+py -m venv .venv
 
-# 2. Install dependencies
+# 2. Activate virtual environment on Windows PowerShell:
+.venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 3. Launch development server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 4. Launch development server with hot-reload:
+py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ---

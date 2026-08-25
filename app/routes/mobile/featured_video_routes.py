@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies import get_current_subscriber
-from app.schemas.mobile_featured_video_schemas import MobileFeaturedVideoResponse
-from app.services.mobile_featured_video_service import MobileFeaturedVideoService
+from app.schemas.mobile.featured_video_schemas import MobileFeaturedVideoResponse
+from app.services.mobile.featured_video_service import MobileFeaturedVideoService
 
 router = APIRouter(prefix="/api/v1/mobile/featured-videos", tags=["Mobile Featured Videos"])
 service = MobileFeaturedVideoService()

@@ -5,8 +5,8 @@ from fastapi import HTTPException, status
 
 from app.config import get_settings
 from app.models.subscriber import Subscriber
-from app.repositories.auth_repository import AuthRepository
-from app.schemas.auth_schemas import (
+from app.repositories.mobile.auth_repository import AuthRepository
+from app.schemas.mobile.auth_schemas import (
     AuthTokenResponse,
     FacebookAuthRequest,
     GoogleAuthRequest,
@@ -14,9 +14,9 @@ from app.schemas.auth_schemas import (
     RefreshTokenRequest,
     UserProfileResponse,
 )
-from app.schemas.common_schemas import ActionSuccessResponse
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.utils.auth import create_access_token
-from app.utils.social_verifiers import (
+from app.utils.idp_verifiers import (
     verify_facebook_access_token,
     verify_google_id_token,
 )

@@ -3,10 +3,10 @@ import math
 
 from fastapi import HTTPException, status
 
-from app.repositories.comment_repository import CommentRepository
-from app.repositories.profile_repository import ProfileRepository
-from app.repositories.video_repository import VideoRepository
-from app.schemas.comment_schemas import (
+from app.repositories.admin.comment_repository import CommentRepository
+from app.repositories.admin.profile_repository import ProfileRepository
+from app.repositories.admin.video_repository import VideoRepository
+from app.schemas.admin.comment_schemas import (
     CommentAuthorResponse,
     CommentItemResponse,
     CommentLikeResponse,
@@ -14,7 +14,7 @@ from app.schemas.comment_schemas import (
     CommentReplyCreateResponse,
     CommentReplyResponse,
 )
-from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 
 logger = logging.getLogger(__name__)
 

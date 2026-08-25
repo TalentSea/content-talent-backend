@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentAdmin, FormFile
-from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
-from app.schemas.video_schemas import (
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
+from app.schemas.admin.video_schemas import (
     BulkDeleteVideosRequest,
     DeleteThumbnailRequest,
     SelectMainThumbnailRequest,
@@ -16,7 +16,7 @@ from app.schemas.video_schemas import (
     VideoUpdateRequest,
     VideoUpdateResponse,
 )
-from app.services.video_service import VideoService
+from app.services.admin.video_service import VideoService
 
 router = APIRouter(prefix="/api/v1/admin/videos", tags=["Admin Videos"])
 video_service = VideoService()

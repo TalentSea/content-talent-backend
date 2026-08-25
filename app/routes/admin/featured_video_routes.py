@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentAdmin
-from app.schemas.common_schemas import PaginatedResponse
-from app.schemas.featured_video_schemas import (
+from app.schemas.shared.common_schemas import PaginatedResponse
+from app.schemas.admin.featured_video_schemas import (
     FeaturedAvailableVideoResponse,
     FeaturedVideoItemResponse,
     FeaturedVideoSyncRequest,
     FeaturedVideoSyncResponse,
 )
-from app.services.featured_video_service import FeaturedVideoService
+from app.services.admin.featured_video_service import FeaturedVideoService
 
 router = APIRouter(prefix="/api/v1/admin/featured-videos", tags=["Admin Featured Videos"])
 service = FeaturedVideoService()

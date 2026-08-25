@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentSubscriber
-from app.schemas.common_schemas import PaginatedResponse
-from app.schemas.mobile_video_schemas import (
+from app.schemas.shared.common_schemas import PaginatedResponse
+from app.schemas.mobile.video_schemas import (
     MobileVideoDetailResponse,
     MobileVideoLikeResponse,
     MobileVideoListItemResponse,
@@ -10,7 +10,7 @@ from app.schemas.mobile_video_schemas import (
     MobileViewCountResponse,
     MobileWatchProgressRequest,
 )
-from app.services.mobile_video_service import MobileVideoService
+from app.services.mobile.video_service import MobileVideoService
 
 router = APIRouter(prefix="/api/v1/mobile/videos", tags=["Mobile Videos"])
 mobile_video_service = MobileVideoService()

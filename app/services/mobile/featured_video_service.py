@@ -1,9 +1,9 @@
 import logging
 
-from app.repositories.mobile_featured_video_repository import (
+from app.repositories.mobile.featured_video_repository import (
     MobileFeaturedVideoRepository,
 )
-from app.schemas.mobile_featured_video_schemas import MobileFeaturedVideoResponse
+from app.schemas.mobile.featured_video_schemas import MobileFeaturedVideoResponse
 
 logger = logging.getLogger(__name__)
 

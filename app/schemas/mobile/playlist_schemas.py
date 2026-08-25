@@ -2,8 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.schemas.common_schemas import PaginatedResponse
-from app.schemas.mobile_video_schemas import WatchProgressResponse
+from app.schemas.shared.common_schemas import PaginatedResponse
+from app.schemas.mobile.video_schemas import WatchProgressResponse
 
 
 class MobilePlaylistListItemResponse(BaseModel):

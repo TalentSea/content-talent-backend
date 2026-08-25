@@ -3,11 +3,11 @@ import math
 
 from fastapi import HTTPException, status
 
-from app.repositories.auth_repository import AuthRepository
-from app.repositories.mobile_comment_repository import MobileCommentRepository
-from app.repositories.mobile_video_repository import MobileVideoRepository
-from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
-from app.schemas.mobile_comment_schemas import (
+from app.repositories.mobile.auth_repository import AuthRepository
+from app.repositories.mobile.comment_repository import MobileCommentRepository
+from app.repositories.mobile.video_repository import MobileVideoRepository
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
+from app.schemas.mobile.comment_schemas import (
     MobileCommentAuthorResponse,
     MobileCommentCreateRequest,
     MobileCommentItemResponse,

@@ -7,9 +7,9 @@ from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
 from app.models.video import VideoLike
-from app.repositories.video_repository import VideoRepository
-from app.schemas.common_schemas import ActionSuccessResponse, PaginatedResponse
-from app.schemas.video_schemas import (
+from app.repositories.admin.video_repository import VideoRepository
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
+from app.schemas.admin.video_schemas import (
     BulkDeleteVideosRequest,
     BunnyWebhookPayload,
     DeleteThumbnailRequest,

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Response, status
 
 from app.dependencies import CurrentSubscriber
-from app.schemas.branding_schemas import BrandingResponse
-from app.services.branding_service import BrandingService
+from app.schemas.shared.branding_schemas import BrandingResponse
+from app.services.shared.branding_service import BrandingService
 
 router = APIRouter(prefix="/api/v1/mobile/branding", tags=["Mobile Branding"])
 branding_service = BrandingService()

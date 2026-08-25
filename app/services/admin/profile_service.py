@@ -3,9 +3,9 @@ import time
 from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
-from app.repositories.profile_repository import ProfileRepository
-from app.schemas.common_schemas import ActionSuccessResponse
-from app.schemas.profile_schemas import (
+from app.repositories.admin.profile_repository import ProfileRepository
+from app.schemas.shared.common_schemas import ActionSuccessResponse
+from app.schemas.admin.profile_schemas import (
     ProfilePhotoUploadResponse,
     ProfileResponse,
     ProfileUpdateRequest,

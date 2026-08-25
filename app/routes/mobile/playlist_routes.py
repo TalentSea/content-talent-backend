@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentSubscriber
-from app.schemas.mobile_playlist_schemas import (
+from app.schemas.mobile.playlist_schemas import (
     MobilePlaylistDetailsResponse,
     MobilePlaylistListResponse,
 )
-from app.services.mobile_playlist_service import MobilePlaylistService
+from app.services.mobile.playlist_service import MobilePlaylistService
 
 router = APIRouter(prefix="/api/v1/mobile/playlists", tags=["Mobile Playlists Feed"])
 playlist_service = MobilePlaylistService()
