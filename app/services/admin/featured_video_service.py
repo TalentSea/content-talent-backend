@@ -34,7 +34,7 @@ class FeaturedVideoService:
             main_thumbnail_url=video_row.main_thumbnail_url,
             duration=video_row.duration,
             views=video_row.views or 0,
-            likes=video_row.likes or 0,
+            likes=video_row.likes.count() if hasattr(video_row.likes, "count") else 0,
             status=video_row.status,
             created_at=video_row.created_at,
         )
@@ -99,7 +99,7 @@ class FeaturedVideoService:
                 duration=v.duration,
                 main_thumbnail_url=v.main_thumbnail_url,
                 views=v.views or 0,
-                likes=v.likes or 0,
+                likes=v.likes.count() if hasattr(v.likes, "count") else 0,
                 created_at=v.created_at,
             )
             for v in videos
