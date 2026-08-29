@@ -7,6 +7,7 @@ from app.models.featured_video import FeaturedVideo
 from app.models.playlist import Playlist, PlaylistVideo
 from app.models.refresh_token import RefreshToken
 from app.models.subscriber import Subscriber
+from app.models.subscription_plan import SubscriptionPlan
 from app.models.video import Video, VideoLike, VideoSave, WatchHistory
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "PlaylistVideo",
     "RefreshToken",
     "Subscriber",
+    "SubscriptionPlan",
     "Video",
     "VideoLike",
     "VideoSave",

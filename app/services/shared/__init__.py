@@ -1,1 +1,1 @@
-# Shared services package
+"""Shared cross-domain services package."""

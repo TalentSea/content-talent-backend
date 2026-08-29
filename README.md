@@ -12,7 +12,7 @@ The project strictly follows a **5-Layer Clean Architecture** separating routing
 content-talent-backend/
 ├── .agents/                      # Team AI Agent Skills & Architecture Playbooks
 ├── docs/                         # Architecture & API Specifications
-│   ├── database_architecture_specification.md # Complete 14-Table Database Schema Specification
+│   ├── database_architecture_specification.md # Complete 15-Table Database Schema Specification
 │   ├── admin/                    # Admin Portal API Specifications
 │   └── mobile/                   # Mobile Application API Specifications
 ├── app/
@@ -130,9 +130,9 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ---
 
-## API Summary Breakdown (73 Total Endpoints)
+## API Summary Breakdown (80 Total Endpoints)
 
-- **Admin Endpoints (43)**:
+- **Admin Endpoints (49)**:
   - Video Management & Scheduling: 11 endpoints
   - Playlist Management: 11 endpoints
   - Category Management & Reordering: 5 endpoints
@@ -140,7 +140,8 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Studio Branding & Customization: 4 endpoints
   - Account Profile & Social Links: 3 endpoints
   - Featured Videos Curation: 3 endpoints
-- **Mobile Endpoints (29)**:
+  - Subscription Plans Management: 6 endpoints
+- **Mobile Endpoints (30)**:
   - Video Catalog, Player, History, Likes & Saves: 12 endpoints
   - Comments & Replies: 6 endpoints
   - Authentication, Guest & Profiles: 6 endpoints
@@ -148,6 +149,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Category Catalog: 1 endpoint
   - Studio Branding Identity: 1 endpoint
   - Featured Videos Feed: 1 endpoint
+  - Subscription Plans Feed: 1 endpoint
 - **Webhook Endpoints (1)**:
   - Bunny Stream Transcoding Webhook: 1 endpoint
 
@@ -262,7 +264,7 @@ py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Technical specifications and architecture documentation:
 
 ### 🏛️ Database Architecture
-- [Complete 14-Table Database Schema Specification](docs/database_architecture_specification.md)
+- [Complete 15-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
 - [Branding Management API Specification](docs/admin/branding_management_api_specification.md)
@@ -272,6 +274,7 @@ Technical specifications and architecture documentation:
 - [Featured Videos Management API Specification](docs/admin/featured_videos_management_api_specification.md)
 - [Settings Profile API Specification](docs/admin/settings_profile_api_specification.md)
 - [Comments Management API Specification](docs/admin/comments_management_api_specification.md)
+- [Subscription Plans Management API Specification](docs/admin/subscription_plans_management_api_specification.md)
 
 ### 📱 Mobile Application API Specifications
 - [Mobile Social Authentication Specification](docs/mobile/social_authentication_api_specification.md)
@@ -281,3 +284,4 @@ Technical specifications and architecture documentation:
 - [Mobile Playlists Specification](docs/mobile/playlists_api_specification.md)
 - [Mobile Comments Specification](docs/mobile/comments_api_specification.md)
 - [Mobile Featured Videos Specification](docs/mobile/featured_videos_api_specification.md)
+- [Mobile Subscription Plans Specification](docs/mobile/subscription_plans_api_specification.md)

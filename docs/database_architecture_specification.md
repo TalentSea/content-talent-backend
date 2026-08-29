@@ -325,3 +325,30 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Timestamp when video was featured |
 
 * **Unique Composite Index**: `(("creator", "video"), True)` — Enforces 1 unique featured entry per video per creator studio.
+
+---
+
+### 15. `subscription_plans` Table (Creator Subscription Tiers & Pricing)
+* **Model File**: [`app/models/subscription_plan.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/subscription_plan.py)
+* **Table Name**: `subscription_plans`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of plan tier |
+| `user_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Admin Creator Studio owning this plan |
+| `name` | `VARCHAR(100)` | Standard | NO | None | Display title of plan (e.g. "Basic", "Premium") |
+| `description` | `TEXT` | Standard | YES | `NULL` | Tagline / summary text |
+| `base_price` | `FLOAT` | Standard | NO | `0.0` | Base non-discounted price in ₹ |
+| `discount_percentage` | `FLOAT` | Standard | NO | `0.0` | Discount percentage (0 to 100) |
+| `final_price` | `FLOAT` | Standard | NO | `0.0` | Computed charge price in ₹ after discount |
+| `currency` | `VARCHAR(10)` | Standard | NO | `"INR"` | Currency ISO code (`"INR"`) |
+| `billing_period_value` | `INTEGER` | Standard | NO | `1` | Interval quantity (e.g. `1`, `12`, `24`) |
+| `billing_period_unit` | `VARCHAR(20)` | Standard | NO | `"months"` | Interval unit (`"days"`, `"months"`, `"years"`) |
+| `features` | `JSON` | Standard | NO | `[]` | Feature string list for card checklist |
+| `badge_text` | `VARCHAR(50)` | Standard | YES | `NULL` | Marketing tag (e.g. `"15% OFF"`, `"⚡"`) |
+| `is_active` | `BOOLEAN` | Standard | NO | `True` | Visibility flag for mobile subscribers |
+| `display_order` | `INTEGER` | Standard | NO | `1` | Sequence for drag-and-drop ordering |
+| `active_subscribers` | `INTEGER` | Standard | NO | `0` | Counter cache of active subscribers enrolled |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Creation timestamp |
+| `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last updated timestamp |
+

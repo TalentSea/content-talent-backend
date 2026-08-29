@@ -1,1 +1,1 @@
-# Shared repositories package
+"""Shared cross-domain repositories package."""

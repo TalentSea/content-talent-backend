@@ -1,1 +1,1 @@
-# Shared schemas package
+"""Shared cross-domain DTO schemas package."""

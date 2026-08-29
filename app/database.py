@@ -32,6 +32,7 @@ def init_db():
     from app.models.playlist import Playlist, PlaylistVideo
     from app.models.refresh_token import RefreshToken
     from app.models.subscriber import Subscriber
+    from app.models.subscription_plan import SubscriptionPlan
     from app.models.video import Video, VideoLike, VideoSave, WatchHistory
 
     if db_proxy.is_closed():
@@ -53,6 +54,7 @@ def init_db():
             CommentLike,
             Category,
             FeaturedVideo,
+            SubscriptionPlan,
         ],
         safe=True,
     )
