@@ -30,6 +30,7 @@ content-talent-backend/
 │   │   ├── category.py           # Content category and display order entity
 │   │   ├── featured_video.py     # Home Screen Featured Carousel curation entity
 │   │   ├── subscriber.py         # Mobile App Subscriber profile identity entity
+│   │   ├── subscription_plan.py  # Creator Subscription Plans, Pricing and Counter Cache entity
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave and WatchHistory entities
 │   │   ├── playlist.py           # Playlist and junction entities
@@ -40,13 +41,15 @@ content-talent-backend/
 │   │   │   ├── playlist_repository.py
 │   │   │   ├── comment_repository.py
 │   │   │   ├── profile_repository.py
-│   │   │   └── featured_video_repository.py
+│   │   │   ├── featured_video_repository.py
+│   │   │   └── subscription_plan_repository.py
 │   │   ├── mobile/               # Mobile Subscriber Repositories
 │   │   │   ├── auth_repository.py
 │   │   │   ├── video_repository.py
 │   │   │   ├── playlist_repository.py
 │   │   │   ├── comment_repository.py
-│   │   │   └── featured_video_repository.py
+│   │   │   ├── featured_video_repository.py
+│   │   │   └── subscription_plan_repository.py
 │   │   └── shared/               # Shared Repositories
 │   │       ├── branding_repository.py
 │   │       └── category_repository.py
@@ -59,6 +62,7 @@ content-talent-backend/
 │   │   │   ├── comment_routes.py # Mobile Video Comments (/api/v1/mobile)
 │   │   │   ├── featured_video_routes.py # Mobile Featured Videos Feed (/api/v1/mobile/featured-videos)
 │   │   │   ├── playlist_routes.py# Mobile Public Playlists (/api/v1/mobile/playlists)
+│   │   │   ├── subscription_plan_routes.py # Mobile Subscription Plans (/api/v1/mobile/plans)
 │   │   │   └── video_routes.py   # Mobile Video Catalog & HLS Player (/api/v1/mobile/videos)
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── branding_routes.py# Admin Studio Branding & Customization (/api/v1/admin/branding)
@@ -67,17 +71,44 @@ content-talent-backend/
 │   │       ├── featured_video_routes.py # Admin Featured Videos Curation (/api/v1/admin/featured-videos)
 │   │       ├── playlist_routes.py# Admin Playlist Management (/api/v1/admin/playlists)
 │   │       ├── profile_routes.py # Admin Account Profile & Social Links (/api/v1/admin/profile)
+│   │       ├── subscription_plan_routes.py # Admin Subscription Plans Management (/api/v1/admin/plans)
 │   │       └── video_routes.py   # Admin Video Management & Scheduling (/api/v1/admin/videos)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
 │   │   ├── admin/                # Creator Admin DTO Schemas
+│   │   │   ├── video_schemas.py
+│   │   │   ├── playlist_schemas.py
+│   │   │   ├── category_schemas.py
+│   │   │   ├── comment_schemas.py
+│   │   │   ├── profile_schemas.py
+│   │   │   ├── featured_video_schemas.py
+│   │   │   └── subscription_plan_schemas.py
 │   │   ├── mobile/               # Mobile Subscriber DTO Schemas
+│   │   │   ├── auth_schemas.py
+│   │   │   ├── video_schemas.py
+│   │   │   ├── playlist_schemas.py
+│   │   │   ├── category_schemas.py
+│   │   │   ├── comment_schemas.py
+│   │   │   ├── featured_video_schemas.py
+│   │   │   └── subscription_plan_schemas.py
 │   │   └── shared/               # Shared DTO Schemas
 │   │       ├── common_schemas.py
 │   │       ├── branding_schemas.py
 │   │       └── category_schemas.py
 │   ├── services/                 # Business Logic & Cloud Orchestration
 │   │   ├── admin/                # Creator Admin Services
+│   │   │   ├── video_service.py
+│   │   │   ├── playlist_service.py
+│   │   │   ├── comment_service.py
+│   │   │   ├── profile_service.py
+│   │   │   ├── featured_video_service.py
+│   │   │   └── subscription_plan_service.py
 │   │   ├── mobile/               # Mobile Subscriber Services
+│   │   │   ├── auth_service.py
+│   │   │   ├── video_service.py
+│   │   │   ├── playlist_service.py
+│   │   │   ├── comment_service.py
+│   │   │   ├── featured_video_service.py
+│   │   │   └── subscription_plan_service.py
 │   │   └── shared/               # Shared Services
 │   │       ├── branding_service.py
 │   │       └── category_service.py
@@ -110,6 +141,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ## Technical Features
 
+- **Subscription Plans & Monetization Tier Management**: Dedicated multi-tenant endpoints (`/api/v1/admin/plans` and `/api/v1/mobile/plans`) for managing subscription tiers, automatic discount calculations, billing periods (days/months/years), feature checklists, marketing badge tags, atomic display sequence reordering with automatic gap compaction on deletion, and Pattern 3 counter cache columns for sub-millisecond dashboard reads.
 - **Anonymous Guest Sessions and In-Place Social Account Upgrading**: Hardware-bound `device_id` guest sessions (`POST /api/v1/auth/guest`) allowing users to skip signup on first launch. When a guest later signs in with Google or Facebook, their existing guest account is upgraded in-place without losing watch history or likes.
 - **Creator Studio Branding and White-Label App Identity**: Dedicated endpoints (`/api/v1/admin/branding`) managing public studio name, tagline, channel description, hero cover banner, and app logo assets, completely separated from personal account settings.
 - **Unified Cloud Image Uploader Engine**: Reusable image upload utility enforcing dynamic file size limits and MIME validation (`JPG`, `PNG`, `WebP`, `SVG`), with automatic cloud cleanup of replaced assets to avoid storage bloat.

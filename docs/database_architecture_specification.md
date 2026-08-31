@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **14 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **15 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -13,6 +13,7 @@ erDiagram
     ADMIN ||--o{ VIDEO : "uploads & owns (1:N)"
     ADMIN ||--o{ PLAYLIST : "curates & owns (1:N)"
     ADMIN ||--o{ FEATURED_VIDEO : "curates home carousel (1:N)"
+    ADMIN ||--o{ SUBSCRIPTION_PLAN : "creates & manages (1:N)"
     ADMIN ||--o{ SUBSCRIBER : "hosts / tenants (1:N)"
 
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
