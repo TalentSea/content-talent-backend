@@ -43,12 +43,17 @@ class MobileFeaturedVideoRepository:
                 else Value(False)
             )
 
+            likes_count_expr = VideoLike.select(fn.COUNT(VideoLike.id)).where(
+                VideoLike.video == Video.id
+            )
+
             query = (
                 FeaturedVideo.select(
                     FeaturedVideo,
                     Video,
                     is_liked_expr.alias("is_liked"),
                     is_saved_expr.alias("is_saved"),
+                    likes_count_expr.alias("likes_count"),
                 )
                 .join(Video)
                 .where(
@@ -74,7 +79,7 @@ class MobileFeaturedVideoRepository:
                         "main_thumbnail_url": v.main_thumbnail_url,
                         "duration": v.duration,
                         "views": v.views or 0,
-                        "likes": v.likes or 0,
+                        "likes": int(getattr(row, "likes_count", 0) or 0),
                         "is_liked": bool(getattr(row, "is_liked", False)),
                         "is_saved": bool(getattr(row, "is_saved", False)),
                         "created_at": v.created_at,
@@ -83,5 +88,9 @@ class MobileFeaturedVideoRepository:
 
             return result
         except PeeweeException as e:
-            logger.error("Error fetching mobile featured videos for creator %s: %s", creator_id, e)
+            logger.error(
+                "Error fetching mobile featured videos for creator %s: %s",
+                creator_id,
+                e,
+            )
             return []

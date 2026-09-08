@@ -4,13 +4,13 @@ from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
 from app.repositories.admin.profile_repository import ProfileRepository
-from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.schemas.admin.profile_schemas import (
     ProfilePhotoUploadResponse,
     ProfileResponse,
     ProfileUpdateRequest,
     SocialLinksSchema,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.utils.image_uploader import validate_and_upload_image
 
 

@@ -15,9 +15,7 @@ class BrandingRepository:
         """
         return Branding.get_or_none(Branding.user_id == user_id)
 
-    def update_branding_text(
-        self, user_id: int, fields: dict[str, Any]
-    ) -> Branding:
+    def update_branding_text(self, user_id: int, fields: dict[str, Any]) -> Branding:
         """
         Applies partial updates to text fields, creating record with fields if it doesn't exist yet.
         """

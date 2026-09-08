@@ -1,5 +1,4 @@
 import logging
-import math
 import time
 
 from fastapi import HTTPException, UploadFile, status
@@ -7,7 +6,6 @@ from fastapi import HTTPException, UploadFile, status
 from app.config import get_settings
 from app.models.video import VideoLike
 from app.repositories.admin.playlist_repository import PlaylistRepository
-from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 from app.schemas.admin.playlist_schemas import (
     PlaylistAddVideosRequest,
     PlaylistAvailableVideoResponse,
@@ -21,6 +19,7 @@ from app.schemas.admin.playlist_schemas import (
     PlaylistUpdateRequest,
     PlaylistUpdateResponse,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 from app.utils.bunny_client import delete_bunny_storage_file
 from app.utils.image_uploader import validate_and_upload_image
 
@@ -286,7 +285,7 @@ class PlaylistService:
         """
         Fetches a paginated, filterable list of creator videos available to be added to the playlist matching spec doc API 11.
         """
-        videos, total = self.repo.get_available_videos_for_playlist(
+        results, total = self.repo.get_available_videos_for_playlist(
             playlist_id=playlist_id,
             user_id=user_id,
             search=search,
@@ -304,12 +303,12 @@ class PlaylistService:
                 status=v.status,
                 is_playable=v.is_playable,
                 views=v.views or 0,
-                likes=v.likes or 0,
+                likes=likes_count or 0,
                 duration=v.duration,
                 main_thumbnail_url=v.main_thumbnail_url,
                 created_at=v.created_at,
             )
-            for v in videos
+            for v, likes_count in results
         ]
 
         return PaginatedResponse.create(

@@ -30,11 +30,17 @@ class Settings(BaseSettings):
     BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS: int = 7200
     AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS: int = 60
     STALE_GUEST_CLEANUP_DAYS: int = 90
+    SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS: int = 3600
     MAX_FEATURED_VIDEOS_PER_CREATOR: int = 10
 
     GOOGLE_CLIENT_ID: str = ""
     FACEBOOK_APP_ID: str = ""
     FACEBOOK_APP_SECRET: str = ""
+
+    # Razorpay Payment Gateway Configuration
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     # Image Upload Configuration
     ALLOWED_IMAGE_EXTENSIONS: str = "jpg,jpeg,png,webp,svg"

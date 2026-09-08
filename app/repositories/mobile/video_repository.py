@@ -455,9 +455,7 @@ class MobileVideoRepository:
             )
             raise
 
-    def clear_watch_history(
-        self, subscriber_id: int, creator_id: int | None = None
-    ):
+    def clear_watch_history(self, subscriber_id: int, creator_id: int | None = None):
         """
         Deletes all watch history records for a subscriber, scoped by creator_id tenant context.
         """
@@ -466,9 +464,7 @@ class MobileVideoRepository:
                 WatchHistory.subscriber == subscriber_id
             )
             if creator_id is not None:
-                creator_videos = Video.select(Video.id).where(
-                    Video.user == creator_id
-                )
+                creator_videos = Video.select(Video.id).where(Video.user == creator_id)
                 query = query.where(WatchHistory.video.in_(creator_videos))
             query.execute()
         except PeeweeException as e:
@@ -489,14 +485,10 @@ class MobileVideoRepository:
             if not video:
                 return False
 
-            deleted_count = (
-                WatchHistory.delete()
-                .where(
-                    (WatchHistory.video == video_id)
-                    & (WatchHistory.subscriber == subscriber_id)
-                )
-                .execute()
-            )
+            WatchHistory.delete().where(
+                (WatchHistory.video == video_id)
+                & (WatchHistory.subscriber == subscriber_id)
+            ).execute()
             return True
         except PeeweeException as e:
             logger.error(

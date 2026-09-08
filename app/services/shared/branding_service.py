@@ -81,9 +81,7 @@ class BrandingService:
         updated_branding = self.repo.update_branding_text(user_id, update_data)
         return self._to_branding_response(updated_branding)
 
-    def upload_logo(
-        self, user_id: int, file: UploadFile
-    ) -> BrandingLogoUploadResponse:
+    def upload_logo(self, user_id: int, file: UploadFile) -> BrandingLogoUploadResponse:
         """
         Validates and uploads a creator logo image to Bunny Storage.
         """

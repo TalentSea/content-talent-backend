@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from peewee import fn
 
 from app.models.playlist import Playlist, PlaylistVideo
-from app.models.video import Video
+from app.models.video import Video, VideoLike
 
 
 class PlaylistRepository:
@@ -298,4 +298,17 @@ class PlaylistRepository:
 
         total = query.count()
         videos = list(query.paginate(page, limit))
-        return videos, total
+        if not videos:
+            return [], total
+
+        # Batch count likes for all returned videos in a single SQL query
+        v_ids = [v.id for v in videos]
+        likes_query = (
+            VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id).alias("l_count"))
+            .where(VideoLike.video.in_(v_ids))
+            .group_by(VideoLike.video)
+        )
+        likes_map = {row.video_id: row.l_count for row in likes_query}
+
+        results = [(v, likes_map.get(v.id, 0)) for v in videos]
+        return results, total

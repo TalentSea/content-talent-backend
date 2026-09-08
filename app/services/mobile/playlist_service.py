@@ -1,5 +1,4 @@
 import logging
-import math
 
 from fastapi import HTTPException, status
 
@@ -65,7 +64,9 @@ class MobilePlaylistService:
         """
         Retrieves single public playlist header alongside paginated video items matching spec API 2.
         """
-        playlist = self.repo.get_public_playlist_by_id(playlist_id, creator_id=creator_id)
+        playlist = self.repo.get_public_playlist_by_id(
+            playlist_id, creator_id=creator_id
+        )
         if not playlist:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

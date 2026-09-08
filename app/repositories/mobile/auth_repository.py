@@ -38,7 +38,9 @@ class AuthRepository:
             if email:
                 sub_by_email = (
                     Subscriber.select()
-                    .where((Subscriber.creator == creator_id) & (Subscriber.email == email))
+                    .where(
+                        (Subscriber.creator == creator_id) & (Subscriber.email == email)
+                    )
                     .first()
                 )
                 if sub_by_email:
@@ -161,7 +163,9 @@ class AuthRepository:
         except PeeweeException:
             return None
 
-    def get_or_create_guest_subscriber(self, creator_id: int, device_id: str) -> Subscriber:
+    def get_or_create_guest_subscriber(
+        self, creator_id: int, device_id: str
+    ) -> Subscriber:
         """
         Finds existing guest subscriber bound to creator_id by device_id or creates a new anonymous guest subscriber.
         Refreshes updated_at timestamp on active guest sessions.
@@ -256,8 +260,7 @@ class AuthRepository:
         deleted_count = (
             Subscriber.delete()
             .where(
-                (Subscriber.provider == "guest")
-                & (Subscriber.updated_at < cutoff_date)
+                (Subscriber.provider == "guest") & (Subscriber.updated_at < cutoff_date)
             )
             .execute()
         )

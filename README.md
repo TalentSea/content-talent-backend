@@ -31,6 +31,8 @@ content-talent-backend/
 │   │   ├── featured_video.py     # Home Screen Featured Carousel curation entity
 │   │   ├── subscriber.py         # Mobile App Subscriber profile identity entity
 │   │   ├── subscription_plan.py  # Creator Subscription Plans, Pricing and Counter Cache entity
+│   │   ├── user_subscription.py  # Active subscriber membership entitlements & validity entity
+│   │   ├── payment.py            # Razorpay orders and payment transactions ledger entity
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave and WatchHistory entities
 │   │   ├── playlist.py           # Playlist and junction entities
@@ -49,18 +51,22 @@ content-talent-backend/
 │   │   │   ├── playlist_repository.py
 │   │   │   ├── comment_repository.py
 │   │   │   ├── featured_video_repository.py
-│   │   │   └── subscription_plan_repository.py
+│   │   │   ├── subscription_plan_repository.py
+│   │   │   ├── user_subscription_repository.py
+│   │   │   └── payment_repository.py
 │   │   └── shared/               # Shared Repositories
 │   │       ├── branding_repository.py
 │   │       └── category_repository.py
 │   ├── routes/                   # FastAPI Endpoint Route Handlers
-│   │   ├── webhook_routes.py     # Public Bunny Stream Webhooks (/api/v1/webhooks)
+│   │   ├── webhook_routes.py     # Bunny Stream & Razorpay Webhooks (/api/v1/webhooks)
 │   │   ├── mobile/               # Mobile Application Endpoints
 │   │   │   ├── auth_routes.py    # Mobile Social & Guest Auth (/api/v1/auth)
 │   │   │   ├── branding_routes.py# Mobile Studio Branding (/api/v1/mobile/branding)
 │   │   │   ├── category_routes.py# Mobile Category Catalog (/api/v1/mobile/categories)
 │   │   │   ├── comment_routes.py # Mobile Video Comments (/api/v1/mobile)
 │   │   │   ├── featured_video_routes.py # Mobile Featured Videos Feed (/api/v1/mobile/featured-videos)
+│   │   │   ├── payment_routes.py # Mobile Razorpay Orders & Verification (/api/v1/mobile/payments)
+│   │   │   ├── subscription_routes.py # Mobile Active Entitlements Status (/api/v1/mobile/subscriptions)
 │   │   │   ├── playlist_routes.py# Mobile Public Playlists (/api/v1/mobile/playlists)
 │   │   │   ├── subscription_plan_routes.py # Mobile Subscription Plans (/api/v1/mobile/plans)
 │   │   │   └── video_routes.py   # Mobile Video Catalog & HLS Player (/api/v1/mobile/videos)
@@ -89,7 +95,8 @@ content-talent-backend/
 │   │   │   ├── category_schemas.py
 │   │   │   ├── comment_schemas.py
 │   │   │   ├── featured_video_schemas.py
-│   │   │   └── subscription_plan_schemas.py
+│   │   │   ├── subscription_plan_schemas.py
+│   │   │   └── payment_schemas.py
 │   │   └── shared/               # Shared DTO Schemas
 │   │       ├── common_schemas.py
 │   │       ├── branding_schemas.py
@@ -108,7 +115,8 @@ content-talent-backend/
 │   │   │   ├── playlist_service.py
 │   │   │   ├── comment_service.py
 │   │   │   ├── featured_video_service.py
-│   │   │   └── subscription_plan_service.py
+│   │   │   ├── subscription_plan_service.py
+│   │   │   └── payment_service.py
 │   │   └── shared/               # Shared Services
 │   │       ├── branding_service.py
 │   │       └── category_service.py
@@ -117,7 +125,8 @@ content-talent-backend/
 │       ├── idp_verifiers.py      # Google OIDC RSA and Facebook Graph API verifiers
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
 │       ├── bunny_signature.py    # TUS and HLS presigned token signature helpers
-│       └── image_uploader.py     # Unified cloud image validation and storage engine
+│       ├── image_uploader.py     # Unified cloud image validation and storage engine
+│       └── razorpay_client.py    # Razorpay REST API orders & HMAC cryptographic verifier
 ├── Dockerfile                    # Container image build configuration
 ├── docker-compose.yml            # Container orchestration specification
 ├── .env.example                  # Environment configuration template
@@ -141,6 +150,9 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ## Technical Features
 
+- **Razorpay Payment Gateway & Cryptographic Signature Verification**: Production-grade monetization engine featuring order initialization (`POST /api/v1/mobile/payments/create-order`), SHA-256 HMAC cryptographic signature verification (`POST /api/v1/mobile/payments/verify`), atomic database transaction commits with automatic rollback on failure, idempotent entitlement activation, and an asynchronous fallback webhook listener (`POST /api/v1/webhooks/razorpay`).
+- **Two-Pillar Subscription Expiration Architecture**: Real-time Just-In-Time (JIT) lazy expiration checks on subscriber requests paired with an automated background task (`scheduled_subscription_expiration_worker`) on the FastAPI lifespan event loop to systematically expire outdated memberships.
+- **Single-Query Hero Carousel Curation (`likes_count` Subquery)**: Ultra-optimized home screen featured video carousel mapping (`GET /api/v1/mobile/featured-videos`) fetching video metadata, subscriber engagement flags (`is_liked`, `is_saved`), and real-time total likes count via correlated SQL scalar subqueries in 1 single database roundtrip with zero N+1 query overhead.
 - **Subscription Plans & Monetization Tier Management**: Dedicated multi-tenant endpoints (`/api/v1/admin/plans` and `/api/v1/mobile/plans`) for managing subscription tiers, automatic discount calculations, billing periods (days/months/years), feature checklists, marketing badge tags, atomic display sequence reordering with automatic gap compaction on deletion, and Pattern 3 counter cache columns for sub-millisecond dashboard reads.
 - **Anonymous Guest Sessions and In-Place Social Account Upgrading**: Hardware-bound `device_id` guest sessions (`POST /api/v1/auth/guest`) allowing users to skip signup on first launch. When a guest later signs in with Google or Facebook, their existing guest account is upgraded in-place without losing watch history or likes.
 - **Creator Studio Branding and White-Label App Identity**: Dedicated endpoints (`/api/v1/admin/branding`) managing public studio name, tagline, channel description, hero cover banner, and app logo assets, completely separated from personal account settings.
@@ -162,7 +174,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ---
 
-## API Summary Breakdown (80 Total Endpoints)
+## API Summary Breakdown (84 Total Endpoints)
 
 - **Admin Endpoints (49)**:
   - Video Management & Scheduling: 11 endpoints
@@ -173,17 +185,20 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Account Profile & Social Links: 3 endpoints
   - Featured Videos Curation: 3 endpoints
   - Subscription Plans Management: 6 endpoints
-- **Mobile Endpoints (30)**:
+- **Mobile Endpoints (33)**:
   - Video Catalog, Player, History, Likes & Saves: 12 endpoints
   - Comments & Replies: 6 endpoints
   - Authentication, Guest & Profiles: 6 endpoints
+  - Razorpay Orders & Verification: 2 endpoints
+  - Subscription Entitlement Status: 1 endpoint
   - Playlists Catalog: 2 endpoints
   - Category Catalog: 1 endpoint
   - Studio Branding Identity: 1 endpoint
   - Featured Videos Feed: 1 endpoint
   - Subscription Plans Feed: 1 endpoint
-- **Webhook Endpoints (1)**:
+- **Webhook Endpoints (2)**:
   - Bunny Stream Transcoding Webhook: 1 endpoint
+  - Razorpay Payment Webhook: 1 endpoint
 
 ---
 
@@ -234,6 +249,12 @@ BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS=7200
 # Background Tasks & Automation Timers
 AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS=60
 STALE_GUEST_CLEANUP_DAYS=90
+SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS=3600
+
+# Razorpay Payment Gateway Credentials & Webhooks
+RAZORPAY_KEY_ID=rzp_test_your_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret
 
 # OAuth 2.0 / Social Authentication Providers
 GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
@@ -296,7 +317,7 @@ py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Technical specifications and architecture documentation:
 
 ### 🏛️ Database Architecture
-- [Complete 15-Table Database Schema Specification](docs/database_architecture_specification.md)
+- [Complete 17-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
 - [Branding Management API Specification](docs/admin/branding_management_api_specification.md)
@@ -317,3 +338,4 @@ Technical specifications and architecture documentation:
 - [Mobile Comments Specification](docs/mobile/comments_api_specification.md)
 - [Mobile Featured Videos Specification](docs/mobile/featured_videos_api_specification.md)
 - [Mobile Subscription Plans Specification](docs/mobile/subscription_plans_api_specification.md)
+- [Mobile Razorpay Payment & Subscriptions Specification](docs/mobile/razorpay_payment_subscriptions_api_specification.md)

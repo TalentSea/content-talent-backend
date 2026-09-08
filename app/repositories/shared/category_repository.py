@@ -24,7 +24,9 @@ class CategoryRepository:
     Uses Approach 1 (Dynamic SQL Aggregation for contentCount).
     """
 
-    def list_public_mobile_categories(self, creator_id: int | None = None) -> list[Category]:
+    def list_public_mobile_categories(
+        self, creator_id: int | None = None
+    ) -> list[Category]:
         """
         Retrieves all public categories ordered by display_order ascending for mobile catalog filter chips.
         Optionally filters by creator_id for tenant isolation.

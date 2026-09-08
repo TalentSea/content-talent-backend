@@ -28,7 +28,9 @@ class FeaturedVideoRepository:
             )
             return list(query)
         except PeeweeException as e:
-            logger.error("Error fetching featured videos for creator %s: %s", creator_id, e)
+            logger.error(
+                "Error fetching featured videos for creator %s: %s", creator_id, e
+            )
             return []
 
     def get_featured_count(self, creator_id: int) -> int:
@@ -36,9 +38,15 @@ class FeaturedVideoRepository:
         Returns total count of featured videos for creator_id.
         """
         try:
-            return FeaturedVideo.select().where(FeaturedVideo.creator == creator_id).count()
+            return (
+                FeaturedVideo.select()
+                .where(FeaturedVideo.creator == creator_id)
+                .count()
+            )
         except PeeweeException as e:
-            logger.error("Error counting featured videos for creator %s: %s", creator_id, e)
+            logger.error(
+                "Error counting featured videos for creator %s: %s", creator_id, e
+            )
             return 0
 
     def sync_featured_videos(
@@ -79,7 +87,9 @@ class FeaturedVideoRepository:
                     ordered_videos = []
 
                 # 2. Clear existing featured records for this creator
-                FeaturedVideo.delete().where(FeaturedVideo.creator == creator_id).execute()
+                FeaturedVideo.delete().where(
+                    FeaturedVideo.creator == creator_id
+                ).execute()
 
                 # 3. Bulk insert new rows in 1 single atomic SQL statement
                 if ordered_videos:
@@ -95,7 +105,9 @@ class FeaturedVideoRepository:
 
             return self.get_featured_videos(creator_id)
         except PeeweeException as e:
-            logger.error("Error synchronizing featured videos for creator %s: %s", creator_id, e)
+            logger.error(
+                "Error synchronizing featured videos for creator %s: %s", creator_id, e
+            )
             return []
 
     def get_available_videos_for_featured(
@@ -136,11 +148,15 @@ class FeaturedVideoRepository:
             elif sort == "newest":
                 query = query.order_by(Video.created_at.desc())
             else:  # default "popular" using B-Tree indexed popularity_score (views + 3*likes)
-                query = query.order_by(Video.popularity_score.desc(), Video.created_at.desc())
+                query = query.order_by(
+                    Video.popularity_score.desc(), Video.created_at.desc()
+                )
 
             total = query.count()
             videos = list(query.paginate(page, limit))
             return videos, total
         except PeeweeException as e:
-            logger.error("Error fetching available videos for creator %s: %s", creator_id, e)
+            logger.error(
+                "Error fetching available videos for creator %s: %s", creator_id, e
+            )
             return [], 0

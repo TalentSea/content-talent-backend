@@ -1,12 +1,10 @@
 import logging
-import math
 
 from fastapi import HTTPException, status
 
 from app.repositories.mobile.auth_repository import AuthRepository
 from app.repositories.mobile.comment_repository import MobileCommentRepository
 from app.repositories.mobile.video_repository import MobileVideoRepository
-from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 from app.schemas.mobile.comment_schemas import (
     MobileCommentAuthorResponse,
     MobileCommentCreateRequest,
@@ -14,6 +12,7 @@ from app.schemas.mobile.comment_schemas import (
     MobileCommentLikeResponse,
     MobileCommentReplyResponse,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -237,9 +236,7 @@ class MobileCommentService:
         """
         Toggles subscriber like state on a comment or reply matching spec doc API 5.
         """
-        comment = self.comment_repo.get_comment_by_id(
-            comment_id, creator_id=creator_id
-        )
+        comment = self.comment_repo.get_comment_by_id(comment_id, creator_id=creator_id)
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -258,9 +255,7 @@ class MobileCommentService:
         """
         Deletes a subscriber's own comment matching spec doc API 6.
         """
-        comment = self.comment_repo.get_comment_by_id(
-            comment_id, creator_id=creator_id
-        )
+        comment = self.comment_repo.get_comment_by_id(comment_id, creator_id=creator_id)
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

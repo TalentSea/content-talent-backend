@@ -1,11 +1,9 @@
 import logging
-import math
 
 from fastapi import HTTPException, status
 
 from app.config import get_settings
 from app.repositories.mobile.video_repository import MobileVideoRepository
-from app.schemas.shared.common_schemas import PaginatedResponse
 from app.schemas.mobile.video_schemas import (
     MobileVideoCaptionResponse,
     MobileVideoDetailResponse,
@@ -15,6 +13,7 @@ from app.schemas.mobile.video_schemas import (
     MobileVideoSaveResponse,
     MobileViewCountResponse,
 )
+from app.schemas.shared.common_schemas import PaginatedResponse
 from app.utils.bunny_signature import (
     generate_signed_mp4_url,
     generate_signed_playback_url,
@@ -360,9 +359,7 @@ class MobileVideoService:
         ]
         return self._build_paginated_response(items, total_count, page, limit)
 
-    def clear_watch_history(
-        self, subscriber_id: int, creator_id: int | None = None
-    ):
+    def clear_watch_history(self, subscriber_id: int, creator_id: int | None = None):
         """
         Deletes all watch history for calling subscriber.
         """

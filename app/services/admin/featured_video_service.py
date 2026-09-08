@@ -4,13 +4,13 @@ from fastapi import HTTPException, status
 
 from app.config import get_settings
 from app.repositories.admin.featured_video_repository import FeaturedVideoRepository
-from app.schemas.shared.common_schemas import PaginatedResponse
 from app.schemas.admin.featured_video_schemas import (
     FeaturedAvailableVideoResponse,
     FeaturedVideoItemResponse,
     FeaturedVideoSyncRequest,
     FeaturedVideoSyncResponse,
 )
+from app.schemas.shared.common_schemas import PaginatedResponse
 
 logger = logging.getLogger(__name__)
 

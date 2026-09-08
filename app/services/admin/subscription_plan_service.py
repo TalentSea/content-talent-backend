@@ -132,15 +132,21 @@ class SubscriptionPlanService:
         if payload.name is not None:
             update_dict["name"] = payload.name.strip()
         if payload.description is not None:
-            update_dict["description"] = payload.description.strip() if payload.description else None
+            update_dict["description"] = (
+                payload.description.strip() if payload.description else None
+            )
         if payload.billing_period_value is not None:
             update_dict["billing_period_value"] = payload.billing_period_value
         if payload.billing_period_unit is not None:
-            update_dict["billing_period_unit"] = payload.billing_period_unit.strip().lower()
+            update_dict["billing_period_unit"] = (
+                payload.billing_period_unit.strip().lower()
+            )
         if payload.features is not None:
             update_dict["features"] = [f.strip() for f in payload.features if f.strip()]
         if payload.badge_text is not None:
-            update_dict["badge_text"] = payload.badge_text.strip() if payload.badge_text else None
+            update_dict["badge_text"] = (
+                payload.badge_text.strip() if payload.badge_text else None
+            )
         if payload.is_active is not None:
             update_dict["is_active"] = payload.is_active
 
@@ -156,10 +162,7 @@ class SubscriptionPlanService:
             else existing_plan.discount_percentage
         )
 
-        if (
-            payload.base_price is not None
-            or payload.discount_percentage is not None
-        ):
+        if payload.base_price is not None or payload.discount_percentage is not None:
             update_dict["base_price"] = round(new_base_price, 2)
             update_dict["discount_percentage"] = round(new_discount, 2)
             update_dict["final_price"] = self._calculate_final_price(

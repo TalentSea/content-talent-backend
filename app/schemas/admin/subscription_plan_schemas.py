@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -26,7 +27,9 @@ class SubscriptionPlanCreateRequest(BaseModel):
         default_factory=list, description="Array of benefit strings for card checklist"
     )
     badge_text: str | None = Field(
-        default=None, max_length=50, description="Marketing highlight tag (e.g. '15% OFF', '⚡')"
+        default=None,
+        max_length=50,
+        description="Marketing highlight tag (e.g. '15% OFF', '⚡')",
     )
     is_active: bool = Field(
         default=True, description="Whether the plan is visible to subscribers"

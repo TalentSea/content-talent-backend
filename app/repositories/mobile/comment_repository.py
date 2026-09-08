@@ -4,7 +4,6 @@ from peewee import IntegrityError, PeeweeException, fn
 
 from app.database import db_proxy
 from app.models.comment import Comment, CommentLike
-from app.models.subscriber import Subscriber
 from app.models.video import Video
 
 logger = logging.getLogger(__name__)
@@ -102,9 +101,7 @@ class MobileCommentRepository:
             return {}
         try:
             counts_query = (
-                Comment.select(
-                    Comment.parent, fn.COUNT(Comment.id).alias("r_count")
-                )
+                Comment.select(Comment.parent, fn.COUNT(Comment.id).alias("r_count"))
                 .where(Comment.parent.in_(comment_ids))
                 .group_by(Comment.parent)
             )

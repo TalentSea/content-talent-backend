@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import Depends, File, Header, HTTPException, UploadFile, status
+from fastapi import Depends, File, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.config import get_settings
@@ -9,7 +9,9 @@ from app.models.subscriber import Subscriber
 from app.utils.auth import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
-oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login", auto_error=False)
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl="api/v1/auth/login", auto_error=False
+)
 
 
 def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
@@ -70,7 +72,8 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
         )
         return {
             "user_id": admin.id,
-            "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip() or "Creator Admin",
+            "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip()
+            or "Creator Admin",
             "email": admin.email,
         }
 
@@ -88,7 +91,8 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
 
     return {
         "user_id": admin.id,
-        "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip() or "Creator Admin",
+        "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip()
+        or "Creator Admin",
         "email": admin.email,
     }
 
@@ -100,7 +104,7 @@ OptionalSubscriber = Annotated[dict[str, Any] | None, Depends(get_optional_subsc
 FormFile = Annotated[UploadFile, File(...)]
 
 
-def validate_image_file(file: UploadFile = File(...)) -> UploadFile:
+def validate_image_file(file: FormFile) -> UploadFile:
     """
     Validates uploaded image MIME types (JPG, PNG, WEBP) and size limits.
     """

@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **15 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **17 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -15,6 +15,8 @@ erDiagram
     ADMIN ||--o{ FEATURED_VIDEO : "curates home carousel (1:N)"
     ADMIN ||--o{ SUBSCRIPTION_PLAN : "creates & manages (1:N)"
     ADMIN ||--o{ SUBSCRIBER : "hosts / tenants (1:N)"
+    ADMIN ||--o{ PAYMENT : "receives transactions (1:N)"
+    ADMIN ||--o{ USER_SUBSCRIPTION : "grants entitlements (1:N)"
 
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
     SUBSCRIBER ||--o{ VIDEO_LIKE : "likes (1:N)"
@@ -22,6 +24,13 @@ erDiagram
     SUBSCRIBER ||--o{ WATCH_HISTORY : "tracks watch progress (1:N)"
     SUBSCRIBER ||--o{ COMMENT : "authors subscriber comments (1:N)"
     SUBSCRIBER ||--o{ COMMENT_LIKE : "likes comment (1:N)"
+    SUBSCRIBER ||--o{ PAYMENT : "originates transactions (1:N)"
+    SUBSCRIBER ||--o{ USER_SUBSCRIPTION : "holds subscriptions (1:N)"
+
+    SUBSCRIPTION_PLAN ||--o{ PAYMENT : "billed tier (1:N)"
+    SUBSCRIPTION_PLAN ||--o{ USER_SUBSCRIPTION : "assigned tier (1:N)"
+
+    PAYMENT ||--o| USER_SUBSCRIPTION : "fulfills entitlement (1:1)"
 
     VIDEO ||--o{ VIDEO_LIKE : "has likes (1:N)"
     VIDEO ||--o{ VIDEO_SAVE : "has saved bookmarks (1:N)"
@@ -87,7 +96,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 1. `admins` Table (Web Admin Creator Profile)
-* **Model File**: [`app/models/admin.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/admin.py)
+* **Model File**: [`app/models/admin.py`](../app/models/admin.py)
 * **Table Name**: `admins`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -111,7 +120,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 2. `branding` Table (Studio White-Label Customization)
-* **Model File**: [`app/models/branding.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/branding.py)
+* **Model File**: [`app/models/branding.py`](../app/models/branding.py)
 * **Table Name**: `branding`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -129,7 +138,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 3. `subscribers` Table (Mobile App End-Users)
-* **Model File**: [`app/models/subscriber.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/subscriber.py)
+* **Model File**: [`app/models/subscriber.py`](../app/models/subscriber.py)
 * **Table Name**: `subscribers`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -149,7 +158,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 4. `refresh_tokens` Table (Mobile Subscriber Sessions)
-* **Model File**: [`app/models/refresh_token.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/refresh_token.py)
+* **Model File**: [`app/models/refresh_token.py`](../app/models/refresh_token.py)
 * **Table Name**: `refresh_tokens`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -165,7 +174,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 5. `categories` Table (Video Taxonomy)
-* **Model File**: [`app/models/category.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/category.py)
+* **Model File**: [`app/models/category.py`](../app/models/category.py)
 * **Table Name**: `categories`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -184,7 +193,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 6. `videos` Table (Uploaded Video Assets)
-* **Model File**: [`app/models/video.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/video.py)
+* **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `videos`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -213,7 +222,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 7. `playlists` Table (Custom Video Collections)
-* **Model File**: [`app/models/playlist.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/playlist.py)
+* **Model File**: [`app/models/playlist.py`](../app/models/playlist.py)
 * **Table Name**: `playlists`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -229,7 +238,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 8. `playlist_videos` Table (Playlist Order Junction)
-* **Model File**: [`app/models/playlist.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/playlist.py)
+* **Model File**: [`app/models/playlist.py`](../app/models/playlist.py)
 * **Table Name**: `playlist_videos`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -242,7 +251,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 9. `video_likes` Table (Subscriber Video Likes)
-* **Model File**: [`app/models/video.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/video.py)
+* **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `video_likes`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -255,7 +264,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 10. `video_saves` Table (Subscriber Watchlist Bookmarks)
-* **Model File**: [`app/models/video.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/video.py)
+* **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `video_saves`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -268,7 +277,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 11. `watch_histories` Table (Playback Progress & Continue Watching)
-* **Model File**: [`app/models/video.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/video.py)
+* **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `watch_histories`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -284,7 +293,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 12. `comments` Table (Video Comments & Thread Replies)
-* **Model File**: [`app/models/comment.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/comment.py)
+* **Model File**: [`app/models/comment.py`](../app/models/comment.py)
 * **Table Name**: `comments`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -301,7 +310,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 13. `comment_likes` Table (Subscriber Comment Hearts / Likes)
-* **Model File**: [`app/models/comment.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/comment.py)
+* **Model File**: [`app/models/comment.py`](../app/models/comment.py)
 * **Table Name**: `comment_likes`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -314,7 +323,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 14. `featured_videos` Table (Admin Home Screen Carousel Curation)
-* **Model File**: [`app/models/featured_video.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/featured_video.py)
+* **Model File**: [`app/models/featured_video.py`](../app/models/featured_video.py)
 * **Table Name**: `featured_videos`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -330,7 +339,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 ---
 
 ### 15. `subscription_plans` Table (Creator Subscription Tiers & Pricing)
-* **Model File**: [`app/models/subscription_plan.py`](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/models/subscription_plan.py)
+* **Model File**: [`app/models/subscription_plan.py`](../app/models/subscription_plan.py)
 * **Table Name**: `subscription_plans`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
@@ -352,4 +361,46 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `active_subscribers` | `INTEGER` | Standard | NO | `0` | Counter cache of active subscribers enrolled |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Creation timestamp |
 | `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last updated timestamp |
+
+---
+
+### 16. `payments` Table (Financial Transaction History)
+* **Model File**: [`app/models/payment.py`](../app/models/payment.py)
+* **Table Name**: `payments`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of payment transaction |
+| `user_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Subscriber who initiated transaction |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio receiving the payment |
+| `plan_id` | `INTEGER` | **FK ➔ `subscription_plans.id` (RESTRICT)** | NO | None | Plan tier being purchased |
+| `razorpay_order_id` | `VARCHAR(100)` | Standard (INDEX) | NO | None | Razorpay order ID (`order_...`) |
+| `razorpay_payment_id` | `VARCHAR(100)` | Standard (INDEX) | YES | `NULL` | Razorpay payment ID (`pay_...`) |
+| `razorpay_signature` | `VARCHAR(255)` | Standard | YES | `NULL` | HMAC-SHA256 signature from client verification |
+| `amount` | `FLOAT` | Standard | NO | None | Charged amount in ₹ INR |
+| `currency` | `VARCHAR(10)` | Standard | NO | `"INR"` | Currency ISO code (`"INR"`) |
+| `status` | `VARCHAR(30)` | Standard (INDEX) | NO | `"created"` | Transaction state (`"created"`, `"captured"`, `"failed"`) |
+| `error_code` | `VARCHAR(100)` | Standard | YES | `NULL` | Gateway decline/error code |
+| `error_description` | `TEXT` | Standard | YES | `NULL` | Gateway decline reason |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Transaction order creation timestamp |
+| `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last status update timestamp |
+
+---
+
+### 17. `user_subscriptions` Table (Active Member Entitlements & Access Grants)
+* **Model File**: [`app/models/user_subscription.py`](../app/models/user_subscription.py)
+* **Table Name**: `user_subscriptions`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of user subscription |
+| `user_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Subscriber with premium access |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio granting content access |
+| `plan_id` | `INTEGER` | **FK ➔ `subscription_plans.id` (RESTRICT)** | NO | None | Subscribed plan tier |
+| `payment_id` | `INTEGER` | **FK ➔ `payments.id` (SET NULL)** | YES | `NULL` | Originating payment transaction |
+| `start_date` | `DATETIME` | Standard | NO | `UTC timestamp` | Membership validity start datetime |
+| `end_date` | `DATETIME` | Standard (INDEX) | NO | None | Expiration datetime ($+X$ duration) |
+| `status` | `VARCHAR(30)` | Standard (INDEX) | NO | `"active"` | Access status (`"active"`, `"expired"`) |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Entitlement creation timestamp |
+| `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last status update timestamp |
 

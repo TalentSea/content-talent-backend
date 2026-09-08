@@ -9,8 +9,11 @@ from app.config import get_settings
 from app.database import init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
-from app.repositories.mobile.auth_repository import AuthRepository
 from app.repositories.admin.video_repository import VideoRepository
+from app.repositories.mobile.auth_repository import AuthRepository
+from app.repositories.mobile.user_subscription_repository import (
+    UserSubscriptionRepository,
+)
 from app.routes.admin import (
     admin_branding_router,
     admin_category_router,
@@ -27,8 +30,10 @@ from app.routes.mobile import (
     mobile_category_router,
     mobile_comment_router,
     mobile_featured_video_router,
+    mobile_payment_router,
     mobile_playlist_router,
     mobile_subscription_plan_router,
+    mobile_subscription_router,
     mobile_video_router,
 )
 from app.routes.webhook_routes import router as webhook_router
@@ -67,14 +72,36 @@ async def scheduled_stale_guest_cleanup():
         await asyncio.sleep(86400)  # Runs once every 24 hours
 
 
+async def scheduled_subscription_expiration_worker():
+    """Background task running periodically to batch reconcile past-due active subscriptions."""
+    repo = UserSubscriptionRepository()
+    while True:
+        try:
+            expired_count = repo.expire_outdated_subscriptions()
+            if expired_count > 0:
+                logger.info(
+                    "Subscription Expiration Worker expired %s past-due subscriptions.",
+                    expired_count,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error in subscription expiration background worker: %s", e)
+        await asyncio.sleep(
+            get_settings().SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     publisher_task = asyncio.create_task(scheduled_video_auto_publisher())
     guest_cleanup_task = asyncio.create_task(scheduled_stale_guest_cleanup())
+    subscription_expiration_task = asyncio.create_task(
+        scheduled_subscription_expiration_worker()
+    )
     yield
     publisher_task.cancel()
     guest_cleanup_task.cancel()
+    subscription_expiration_task.cancel()
 
 
 app = FastAPI(
@@ -98,6 +125,8 @@ app.include_router(mobile_comment_router)
 app.include_router(mobile_branding_router)
 app.include_router(mobile_featured_video_router)
 app.include_router(mobile_subscription_plan_router)
+app.include_router(mobile_payment_router)
+app.include_router(mobile_subscription_router)
 app.include_router(webhook_router)
 app.include_router(admin_video_router)
 app.include_router(admin_playlist_router)

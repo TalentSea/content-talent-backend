@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentSubscriber
-from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 from app.schemas.mobile.comment_schemas import (
     MobileCommentCreateRequest,
     MobileCommentItemResponse,
     MobileCommentLikeResponse,
     MobileCommentReplyResponse,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse, PaginatedResponse
 from app.services.mobile.comment_service import MobileCommentService
 
 router = APIRouter(prefix="/api/v1/mobile", tags=["Mobile Comments & Discussions"])

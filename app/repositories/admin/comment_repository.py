@@ -1,8 +1,7 @@
 import logging
 
-from peewee import IntegrityError, PeeweeException, fn
+from peewee import PeeweeException, fn
 
-from app.database import db_proxy
 from app.models.admin import Admin
 from app.models.comment import Comment, CommentLike
 from app.models.video import Video
@@ -103,9 +102,7 @@ class CommentRepository:
             return {}
         try:
             counts_query = (
-                Comment.select(
-                    Comment.parent, fn.COUNT(Comment.id).alias("r_count")
-                )
+                Comment.select(Comment.parent, fn.COUNT(Comment.id).alias("r_count"))
                 .where(Comment.parent.in_(comment_ids))
                 .group_by(Comment.parent)
             )

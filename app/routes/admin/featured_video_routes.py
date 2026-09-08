@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import CurrentAdmin
-from app.schemas.shared.common_schemas import PaginatedResponse
 from app.schemas.admin.featured_video_schemas import (
     FeaturedAvailableVideoResponse,
     FeaturedVideoItemResponse,
     FeaturedVideoSyncRequest,
     FeaturedVideoSyncResponse,
 )
+from app.schemas.shared.common_schemas import PaginatedResponse
 from app.services.admin.featured_video_service import FeaturedVideoService
 
-router = APIRouter(prefix="/api/v1/admin/featured-videos", tags=["Admin Featured Videos"])
+router = APIRouter(
+    prefix="/api/v1/admin/featured-videos", tags=["Admin Featured Videos"]
+)
 service = FeaturedVideoService()
 
 
@@ -48,9 +50,15 @@ def sync_featured_videos(
 )
 def get_available_videos_for_featured(
     current_user: CurrentAdmin,
-    search: str | None = Query(None, description="Search available videos by title substring"),
-    category: str | None = Query(None, description="Filter available videos by category slug/name"),
-    sort: str | None = Query("popular", description="Sort order: popular, most_viewed, oldest, newest"),
+    search: str | None = Query(
+        None, description="Search available videos by title substring"
+    ),
+    category: str | None = Query(
+        None, description="Filter available videos by category slug/name"
+    ),
+    sort: str | None = Query(
+        "popular", description="Sort order: popular, most_viewed, oldest, newest"
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[FeaturedAvailableVideoResponse]:

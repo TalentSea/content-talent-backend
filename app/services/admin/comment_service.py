@@ -1,5 +1,4 @@
 import logging
-import math
 
 from fastapi import HTTPException, status
 
@@ -41,10 +40,17 @@ class CommentService:
         # For Admin Creator posts where c.user is None
         creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
         creator_id = creator.id if creator else 0
-        name = f"{creator.first_name or ''} {creator.last_name or ''}".strip() if creator else "Creator Admin"
+        name = (
+            f"{creator.first_name or ''} {creator.last_name or ''}".strip()
+            if creator
+            else "Creator Admin"
+        )
         avatar_url = creator.avatar_url if creator else None
         return CommentAuthorResponse(
-            id=creator_id, name=name or "Creator Admin", avatar_url=avatar_url, is_creator=True
+            id=creator_id,
+            name=name or "Creator Admin",
+            avatar_url=avatar_url,
+            is_creator=True,
         )
 
     def create_top_level_comment(
@@ -77,7 +83,10 @@ class CommentService:
             video, creator_user, payload.text.strip()
         )
 
-        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or "Creator Admin"
+        creator_name = (
+            f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
+            or "Creator Admin"
+        )
 
         return CommentItemResponse(
             id=comment.id,
@@ -176,9 +185,7 @@ class CommentService:
         )
 
         reply_ids = [r.id for r in replies_raw]
-        liked_set = self.comment_repo.get_user_liked_comment_ids(
-            reply_ids, creator_id
-        )
+        liked_set = self.comment_repo.get_user_liked_comment_ids(reply_ids, creator_id)
 
         items: list[CommentReplyResponse] = []
         for r in replies_raw:
@@ -221,7 +228,10 @@ class CommentService:
             )
 
         reply = self.comment_repo.create_reply(comment, creator_user, payload.text)
-        creator_name = f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip() or "Creator Admin"
+        creator_name = (
+            f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
+            or "Creator Admin"
+        )
 
         return CommentReplyCreateResponse(
             id=reply.id,

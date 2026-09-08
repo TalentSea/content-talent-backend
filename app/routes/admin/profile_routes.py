@@ -1,12 +1,12 @@
 from fastapi import APIRouter, status
 
 from app.dependencies import CurrentAdmin, FormFile
-from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.schemas.admin.profile_schemas import (
     ProfilePhotoUploadResponse,
     ProfileResponse,
     ProfileUpdateRequest,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.services.admin.profile_service import ProfileService
 
 router = APIRouter(prefix="/api/v1/admin/profile", tags=["Admin Profile"])

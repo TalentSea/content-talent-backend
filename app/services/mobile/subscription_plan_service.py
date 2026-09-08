@@ -16,7 +16,9 @@ class MobileSubscriptionPlanService:
     def __init__(self, repo: MobileSubscriptionPlanRepository | None = None) -> None:
         self.repo = repo or MobileSubscriptionPlanRepository()
 
-    def list_active_plans(self, creator_id: int) -> list[MobileSubscriptionPlanResponse]:
+    def list_active_plans(
+        self, creator_id: int
+    ) -> list[MobileSubscriptionPlanResponse]:
         """
         Retrieves active plans for mobile paywall checkout matching spec doc API 2.1.
         """

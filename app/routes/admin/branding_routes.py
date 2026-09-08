@@ -22,9 +22,7 @@ def get_creator_branding(current_user: CurrentAdmin):
 
 
 @router.put("", response_model=BrandingResponse, status_code=status.HTTP_200_OK)
-def update_creator_branding(
-    payload: BrandingUpdateRequest, current_user: CurrentAdmin
-):
+def update_creator_branding(payload: BrandingUpdateRequest, current_user: CurrentAdmin):
     """
     PUT /api/v1/admin/branding — Updates creator branding text attributes and returns updated BrandingResponse.
     """

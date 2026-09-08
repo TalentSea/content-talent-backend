@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+
 from peewee import IntegrityError, PeeweeException, fn
 
 from app.database import db_proxy
@@ -22,7 +23,10 @@ class SubscriptionPlanRepository:
             return list(
                 SubscriptionPlan.select()
                 .where(SubscriptionPlan.user == creator_id)
-                .order_by(SubscriptionPlan.display_order.asc(), SubscriptionPlan.created_at.asc())
+                .order_by(
+                    SubscriptionPlan.display_order.asc(),
+                    SubscriptionPlan.created_at.asc(),
+                )
             )
         except PeeweeException as e:
             logger.error("Error fetching plans for creator %s: %s", creator_id, e)
@@ -42,7 +46,9 @@ class SubscriptionPlanRepository:
                 .first()
             )
         except PeeweeException as e:
-            logger.error("Error fetching plan %s for creator %s: %s", plan_id, creator_id, e)
+            logger.error(
+                "Error fetching plan %s for creator %s: %s", plan_id, creator_id, e
+            )
             return None
 
     def plan_name_exists(
