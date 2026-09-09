@@ -69,6 +69,8 @@ class VideoRepository:
             query = query.order_by(Video.created_at.asc())
         elif sort == "views":
             query = query.order_by(Video.views.desc(), Video.created_at.desc())
+        elif sort == "popularity":
+            query = query.order_by(Video.popularity_score.desc(), Video.created_at.desc())
         elif sort == "title":
             query = query.order_by(Video.title.asc())
         else:  # default newest

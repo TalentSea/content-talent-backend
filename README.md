@@ -39,6 +39,7 @@ content-talent-backend/
 │   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
 │   │   ├── admin/                # Creator Admin Repositories
+│   │   │   ├── dashboard_repository.py
 │   │   │   ├── video_repository.py
 │   │   │   ├── playlist_repository.py
 │   │   │   ├── comment_repository.py
@@ -71,6 +72,7 @@ content-talent-backend/
 │   │   │   ├── subscription_plan_routes.py # Mobile Subscription Plans (/api/v1/mobile/plans)
 │   │   │   └── video_routes.py   # Mobile Video Catalog & HLS Player (/api/v1/mobile/videos)
 │   │   └── admin/                # Admin Panel Creator Endpoints
+│   │       ├── dashboard_routes.py# Admin Studio Dashboard & Analytics (/api/v1/admin/dashboard)
 │   │       ├── branding_routes.py# Admin Studio Branding & Customization (/api/v1/admin/branding)
 │   │       ├── category_routes.py# Admin Categories & Reordering (/api/v1/admin/categories)
 │   │       ├── comment_routes.py # Admin Comment Moderation (/api/v1/admin/comments)
@@ -81,6 +83,7 @@ content-talent-backend/
 │   │       └── video_routes.py   # Admin Video Management & Scheduling (/api/v1/admin/videos)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
 │   │   ├── admin/                # Creator Admin DTO Schemas
+│   │   │   ├── dashboard_schemas.py
 │   │   │   ├── video_schemas.py
 │   │   │   ├── playlist_schemas.py
 │   │   │   ├── category_schemas.py
@@ -103,6 +106,7 @@ content-talent-backend/
 │   │       └── category_schemas.py
 │   ├── services/                 # Business Logic & Cloud Orchestration
 │   │   ├── admin/                # Creator Admin Services
+│   │   │   ├── dashboard_service.py
 │   │   │   ├── video_service.py
 │   │   │   ├── playlist_service.py
 │   │   │   ├── comment_service.py
@@ -150,6 +154,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ## Technical Features
 
+- **Creator Studio Dashboard & Real-Time Analytics Subsystem**: Multi-widget studio analytics engine featuring high-level KPI overview cards with period-over-period growth telemetry (`GET /api/v1/admin/dashboard/stats`), dynamic chronological time-series area charts (`GET /api/v1/admin/dashboard/analytics`) with auto-interval grouping (day/week/month), subscription tier distribution (`GET /api/v1/admin/dashboard/subscription-breakdown`) with actual period revenue and subscriber shares, and a paginated recent members feed (`GET /api/v1/admin/dashboard/recent-activity`) with audience segmentation (`all`, `subscribers`, `users`), strictly excluding anonymous guests.
 - **Razorpay Payment Gateway & Cryptographic Signature Verification**: Production-grade monetization engine featuring order initialization (`POST /api/v1/mobile/payments/create-order`), SHA-256 HMAC cryptographic signature verification (`POST /api/v1/mobile/payments/verify`), atomic database transaction commits with automatic rollback on failure, idempotent entitlement activation, and an asynchronous fallback webhook listener (`POST /api/v1/webhooks/razorpay`).
 - **Two-Pillar Subscription Expiration Architecture**: Real-time Just-In-Time (JIT) lazy expiration checks on subscriber requests paired with an automated background task (`scheduled_subscription_expiration_worker`) on the FastAPI lifespan event loop to systematically expire outdated memberships.
 - **Single-Query Hero Carousel Curation (`likes_count` Subquery)**: Ultra-optimized home screen featured video carousel mapping (`GET /api/v1/mobile/featured-videos`) fetching video metadata, subscriber engagement flags (`is_liked`, `is_saved`), and real-time total likes count via correlated SQL scalar subqueries in 1 single database roundtrip with zero N+1 query overhead.
@@ -174,9 +179,10 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ---
 
-## API Summary Breakdown (84 Total Endpoints)
+## API Summary Breakdown (88 Total Endpoints)
 
-- **Admin Endpoints (49)**:
+- **Admin Endpoints (53)**:
+  - Studio Dashboard & Analytics: 4 endpoints
   - Video Management & Scheduling: 11 endpoints
   - Playlist Management: 11 endpoints
   - Category Management & Reordering: 5 endpoints
@@ -320,6 +326,7 @@ Technical specifications and architecture documentation:
 - [Complete 17-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
+- [Studio Dashboard & Analytics API Specification](docs/admin/dashboard_analytics_api_specification.md)
 - [Branding Management API Specification](docs/admin/branding_management_api_specification.md)
 - [Video Management API Specification](docs/admin/video_management_api_specification.md)
 - [Playlist Management API Specification](docs/admin/playlist_management_api_specification.md)

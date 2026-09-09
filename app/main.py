@@ -18,6 +18,7 @@ from app.routes.admin import (
     admin_branding_router,
     admin_category_router,
     admin_comment_router,
+    admin_dashboard_router,
     admin_featured_video_router,
     admin_playlist_router,
     admin_profile_router,
@@ -129,6 +130,7 @@ app.include_router(mobile_payment_router)
 app.include_router(mobile_subscription_router)
 app.include_router(webhook_router)
 app.include_router(admin_video_router)
+app.include_router(admin_dashboard_router)
 app.include_router(admin_playlist_router)
 app.include_router(admin_profile_router)
 app.include_router(admin_branding_router)
