@@ -5,7 +5,7 @@ function getBaseUrl(): string {
     (import.meta as any).env?.VITE_API_BASE_URL ||
     (import.meta as any).env?.VITE_BACKEND_API_URL ||
     (typeof window !== "undefined" && ((window as any).env?.VITE_API_BASE_URL || (window as any).env?.VITE_BACKEND_API_URL)) ||
-    "";
+    "http://138.68.140.83:8000";
 
   const trimmed = (envUrl || "").trim().replace(/\/+$/, "");
 
@@ -20,7 +20,7 @@ function getBaseUrl(): string {
     }
   }
 
-  return trimmed;
+  return trimmed || "http://138.68.140.83:8000";
 }
 
 const BASE_URL = getBaseUrl();
@@ -143,6 +143,50 @@ export interface ApiAvailableFeaturedVideo {
   views?: number;
   likes?: number;
   createdAt?: string;
+}
+
+export interface ApiSubscriptionPlan {
+  id: number;
+  name: string;
+  description?: string | null;
+  base_price: number;
+  discount_percentage: number;
+  final_price: number;
+  currency: string;
+  billing_period_value: number;
+  billing_period_unit: string;
+  features: string[];
+  badge_text?: string | null;
+  is_active: boolean;
+  display_order: number;
+  active_subscribers: number;
+  monthly_revenue: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateSubscriptionPlanPayload {
+  name: string;
+  base_price: number;
+  discount_percentage: number;
+  billing_period_value: number;
+  billing_period_unit: string;
+  description?: string | null;
+  features: string[];
+  badge_text?: string | null;
+  is_active: boolean;
+}
+
+export interface UpdateSubscriptionPlanPayload {
+  name?: string | null;
+  base_price?: number | null;
+  discount_percentage?: number | null;
+  billing_period_value?: number | null;
+  billing_period_unit?: string | null;
+  description?: string | null;
+  features?: string[] | null;
+  badge_text?: string | null;
+  is_active?: boolean | null;
 }
 
 // ── Internal Helpers ────────────────────────────────────────────────────────
@@ -1303,44 +1347,34 @@ export interface ApiSubscriber {
   revenue: string;
 }
 
-export async function getSubscribers(): Promise<ApiSubscriber[]> {
+export async function getSubscribers(params?: {
+  filter?: "all" | "subscribers" | "users";
+  limit?: number;
+}): Promise<ApiSubscriber[]> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/admin/comments?limit=100`, {
-      headers: getAuthHeaders(),
+    const res = await getDashboardRecentActivity({
+      filter: params?.filter || "all",
+      limit: params?.limit ? Math.min(params.limit, 20) : 20,
     });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.data && Array.isArray(json.data)) {
-        const userMap = new Map<string, ApiSubscriber>();
-        json.data.forEach((comment: any, idx: number) => {
-          const userKey = comment.user_email || comment.user_name || `user_${comment.user_id || idx}`;
-          if (!userMap.has(userKey)) {
-            userMap.set(userKey, {
-              id: comment.user_id || (idx + 1),
-              name: comment.user_name || comment.author || "Mobile User",
-              email: comment.user_email || `${(comment.user_name || "user").toLowerCase().replace(/\s+/g, ".")}@example.com`,
-              plan: idx % 2 === 0 ? "Premium" : "Basic",
-              status: "Active",
-              joinDate: comment.created_at ? comment.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-              revenue: idx % 2 === 0 ? "$29.99" : "$9.99",
-            });
-          }
-        });
-        const dynamicSubscribers = Array.from(userMap.values());
-        if (dynamicSubscribers.length > 0) return dynamicSubscribers;
-      }
+    const items = Array.isArray(res) ? res : (res?.items || []);
+    if (items.length > 0) {
+      return items.map((item) => ({
+        id: item.id,
+        name: item.name || (item.email ? item.email.split("@")[0] : `User #${item.id}`),
+        email: item.email || "No email (Phone/OAuth)",
+        plan: item.planName || (item.isPaid ? "Paid Plan" : "Free"),
+        status: item.isPaid ? "Active" : "Free",
+        joinDate: item.joinedAt ? item.joinedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+        revenue: item.isPaid ? "₹499" : "₹0",
+        avatarUrl: item.avatarUrl || undefined,
+      }));
     }
   } catch (err) {
-    console.warn("Using fallback subscriber data", err);
+    console.warn("Failed to load subscribers from backend:", err);
   }
-  return [
-    { id: 1, name: "John Anderson", email: "john.anderson@example.com", plan: "Premium", status: "Active", joinDate: "2024-01-15", revenue: "$29.99" },
-    { id: 2, name: "Sarah Miller", email: "sarah.miller@example.com", plan: "Basic", status: "Active", joinDate: "2024-02-20", revenue: "$9.99" },
-    { id: 3, name: "Mike Johnson", email: "mike.johnson@example.com", plan: "Premium", status: "Active", joinDate: "2024-01-08", revenue: "$29.99" },
-    { id: 4, name: "Emma Davis", email: "emma.davis@example.com", plan: "Premium", status: "Cancelled", joinDate: "2023-11-12", revenue: "$0.00" },
-    { id: 5, name: "Tom Wilson", email: "tom.wilson@example.com", plan: "Basic", status: "Active", joinDate: "2024-03-05", revenue: "$9.99" },
-  ];
+  return [];
 }
+
 
 // ── Categories Management API ──────────────────────────────────────────────
 
@@ -1443,5 +1477,268 @@ export async function reorderCategories(ids: number[]): Promise<{ message: strin
   });
   return handleResponse(res);
 }
+
+// ── Subscription Plans API Endpoints ────────────────────────────────────────
+
+export async function getSubscriptionPlans(): Promise<ApiSubscriptionPlan[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/admin/plans`, {
+      headers: getAuthHeaders(),
+    });
+    const json = await handleResponse<any>(res);
+    return Array.isArray(json) ? json : json.data || json.items || [];
+  } catch (err) {
+    console.warn("[API Service] Subscription Plans API request failed", err);
+    throw err;
+  }
+}
+
+export async function createSubscriptionPlan(data: CreateSubscriptionPlanPayload): Promise<ApiSubscriptionPlan> {
+  const res = await fetch(`${BASE_URL}/api/v1/admin/plans`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<ApiSubscriptionPlan>(res);
+}
+
+export async function updateSubscriptionPlan(
+  planId: number,
+  data: UpdateSubscriptionPlanPayload
+): Promise<ApiSubscriptionPlan> {
+  const res = await fetch(`${BASE_URL}/api/v1/admin/plans/${planId}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<ApiSubscriptionPlan>(res);
+}
+
+export async function deleteSubscriptionPlan(planId: number): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/api/v1/admin/plans/${planId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function toggleSubscriptionPlanActive(
+  planId: number
+): Promise<{ id: number; name: string; is_active: boolean; updated_at: string }> {
+  const res = await fetch(`${BASE_URL}/api/v1/admin/plans/${planId}/toggle-active`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function reorderSubscriptionPlans(ids: number[]): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/api/v1/admin/plans/reorder`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ ids }),
+  });
+  return handleResponse(res);
+}
+
+// ── Dashboard & Analytics API Endpoints ─────────────────────────────────────
+
+export interface GrowthMetric {
+  current: number;
+  previous: number;
+  growth_percentage: number;
+}
+
+export interface ContentInventoryBreakdown {
+  total: number;
+  published: number;
+  drafts: number;
+  recently_added: number;
+}
+
+export interface ApiDashboardStats {
+  startDate: string;
+  endDate: string;
+  currency: string;
+  totalRevenue: GrowthMetric;
+  totalViews: GrowthMetric;
+  totalUsers: GrowthMetric;
+  totalSubscribers: GrowthMetric;
+  totalContent: ContentInventoryBreakdown;
+}
+
+export interface ApiAnalyticsDataPoint {
+  date: string;
+  label: string;
+  users: number;
+  subscribers: number;
+  revenue: number;
+  views: number;
+}
+
+export interface ApiAnalytics {
+  startDate: string;
+  endDate: string;
+  interval: string;
+  currency: string;
+  dataPoints: ApiAnalyticsDataPoint[];
+}
+
+export interface ApiSubscriptionTierBreakdown {
+  planId: number;
+  name: string;
+  badgeText?: string | null;
+  isActive: boolean;
+  subscribers: number;
+  subscribersPercentage: number;
+  revenue: number;
+  revenuePercentage: number;
+  color?: string;
+}
+
+export interface ApiSubscriptionBreakdown {
+  startDate: string;
+  endDate: string;
+  currency: string;
+  totalSubscribers: number;
+  totalRevenue: number;
+  tiers: ApiSubscriptionTierBreakdown[];
+}
+
+export interface ApiRecentActivityUser {
+  id: number;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  planName: string | null;
+  isPaid: boolean;
+  subscribedAt: string | null;
+  joinedAt: string;
+}
+
+export async function getDashboardStats(params?: {
+  range?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<ApiDashboardStats> {
+  const query = new URLSearchParams();
+  if (params?.range) query.append("range", params.range);
+  if (params?.startDate) query.append("start_date", params.startDate);
+  if (params?.endDate) query.append("end_date", params.endDate);
+
+  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/stats?${query.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  const json = await handleResponse<any>(res);
+  return {
+    startDate: json.start_date,
+    endDate: json.end_date,
+    currency: json.currency || "INR",
+    totalRevenue: json.total_revenue || { current: 0, previous: 0, growth_percentage: 0 },
+    totalViews: json.total_views || { current: 0, previous: 0, growth_percentage: 0 },
+    totalUsers: json.total_users || { current: 0, previous: 0, growth_percentage: 0 },
+    totalSubscribers: json.total_subscribers || { current: 0, previous: 0, growth_percentage: 0 },
+    totalContent: json.total_content || { total: 0, published: 0, drafts: 0, recently_added: 0 },
+  };
+}
+
+export async function getDashboardAnalytics(params?: {
+  range?: string;
+  startDate?: string;
+  endDate?: string;
+  interval?: string;
+}): Promise<ApiAnalytics> {
+  const query = new URLSearchParams();
+  if (params?.range) query.append("range", params.range);
+  if (params?.startDate) query.append("start_date", params.startDate);
+  if (params?.endDate) query.append("end_date", params.endDate);
+  if (params?.interval) query.append("interval", params.interval);
+
+  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/analytics?${query.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  const json = await handleResponse<any>(res);
+  return {
+    startDate: json.start_date,
+    endDate: json.end_date,
+    interval: json.interval || "month",
+    currency: json.currency || "INR",
+    dataPoints: (json.data_points || []).map((pt: any) => ({
+      date: pt.date,
+      label: pt.label,
+      users: pt.users ?? 0,
+      subscribers: pt.subscribers ?? 0,
+      revenue: pt.revenue ?? 0,
+      views: pt.views ?? 0,
+    })),
+  };
+}
+
+export async function getDashboardSubscriptionBreakdown(params?: {
+  range?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<ApiSubscriptionBreakdown> {
+  const query = new URLSearchParams();
+  if (params?.range) query.append("range", params.range);
+  if (params?.startDate) query.append("start_date", params.startDate);
+  if (params?.endDate) query.append("end_date", params.endDate);
+
+  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/subscription-breakdown?${query.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  const json = await handleResponse<any>(res);
+  const palette = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#6366f1"];
+  return {
+    startDate: json.start_date,
+    endDate: json.end_date,
+    currency: json.currency || "INR",
+    totalSubscribers: json.total_subscribers ?? 0,
+    totalRevenue: json.total_revenue ?? 0,
+    tiers: (json.tiers || []).map((t: any, idx: number) => ({
+      planId: t.plan_id,
+      name: t.name,
+      badgeText: t.badge_text,
+      isActive: t.is_active,
+      subscribers: t.subscribers ?? 0,
+      subscribersPercentage: t.subscribers_percentage ?? 0,
+      revenue: t.revenue ?? 0,
+      revenuePercentage: t.revenue_percentage ?? 0,
+      color: palette[idx % palette.length],
+    })),
+  };
+}
+
+export async function getDashboardRecentActivity(params?: {
+  filter?: "all" | "subscribers" | "users";
+  page?: number;
+  limit?: number;
+}): Promise<{ items: ApiRecentActivityUser[]; total: number; page: number; totalPages: number }> {
+  const query = new URLSearchParams();
+  if (params?.filter) query.append("filter", params.filter);
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", Math.min(Math.max(params.limit, 1), 20).toString());
+
+  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/recent-activity?${query.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  const json = await handleResponse<any>(res);
+  return {
+    total: json.total ?? 0,
+    page: json.page ?? 1,
+    totalPages: json.total_pages ?? 1,
+    items: (json.items || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      avatarUrl: item.avatar_url,
+      planName: item.plan_name,
+      isPaid: Boolean(item.is_paid),
+      subscribedAt: item.subscribed_at,
+      joinedAt: item.joined_at,
+    })),
+  };
+}
+
 
 

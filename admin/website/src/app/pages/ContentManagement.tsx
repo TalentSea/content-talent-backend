@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router";
 import Hls from "hls.js";
 import * as tus from "tus-js-client";
 import {
@@ -83,10 +84,9 @@ function getOriginalVideoUrl(item: { videoUrl?: string; playbackUrl?: string; vi
   return item.videoUrl || item.playbackUrl || (item as any).video_url || (item as any).url || (item as any).playback_url;
 }
 
-function formatDuration(val: any, fallbackIdx: number = 0): string {
+function formatDuration(val: any): string {
   if (!val || val === "0" || val === 0 || val === "0:00") {
-    const defaultDurations = ["12:45", "08:20", "15:30", "04:15", "22:10"];
-    return defaultDurations[Math.abs(fallbackIdx) % defaultDurations.length];
+    return "--:--";
   }
   if (typeof val === "number") {
     const mins = Math.floor(val / 60);
@@ -430,8 +430,9 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
   playlists: Playlist[];
   onSaveSuccess: () => void;
 }) {
+  const navigate = useNavigate();
   const [title, setTitle] = useState(content?.title || "");
-  const [category, setCategory] = useState(content?.category || "Education");
+  const [category, setCategory] = useState(content?.category || "");
   const [description, setDescription] = useState(content?.description || "");
   const [tags, setTags] = useState<string[]>(content?.tags ?? []);
   const [scheduleMode, setScheduleMode] = useState(false);
@@ -452,21 +453,31 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [dynamicCategories, setDynamicCategories] = useState<{ id: number; name: string }[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   useEffect(() => {
     setUploadProgress(null);
     if (open) {
+      setLoadingCategories(true);
       getCategories({ simple: true })
         .then((cats) => {
-          if (cats && cats.length > 0) {
+          if (cats && Array.isArray(cats)) {
             setDynamicCategories(cats.map((c) => ({ id: c.id, name: c.name })));
+          } else {
+            setDynamicCategories([]);
           }
         })
-        .catch((err) => console.warn("Failed to load category list for upload form", err));
+        .catch((err) => {
+          console.warn("Failed to load category list for upload form", err);
+          setDynamicCategories([]);
+        })
+        .finally(() => {
+          setLoadingCategories(false);
+        });
     }
     if (content && open) {
       setTitle(content.title || "");
-      setCategory(content.category || "Education");
+      setCategory(content.category || "");
       setDescription(content.description || "");
       setTags(content.tags || []);
       setVideoFile(null);
@@ -490,7 +501,7 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
         });
     } else if (!content && open) {
       setTitle("");
-      setCategory("Education");
+      setCategory("");
       setDescription("");
       setTags([]);
       setSelectedPlaylists([]);
@@ -661,31 +672,68 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
           <div className="space-y-5">
             <div><Label>Title</Label><Input placeholder="Enter content title" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" /></div>
             <div>
-              <Label>Category</Label>
-              <Select value={category.toLowerCase()} onValueChange={(val) => {
-                const matched = dynamicCategories.find((c) => c.name.toLowerCase() === val);
-                setCategory(matched ? matched.name : (val.charAt(0).toUpperCase() + val.slice(1)));
-              }}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent>
-                  {dynamicCategories.length > 0 ? (
-                    dynamicCategories.map((c) => (
+              <div className="flex items-center justify-between mb-1">
+                <Label>Category</Label>
+                {dynamicCategories.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      onClose();
+                      navigate("/categories");
+                    }}
+                    className="h-6 text-xs gap-1 text-purple-400 hover:text-purple-300 hover:bg-purple-950/40 px-2 py-0 font-medium"
+                  >
+                    <Plus className="h-3 w-3" />
+                    New Category
+                  </Button>
+                )}
+              </div>
+
+              {loadingCategories ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-xs text-slate-400 mt-1">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-500" />
+                  Loading categories...
+                </div>
+              ) : dynamicCategories.length === 0 ? (
+                <div className="flex items-center justify-between p-3 rounded-xl border border-dashed border-purple-500/40 bg-purple-950/20 text-xs text-slate-300 gap-3 mt-1">
+                  <span className="text-slate-300">
+                    No categories found. Please create a category first to organize your video content.
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-1 bg-purple-600 hover:bg-purple-500 text-white shrink-0 font-medium h-8 text-xs shadow-md shadow-purple-600/30"
+                    onClick={() => {
+                      onClose();
+                      navigate("/categories");
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Category
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={category ? category.toLowerCase() : ""}
+                  onValueChange={(val) => {
+                    const matched = dynamicCategories.find((c) => c.name.toLowerCase() === val);
+                    setCategory(matched ? matched.name : val);
+                  }}
+                >
+                  <SelectTrigger className="mt-1 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                    {dynamicCategories.map((c) => (
                       <SelectItem key={c.id} value={c.name.toLowerCase()}>
                         {c.name}
                       </SelectItem>
-                    ))
-                  ) : (
-                    <>
-                      <SelectItem value="education">Education</SelectItem>
-                      <SelectItem value="programming">Programming</SelectItem>
-                      <SelectItem value="design">Design</SelectItem>
-                      <SelectItem value="technology">Technology</SelectItem>
-                      <SelectItem value="entertainment">Entertainment</SelectItem>
-                      <SelectItem value="travel">Travel</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div><Label>Description</Label><Textarea placeholder="Enter content description" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1" /></div>
             <div>
@@ -958,7 +1006,7 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
                 id: item.id,
                 title: item.title,
                 type: "Video",
-                category: item.category || "Education",
+                category: item.category || "Uncategorized",
                 status: item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : "Draft",
                 views: item.views !== undefined ? item.views.toString() : "0",
                 duration: item.duration || "0:00",
@@ -2614,7 +2662,7 @@ function PlaylistDetailScreen({
           id: item.id,
           title: item.title,
           type: "Video",
-          category: item.category || "Education",
+          category: item.category || "Uncategorized",
           status: item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : "Draft",
           views: item.views !== undefined ? item.views.toString() : "0",
           duration: item.duration || "0:00",
@@ -3079,7 +3127,7 @@ export default function ContentManagement() {
           id: item.id,
           title: item.title,
           type: "Video",
-          category: item.category || "Education",
+          category: item.category || "Uncategorized",
           status: item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : "Draft",
           views: item.views !== undefined ? item.views.toString() : "0",
           duration: item.duration || "0:00",

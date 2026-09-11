@@ -18,40 +18,14 @@ import {
 } from "../components/ui/select";
 import {
   getAdminComments, getCommentReplies, postCommentReply, toggleCommentLike, deleteComment,
-  getCategories, ApiComment, ApiReply, ApiCategory,
+  getCategories, getVideos, ApiComment, ApiReply, ApiCategory, ApiVideo,
 } from "../services/apiService";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Announcement = { id: number; title: string; content: string; date: string; views: number };
 
-const initialAnnouncements: Announcement[] = [
-  { id: 1, title: "New Course Series Coming Next Week!", content: "Excited to announce our new advanced JavaScript series starting Monday. Premium members get early access!", date: "2024-06-20", views: 8234 },
-  { id: 2, title: "Platform Maintenance Schedule", content: "We'll be performing routine maintenance on June 25th from 2-4 AM EST. The platform may be briefly unavailable.", date: "2024-06-18", views: 5621 },
-  { id: 3, title: "Thank You for 10K Subscribers!", content: "We've reached an incredible milestone! To celebrate, all subscribers get 20% off annual plans this week.", date: "2024-06-15", views: 12543 },
-];
-
-const fallbackComments: ApiComment[] = [
-  { id: 1, userId: 101, userName: "John Anderson", text: "This tutorial on React hooks was incredibly helpful! Clear explanations and great examples.", videoId: 101, videoTitle: "Complete React Tutorial 2024", likes: 24, isLiked: false, replyCount: 2, createdAt: "2024-06-21T10:30:00Z" },
-  { id: 2, userId: 102, userName: "Sarah Miller", text: "Could you make a video about state management with Redux Toolkit?", videoId: 102, videoTitle: "Advanced JavaScript Patterns", likes: 12, isLiked: true, replyCount: 0, createdAt: "2024-06-21T07:15:00Z" },
-  { id: 3, userId: 103, userName: "Mike Johnson", text: "The audio quality could be better in this one, but great content overall!", videoId: 103, videoTitle: "Building Scalable Apps", likes: 8, isLiked: false, replyCount: 1, createdAt: "2024-06-20T15:45:00Z" },
-  { id: 4, userId: 104, userName: "Emma Davis", text: "Could we get a downloadable cheat sheet for this?", videoId: 104, videoTitle: "Design System Fundamentals", likes: 6, isLiked: false, replyCount: 0, createdAt: "2024-06-20T11:00:00Z" },
-  { id: 5, userId: 105, userName: "Alex Torres", text: "Amazing breakdown of design tokens! Would love a follow-up on theming.", videoId: 104, videoTitle: "Design System Fundamentals", likes: 31, isLiked: true, replyCount: 3, createdAt: "2024-06-19T09:20:00Z" },
-];
-
-const categories = ["Education", "Programming", "Technology", "Design"];
-const videosByCategory: Record<string, string[]> = {
-  Education: ["Complete React Tutorial 2024"],
-  Programming: ["Advanced JavaScript Patterns", "State Management Deep Dive"],
-  Technology: ["Building Scalable Apps"],
-  Design: ["Design System Fundamentals"],
-};
-
-const engagementStats = [
-  { name: "Total Comments", value: "3,245", icon: MessageSquare, color: "text-blue-600", bgColor: "bg-blue-50" },
-  { name: "Announcements", value: "12", icon: Megaphone, color: "text-purple-600", bgColor: "bg-purple-50" },
-  { name: "Engagement Rate", value: "68.3%", icon: ThumbsUp, color: "text-green-600", bgColor: "bg-green-50" },
-];
+type Announcement = { id: number; title: string; content: string; date: string; views: number };
 
 const PAGE_SIZE = 5;
 
@@ -81,16 +55,35 @@ function DatePickerDialog({ open, onClose, value, onChange }: {
 
 // ── Video picker dialog ────────────────────────────────────────────────────
 function VideoPickerDialog({ open, onClose, category, onSelect }: {
-  open: boolean; onClose: () => void; category: string; onSelect: (v: string) => void;
+  open: boolean; onClose: () => void; category: string; onSelect: (v: { id: number; title: string }) => void;
 }) {
   const [videoSearch, setVideoSearch] = useState("");
-  const videos = videosByCategory[category] ?? [];
-  const filtered = videos.filter((v) => v.toLowerCase().includes(videoSearch.toLowerCase()));
+  const [liveVideos, setLiveVideos] = useState<Array<{ id: number; title: string }>>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingVideos(true);
+    getVideos({ category: category || undefined, limit: 100 })
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setLiveVideos(res.data.map((v) => ({ id: v.id, title: v.title })));
+        } else {
+          setLiveVideos([]);
+        }
+      })
+      .catch(() => {
+        setLiveVideos([]);
+      })
+      .finally(() => setLoadingVideos(false));
+  }, [open, category]);
+
+  const filtered = liveVideos.filter((v) => v.title.toLowerCase().includes(videoSearch.toLowerCase()));
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Select Video — {category}</DialogTitle>
+          <DialogTitle>Select Video {category ? `— ${category}` : ""}</DialogTitle>
           <DialogDescription>Pick a video to filter comments by</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -99,16 +92,20 @@ function VideoPickerDialog({ open, onClose, category, onSelect }: {
             <Input placeholder="Search videos..." className="pl-9" value={videoSearch} onChange={(e) => setVideoSearch(e.target.value)} />
           </div>
           <div className="space-y-1 max-h-48 overflow-y-auto">
-            {filtered.length === 0 ? (
+            {loadingVideos ? (
+              <div className="flex items-center justify-center py-6 text-xs text-slate-400 gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> Loading videos...
+              </div>
+            ) : filtered.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-4">No videos found</p>
             ) : (
               filtered.map((v) => (
                 <button
-                  key={v}
-                  className="w-full text-left px-3 py-2.5 rounded-md text-sm hover:bg-purple-50 hover:text-purple-700 transition-colors border border-transparent hover:border-purple-200"
+                  key={v.id}
+                  className="w-full text-left px-3 py-2.5 rounded-md text-sm text-slate-200 hover:bg-purple-950/40 hover:text-purple-300 transition-colors border border-transparent hover:border-purple-800/40 truncate"
                   onClick={() => { onSelect(v); onClose(); setVideoSearch(""); }}
                 >
-                  {v}
+                  {v.title}
                 </button>
               ))
             )}
@@ -123,32 +120,49 @@ function VideoPickerDialog({ open, onClose, category, onSelect }: {
 }
 
 // ── Announcement edit dialog ───────────────────────────────────────────────
-function AnnouncementEditDialog({ open, onClose, announcement }: {
+function AnnouncementEditDialog({ open, onClose, announcement, onSave }: {
   open: boolean; onClose: () => void; announcement: Announcement | null;
+  onSave: (updated: { title: string; content: string }) => void;
 }) {
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [content, setContent] = useState(announcement?.content ?? "");
+
+  useEffect(() => {
+    if (announcement) {
+      setTitle(announcement.title);
+      setContent(announcement.content);
+    }
+  }, [announcement]);
+
   if (!announcement) return null;
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl bg-slate-900 border border-slate-800 text-slate-100">
         <DialogHeader>
-          <DialogTitle>Edit Announcement</DialogTitle>
-          <DialogDescription>Update your announcement details</DialogDescription>
+          <DialogTitle className="text-white">Edit Announcement</DialogTitle>
+          <DialogDescription className="text-slate-400">Update your announcement details</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Label className="text-slate-300">Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="bg-slate-950 border-slate-800 text-slate-100 mt-1" />
           </div>
           <div>
-            <Label>Content</Label>
-            <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} />
+            <Label className="text-slate-300">Content</Label>
+            <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} className="bg-slate-950 border-slate-800 text-slate-100 mt-1" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={onClose}>Save Changes</Button>
+          <Button variant="outline" onClick={onClose} className="border-slate-800 bg-slate-800 text-slate-300 hover:bg-slate-700">Cancel</Button>
+          <Button
+            onClick={() => {
+              onSave({ title, content });
+              onClose();
+            }}
+            className="bg-purple-600 hover:bg-purple-500 text-white"
+          >
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -159,12 +173,62 @@ function AnnouncementEditDialog({ open, onClose, announcement }: {
 export default function Community() {
   const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [editAnnouncement, setEditAnnouncement] = useState<Announcement | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
+    try {
+      const saved = localStorage.getItem("admin_announcements");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [newAnnouncementTitle, setNewAnnouncementTitle] = useState("");
+  const [newAnnouncementContent, setNewAnnouncementContent] = useState("");
+
+  const handleCreateAnnouncement = () => {
+    if (!newAnnouncementTitle.trim()) return;
+    const newAnn: Announcement = {
+      id: Date.now(),
+      title: newAnnouncementTitle.trim(),
+      content: newAnnouncementContent.trim(),
+      date: new Date().toISOString().slice(0, 10),
+      views: 0,
+    };
+    const updated = [newAnn, ...announcements];
+    setAnnouncements(updated);
+    try {
+      localStorage.setItem("admin_announcements", JSON.stringify(updated));
+    } catch {}
+    setNewAnnouncementTitle("");
+    setNewAnnouncementContent("");
+    setAnnouncementOpen(false);
+  };
+
+  const handleSaveEditAnnouncement = (updatedData: { title: string; content: string }) => {
+    if (!editAnnouncement) return;
+    const updated = announcements.map((a) =>
+      a.id === editAnnouncement.id ? { ...a, title: updatedData.title, content: updatedData.content } : a
+    );
+    setAnnouncements(updated);
+    try {
+      localStorage.setItem("admin_announcements", JSON.stringify(updated));
+    } catch {}
+    setEditAnnouncement(null);
+  };
+
+  const handleDeleteAnnouncement = (id: number) => {
+    const updated = announcements.filter((a) => a.id !== id);
+    setAnnouncements(updated);
+    try {
+      localStorage.setItem("admin_announcements", JSON.stringify(updated));
+    } catch {}
+  };
 
   // Filters
   const [showFilters, setShowFilters] = useState(false);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [filterVideo, setFilterVideo] = useState("all");
+  const [filterVideoId, setFilterVideoId] = useState<number | null>(null);
+  const [filterVideoTitle, setFilterVideoTitle] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [filterMinLikes, setFilterMinLikes] = useState("");
   const [sortBy, setSortBy] = useState("newest");
@@ -204,6 +268,7 @@ export default function Community() {
     try {
       const res = await getAdminComments({
         category: filterCategory !== "all" ? filterCategory : undefined,
+        videoId: filterVideoId || undefined,
         date: filterDate || undefined,
         minLikes: filterMinLikes ? parseInt(filterMinLikes) : undefined,
         search: search || undefined,
@@ -214,17 +279,13 @@ export default function Community() {
       setComments(res.data);
       setTotalCount(res.pagination?.total || res.data.length);
     } catch (err) {
-      console.warn("Failed to load comments from API, using fallback", err);
-      let list = [...fallbackComments];
-      if (search) {
-        list = list.filter(c => c.userName.toLowerCase().includes(search.toLowerCase()) || c.text.toLowerCase().includes(search.toLowerCase()));
-      }
-      setComments(list);
-      setTotalCount(list.length);
+      console.warn("Failed to load comments from API", err);
+      setComments([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [filterCategory, filterDate, filterMinLikes, search, sortBy, page]);
+  }, [filterCategory, filterVideoId, filterDate, filterMinLikes, search, sortBy, page]);
 
   useEffect(() => {
     fetchComments();
@@ -232,18 +293,19 @@ export default function Community() {
 
   const activeFilterCount =
     (filterCategory !== "all" ? 1 : 0) +
-    (filterVideo !== "all" ? 1 : 0) +
+    (filterVideoId !== null ? 1 : 0) +
     (filterDate ? 1 : 0) +
     (filterMinLikes ? 1 : 0);
 
   const resetFilters = () => {
-    setFilterCategory("all"); setFilterVideo("all"); setFilterDate("");
+    setFilterCategory("all"); setFilterVideoId(null); setFilterVideoTitle(""); setFilterDate("");
     setFilterMinLikes(""); setSortBy("newest"); setSearch(""); setPage(1);
   };
 
   const handleCategoryChange = (v: string) => {
     setFilterCategory(v);
-    setFilterVideo("all");
+    setFilterVideoId(null);
+    setFilterVideoTitle("");
     setPage(1);
   };
 
@@ -343,18 +405,35 @@ export default function Community() {
     <div className="space-y-6">
       {/* Controlled dialogs */}
       <Dialog open={announcementOpen} onOpenChange={setAnnouncementOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-slate-900 border border-slate-800 text-slate-100">
           <DialogHeader>
-            <DialogTitle>Create Announcement</DialogTitle>
-            <DialogDescription>Share important updates with your subscribers</DialogDescription>
+            <DialogTitle className="text-white">Create Announcement</DialogTitle>
+            <DialogDescription className="text-slate-400">Share important updates with your subscribers</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Title</Label><Input placeholder="Enter announcement title" /></div>
-            <div><Label>Content</Label><Textarea placeholder="Write your announcement here..." rows={6} /></div>
+            <div>
+              <Label className="text-slate-300">Title</Label>
+              <Input
+                placeholder="Enter announcement title"
+                value={newAnnouncementTitle}
+                onChange={(e) => setNewAnnouncementTitle(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-slate-100 mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-slate-300">Content</Label>
+              <Textarea
+                placeholder="Write your announcement here..."
+                rows={6}
+                value={newAnnouncementContent}
+                onChange={(e) => setNewAnnouncementContent(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-slate-100 mt-1"
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAnnouncementOpen(false)}>Cancel</Button>
-            <Button className="gap-2" onClick={() => setAnnouncementOpen(false)}><Send className="h-4 w-4" />Publish</Button>
+            <Button variant="outline" onClick={() => setAnnouncementOpen(false)} className="border-slate-800 bg-slate-800 text-slate-300 hover:bg-slate-700">Cancel</Button>
+            <Button className="gap-2 bg-purple-600 hover:bg-purple-500 text-white" onClick={handleCreateAnnouncement}><Send className="h-4 w-4" />Publish</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -363,6 +442,7 @@ export default function Community() {
         open={!!editAnnouncement}
         onClose={() => setEditAnnouncement(null)}
         announcement={editAnnouncement}
+        onSave={handleSaveEditAnnouncement}
       />
 
       <DatePickerDialog
@@ -376,7 +456,7 @@ export default function Community() {
         open={videoPickerOpen}
         onClose={() => setVideoPickerOpen(false)}
         category={filterCategory === "all" ? "" : filterCategory}
-        onSelect={(v) => { setFilterVideo(v); setPage(1); }}
+        onSelect={(v) => { setFilterVideoId(v.id); setFilterVideoTitle(v.title); setPage(1); }}
       />
 
       {/* Header */}
@@ -392,8 +472,12 @@ export default function Community() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
-        {engagementStats.map((stat) => (
-          <Card key={stat.name} className="border-slate-800">
+        {[
+          { name: "Total Comments", value: totalCount.toLocaleString(), icon: MessageSquare, color: "text-blue-400", bgColor: "bg-blue-500/10 border border-blue-500/20" },
+          { name: "Announcements", value: announcements.length.toString(), icon: Megaphone, color: "text-purple-400", bgColor: "bg-purple-500/10 border border-purple-500/20" },
+          { name: "Active Discussions", value: comments.length > 0 ? `${new Set(comments.map((c) => c.videoId)).size} videos` : "0 videos", icon: ThumbsUp, color: "text-emerald-400", bgColor: "bg-emerald-500/10 border border-emerald-500/20" },
+        ].map((stat) => (
+          <Card key={stat.name} className="border-slate-800 bg-slate-900/60 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className={`${stat.bgColor} ${stat.color} p-3 rounded-lg`}>
@@ -410,29 +494,39 @@ export default function Community() {
       </div>
 
       {/* Announcements */}
-      <Card className="border-slate-800">
+      <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-sm">
         <CardHeader className="border-b border-slate-800"><CardTitle className="text-white">Recent Announcements</CardTitle></CardHeader>
         <CardContent className="p-6">
-          <div className="space-y-4">
-            {initialAnnouncements.map((a) => (
-              <div key={a.id} className="border border-slate-800 rounded-xl p-4 hover:border-purple-500/50 transition-colors bg-slate-950/40">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg text-slate-100">{a.title}</h3>
-                  <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-rose-400 hover:text-rose-300" /></Button>
-                </div>
-                <p className="text-slate-300 mb-3 font-medium leading-relaxed">{a.content}</p>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-4">
-                    <span className="text-slate-400 font-medium">{a.date}</span>
-                    <span className="text-slate-400 font-medium">{a.views.toLocaleString()} views</span>
+          {announcements.length > 0 ? (
+            <div className="space-y-4">
+              {announcements.map((a) => (
+                <div key={a.id} className="border border-slate-800 rounded-xl p-4 hover:border-purple-500/50 transition-colors bg-slate-950/40">
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-semibold text-lg text-slate-100">{a.title}</h3>
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteAnnouncement(a.id)}>
+                      <Trash2 className="h-4 w-4 text-rose-400 hover:text-rose-300" />
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm" className="gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" onClick={() => setEditAnnouncement(a)}>
-                    <Edit className="h-3.5 w-3.5 text-purple-400" />Edit
-                  </Button>
+                  <p className="text-slate-300 mb-3 font-medium leading-relaxed">{a.content}</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-4">
+                      <span className="text-slate-400 font-medium">{a.date}</span>
+                      <span className="text-slate-400 font-medium">{a.views.toLocaleString()} views</span>
+                    </div>
+                    <Button variant="outline" size="sm" className="gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" onClick={() => setEditAnnouncement(a)}>
+                      <Edit className="h-3.5 w-3.5 text-purple-400" />Edit
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-8 flex flex-col items-center justify-center text-slate-500">
+              <Megaphone className="h-8 w-8 mb-2 stroke-[1.5]" />
+              <p className="text-sm">No announcements published yet.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Click "New Announcement" above to broadcast an update to your community.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -471,7 +565,7 @@ export default function Community() {
                       <SelectTrigger className="h-9 text-sm bg-slate-900 border-slate-800 text-slate-100"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-800 text-slate-100">
                         <SelectItem value="all">All Categories</SelectItem>
-                        {(dynamicCategories.length > 0 ? dynamicCategories : categories).map((c) => (
+                        {dynamicCategories.map((c) => (
                           <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                       </SelectContent>
@@ -484,12 +578,35 @@ export default function Community() {
                       variant="outline"
                       size="sm"
                       className="h-9 text-sm w-full justify-start gap-1.5 bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800"
-                      disabled={filterCategory === "all"}
                       onClick={() => setVideoPickerOpen(true)}
                     >
                       <span className="truncate flex-1 text-left">
-                        {filterVideo !== "all" ? filterVideo : filterCategory === "all" ? "Select category first" : "All Videos"}
+                        {filterVideoTitle || "All Videos"}
                       </span>
+                      {filterVideoId !== null && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label="Clear video filter"
+                          className="ml-auto p-0.5 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFilterVideoId(null);
+                            setFilterVideoTitle("");
+                            setPage(1);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.stopPropagation();
+                              setFilterVideoId(null);
+                              setFilterVideoTitle("");
+                              setPage(1);
+                            }
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </span>
+                      )}
                     </Button>
                   </div>
 

@@ -21,13 +21,13 @@ export default function Settings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form Fields
-  const [firstName, setFirstName] = useState("Creator");
-  const [lastName, setLastName] = useState("Name");
-  const [email, setEmail] = useState("creator@example.com");
-  const [bio, setBio] = useState("Content creator and educator");
-  const [website, setWebsite] = useState("https://example.com");
-  const [phone, setPhone] = useState("+1 (555) 123-4567");
-  const [location, setLocation] = useState("San Francisco, CA");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [bio, setBio] = useState("");
+  const [website, setWebsite] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [twitter, setTwitter] = useState("");
   const [youtube, setYoutube] = useState("");

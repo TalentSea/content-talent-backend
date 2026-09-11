@@ -4,13 +4,22 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { Check, Plus, Edit, Trash2, Zap, Tag, Sparkles } from "lucide-react";
+import { Check, Plus, Edit, Trash2, Zap, Tag, Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "../components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
+import {
+  getSubscriptionPlans,
+  createSubscriptionPlan,
+  updateSubscriptionPlan,
+  deleteSubscriptionPlan,
+  toggleSubscriptionPlanActive,
+  reorderSubscriptionPlans,
+  ApiSubscriptionPlan,
+} from "../services/apiService";
 
 type Plan = {
   id: string;
@@ -26,49 +35,6 @@ type Plan = {
   active: boolean;
   popular?: boolean;
 };
-
-const initialPlans: Plan[] = [
-  {
-    id: "1",
-    name: "Basic",
-    price: 799,
-    discount: 0,
-    period: "month",
-    badgeText: "Starter Tier",
-    description: "Perfect for getting started",
-    subscribers: 4309,
-    revenue: "₹34,42,891",
-    features: ["Access to basic content library", "Standard video quality", "Community access", "Email support"],
-    active: true,
-  },
-  {
-    id: "2",
-    name: "Premium",
-    price: 2499,
-    discount: 20,
-    period: "4 months",
-    badgeText: "Most Popular",
-    description: "Best for serious learners",
-    subscribers: 8234,
-    revenue: "₹1,64,60,000",
-    features: ["Access to all premium content", "4K video quality", "Priority community access", "Live Q&A sessions", "Downloadable resources", "24/7 priority support"],
-    active: true,
-    popular: true,
-  },
-  {
-    id: "3",
-    name: "Annual Basic",
-    price: 7999,
-    discount: 15,
-    period: "year",
-    badgeText: "Best Value",
-    description: "Save 15% with annual billing",
-    subscribers: 1245,
-    revenue: "₹84,65,000",
-    features: ["All Basic plan features", "2 months free", "Annual exclusive content"],
-    active: true,
-  },
-];
 
 const formatRupees = (val: number) => {
   const formatted = val % 1 === 0 ? val.toLocaleString("en-IN") : val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -119,6 +85,26 @@ function formatPeriod(count: number, unit: string): string {
   return `${c} ${base}s`;
 }
 
+function transformApiPlanToLocalPlan(apiPlan: ApiSubscriptionPlan): Plan {
+  return {
+    id: String(apiPlan.id),
+    name: apiPlan.name,
+    price: apiPlan.base_price,
+    discount: apiPlan.discount_percentage,
+    period: formatPeriod(apiPlan.billing_period_value, apiPlan.billing_period_unit),
+    badgeText: apiPlan.badge_text || undefined,
+    description: apiPlan.description || "",
+    subscribers: apiPlan.active_subscribers || 0,
+    revenue: formatRupees(apiPlan.monthly_revenue || 0),
+    features: Array.isArray(apiPlan.features) ? apiPlan.features : [],
+    active: apiPlan.is_active,
+    popular: Boolean(
+      apiPlan.badge_text &&
+        (apiPlan.badge_text.toLowerCase().includes("popular") || apiPlan.badge_text.toLowerCase().includes("best"))
+    ),
+  };
+}
+
 function ActiveToggleButton({
   active,
   onToggle,
@@ -166,6 +152,7 @@ function PlanDialog({ open, onClose, onSave, plan }: {
   const [description, setDescription] = useState("");
   const [features, setFeatures] = useState("");
   const [active, setActive] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (plan) {
@@ -247,26 +234,72 @@ function PlanDialog({ open, onClose, onSave, plan }: {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const updated: Plan = {
-      id: plan?.id || String(Date.now()),
+    setSubmitting(true);
+    const parsedCount = parseInt(periodCount, 10) || 1;
+    const computedPeriodStr = formatPeriod(parsedCount, periodUnit);
+
+    const payload = {
       name: name.trim(),
-      price: numPrice,
-      discount: numDiscount,
-      period: computedPeriod,
-      badgeText: badgeText.trim(),
-      description: description.trim(),
-      subscribers: plan?.subscribers ?? 0,
-      revenue: plan?.revenue ?? "₹0",
+      base_price: numPrice,
+      discount_percentage: numDiscount,
+      billing_period_value: parsedCount,
+      billing_period_unit: periodUnit,
+      description: description.trim() || null,
       features: features.split("\n").map((f) => f.trim()).filter(Boolean),
-      active: active,
-      popular: plan?.popular,
+      badge_text: badgeText.trim() || null,
+      is_active: active,
     };
-    onSave(updated);
-    onClose();
+
+    try {
+      if (isEdit && plan) {
+        const numericId = parseInt(plan.id, 10);
+        if (!isNaN(numericId)) {
+          const res = await updateSubscriptionPlan(numericId, payload);
+          onSave(transformApiPlanToLocalPlan(res));
+        } else {
+          onSave({
+            id: plan.id,
+            name: name.trim(),
+            price: numPrice,
+            discount: numDiscount,
+            period: computedPeriodStr,
+            badgeText: badgeText.trim(),
+            description: description.trim(),
+            subscribers: plan.subscribers,
+            revenue: plan.revenue,
+            features: features.split("\n").map((f) => f.trim()).filter(Boolean),
+            active: active,
+          });
+        }
+      } else {
+        const res = await createSubscriptionPlan(payload);
+        onSave(transformApiPlanToLocalPlan(res));
+      }
+    } catch (err) {
+      console.warn("[PlanDialog] Saving plan to API failed, fallback to local update", err);
+      const updated: Plan = {
+        id: plan?.id || String(Date.now()),
+        name: name.trim(),
+        price: numPrice,
+        discount: numDiscount,
+        period: computedPeriodStr,
+        badgeText: badgeText.trim(),
+        description: description.trim(),
+        subscribers: plan?.subscribers ?? 0,
+        revenue: plan?.revenue ?? "₹0",
+        features: features.split("\n").map((f) => f.trim()).filter(Boolean),
+        active: active,
+        popular: plan?.popular,
+      };
+      onSave(updated);
+    } finally {
+      setSubmitting(false);
+      onClose();
+    }
   };
 
   return (
@@ -422,7 +455,8 @@ function PlanDialog({ open, onClose, onSave, plan }: {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-semibold">
+            <Button type="submit" disabled={submitting} className="bg-purple-600 hover:bg-purple-500 text-white font-semibold gap-2">
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {isEdit ? "Save Changes" : "Create Plan"}
             </Button>
           </DialogFooter>
@@ -433,9 +467,28 @@ function PlanDialog({ open, onClose, onSave, plan }: {
 }
 
 export default function SubscriptionPlans() {
-  const [plans, setPlans] = useState<Plan[]>(initialPlans);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<Plan | null>(null);
+
+  const fetchPlans = async () => {
+    try {
+      setLoading(true);
+      const data = await getSubscriptionPlans();
+      if (Array.isArray(data)) {
+        setPlans(data.map(transformApiPlanToLocalPlan));
+      }
+    } catch (err) {
+      console.warn("[SubscriptionPlans] Failed to load plans from API", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
 
   const handleSavePlan = (savedPlan: Plan) => {
     setPlans((prev) => {
@@ -447,12 +500,48 @@ export default function SubscriptionPlans() {
     });
   };
 
-  const handleDeletePlan = (id: string) => {
+  const handleDeletePlan = async (id: string) => {
+    const numericId = parseInt(id, 10);
+    if (!isNaN(numericId)) {
+      try {
+        await deleteSubscriptionPlan(numericId);
+      } catch (err) {
+        console.warn("[SubscriptionPlans] Failed to delete plan from API", err);
+      }
+    }
     setPlans((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const handleToggleActive = (id: string, active: boolean) => {
+  const handleToggleActive = async (id: string, active: boolean) => {
     setPlans((prev) => prev.map((p) => (p.id === id ? { ...p, active } : p)));
+
+    const numericId = parseInt(id, 10);
+    if (!isNaN(numericId)) {
+      try {
+        await toggleSubscriptionPlanActive(numericId);
+      } catch (err) {
+        console.warn("[SubscriptionPlans] Failed to toggle active status on API", err);
+      }
+    }
+  };
+
+  const handleMovePlan = async (index: number, direction: "prev" | "next") => {
+    const targetIndex = direction === "prev" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= plans.length) return;
+
+    const newPlans = [...plans];
+    const [moved] = newPlans.splice(index, 1);
+    newPlans.splice(targetIndex, 0, moved);
+    setPlans(newPlans);
+
+    const ids = newPlans.map((p) => parseInt(p.id, 10)).filter((id) => !isNaN(id));
+    if (ids.length > 0) {
+      try {
+        await reorderSubscriptionPlans(ids);
+      } catch (err) {
+        console.warn("[SubscriptionPlans] Failed to persist plan reordering", err);
+      }
+    }
   };
 
   return (
@@ -483,8 +572,27 @@ export default function SubscriptionPlans() {
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {plans.map((plan) => {
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 text-purple-400 animate-spin" />
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/40 text-center p-8">
+          <Sparkles className="h-10 w-10 text-purple-400 mb-3" />
+          <h3 className="text-lg font-bold text-white">No Subscription Plans Found</h3>
+          <p className="text-sm text-slate-400 mt-1 max-w-sm">
+            Create your first subscription tier to start offering plans to your subscribers.
+          </p>
+          <Button
+            className="mt-4 gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4" /> Create First Plan
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-3">
+        {plans.map((plan, index) => {
           const basePrice = plan.price;
           const discountVal = plan.discount || 0;
           const hasDiscount = discountVal > 0;
@@ -508,20 +616,44 @@ export default function SubscriptionPlans() {
                     </div>
                     <p className="text-sm text-slate-300 mt-1 font-medium">{plan.description}</p>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-0.5">
+                    {index > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Move Left"
+                        onClick={() => handleMovePlan(index, "prev")}
+                        className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 w-8"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {index < plans.length - 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Move Right"
+                        onClick={() => handleMovePlan(index, "next")}
+                        className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 w-8"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Edit Plan"
                       onClick={() => setEditPlan(plan)}
-                      className="text-slate-300 hover:text-white hover:bg-slate-800"
+                      className="text-slate-300 hover:text-white hover:bg-slate-800 h-8 w-8"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Delete Plan"
                       onClick={() => handleDeletePlan(plan.id)}
-                      className="text-rose-400 hover:text-rose-300 hover:bg-rose-950/40"
+                      className="text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 h-8 w-8"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -600,6 +732,7 @@ export default function SubscriptionPlans() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

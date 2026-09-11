@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -7,7 +7,21 @@ import { Label } from "../components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../components/ui/table";
-import { Search, MoreVertical, Mail, UserX, Crown, Users, TrendingUp, DollarSign, SlidersHorizontal, X, Calendar, Loader2 } from "lucide-react";
+import {
+  Search,
+  MoreVertical,
+  Mail,
+  UserX,
+  Crown,
+  Users,
+  TrendingUp,
+  DollarSign,
+  SlidersHorizontal,
+  X,
+  Calendar,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
@@ -17,31 +31,17 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "../components/ui/dialog";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { getSubscribers, ApiSubscriber } from "../services/apiService";
-
-const subscriberStats = [
-  { name: "Total Subscribers", value: "12,543", icon: Users, color: "text-blue-600", bgColor: "bg-blue-50" },
-  { name: "Growth Rate", value: "+12.5%", icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-50" },
-  { name: "Avg. Revenue/User", value: "$3.60", icon: DollarSign, color: "text-orange-600", bgColor: "bg-orange-50" },
-];
-
-const planChartData = [
-  { name: "Premium", value: 8234, color: "#8b5cf6" },
-  { name: "Basic", value: 3064, color: "#3b82f6" },
-  { name: "Trial", value: 1245, color: "#10b981" },
-];
-
-const initialSubscribers = [
-  { id: 1, name: "John Anderson", email: "john.anderson@example.com", plan: "Premium", status: "Active", joinDate: "2024-01-15", revenue: "$29.99" },
-  { id: 2, name: "Sarah Miller", email: "sarah.miller@example.com", plan: "Basic", status: "Active", joinDate: "2024-02-20", revenue: "$9.99" },
-  { id: 3, name: "Mike Johnson", email: "mike.johnson@example.com", plan: "Premium", status: "Active", joinDate: "2024-01-08", revenue: "$29.99" },
-  { id: 4, name: "Emma Davis", email: "emma.davis@example.com", plan: "Premium", status: "Cancelled", joinDate: "2023-11-12", revenue: "$0.00" },
-  { id: 5, name: "Tom Wilson", email: "tom.wilson@example.com", plan: "Basic", status: "Active", joinDate: "2024-03-05", revenue: "$9.99" },
-  { id: 6, name: "Lisa Brown", email: "lisa.brown@example.com", plan: "Premium", status: "Active", joinDate: "2024-02-14", revenue: "$29.99" },
-  { id: 7, name: "David Martinez", email: "david.martinez@example.com", plan: "Basic", status: "Trial", joinDate: "2024-06-18", revenue: "$0.00" },
-  { id: 8, name: "Rachel Green", email: "rachel.green@example.com", plan: "Premium", status: "Active", joinDate: "2023-12-20", revenue: "$29.99" },
-];
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  getSubscribers,
+  getDashboardStats,
+  getDashboardSubscriptionBreakdown,
+  getSubscriptionPlans,
+  ApiSubscriber,
+  ApiDashboardStats,
+  ApiSubscriptionBreakdown,
+  ApiSubscriptionPlan,
+} from "../services/apiService";
 
 function DatePickerDialog({ open, onClose, value, onChange }: {
   open: boolean; onClose: () => void; value: string; onChange: (v: string) => void;
@@ -67,8 +67,12 @@ function DatePickerDialog({ open, onClose, value, onChange }: {
 }
 
 export default function Subscribers() {
-  const [subscribers, setSubscribers] = useState<ApiSubscriber[]>(initialSubscribers);
+  const [subscribers, setSubscribers] = useState<ApiSubscriber[]>([]);
+  const [stats, setStats] = useState<ApiDashboardStats | null>(null);
+  const [breakdown, setBreakdown] = useState<ApiSubscriptionBreakdown | null>(null);
+  const [availablePlans, setAvailablePlans] = useState<ApiSubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterPlan, setFilterPlan] = useState("all");
@@ -76,18 +80,57 @@ export default function Subscribers() {
   const [filterDate, setFilterDate] = useState("");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    getSubscribers()
-      .then((data) => {
-        if (data && data.length > 0) {
-          setSubscribers(data);
-        }
-      })
-      .catch((err) => console.warn("Failed to load subscribers", err))
-      .finally(() => setLoading(false));
+  const loadData = useCallback(async () => {
+    try {
+      const [subsData, statsData, breakdownData, plansData] = await Promise.all([
+        getSubscribers({ filter: "all", limit: 20 }).catch(() => []),
+        getDashboardStats().catch(() => null),
+        getDashboardSubscriptionBreakdown().catch(() => null),
+        getSubscriptionPlans().catch(() => []),
+      ]);
+      setSubscribers(subsData || []);
+      if (statsData) setStats(statsData);
+      if (breakdownData) setBreakdown(breakdownData);
+      if (plansData) setAvailablePlans(plansData);
+    } catch (err) {
+      console.warn("Failed to load subscribers page data:", err);
+      setSubscribers([]);
+    }
   }, []);
 
+  useEffect(() => {
+    setLoading(true);
+    loadData().finally(() => setLoading(false));
+  }, [loadData]);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const currencySymbol = stats?.currency === "INR" ? "₹" : "$";
+  const totalSubscribersVal = stats ? stats.totalSubscribers.current.toLocaleString() : (loading ? "—" : subscribers.length.toString());
+  const growthRateVal = stats ? `${stats.totalSubscribers.growth_percentage >= 0 ? "+" : ""}${stats.totalSubscribers.growth_percentage.toFixed(1)}%` : (loading ? "—" : "0%");
+  const avgRevVal = stats && stats.totalUsers.current > 0
+    ? `${currencySymbol}${(stats.totalRevenue.current / stats.totalUsers.current).toFixed(2)}`
+    : `${currencySymbol}0.00`;
+
+  const subscriberStats = [
+    { name: "Total Subscribers", value: totalSubscribersVal, icon: Users, color: "text-blue-400", bgColor: "bg-blue-500/10" },
+    { name: "Growth Rate", value: growthRateVal, icon: TrendingUp, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
+    { name: "Avg. Revenue / Member", value: avgRevVal, icon: DollarSign, color: "text-amber-400", bgColor: "bg-amber-500/10" },
+  ];
+
+  const planChartData = breakdown && breakdown.tiers && breakdown.tiers.length > 0
+    ? breakdown.tiers.map((t) => ({
+        name: t.name,
+        value: t.subscribers,
+        percentage: t.subscribersPercentage,
+        color: t.color || "#8b5cf6",
+        revenue: t.revenue,
+      }))
+    : [];
 
   const activeCount = [filterPlan, filterStatus].filter((v) => v !== "all").length + (filterDate ? 1 : 0);
 
@@ -105,16 +148,25 @@ export default function Subscribers() {
     <div className="space-y-8">
       <DatePickerDialog open={datePickerOpen} onClose={() => setDatePickerOpen(false)} value={filterDate} onChange={setFilterDate} />
 
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
             Subscribers & Members
-            <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2.5 py-1 rounded-full font-mono font-medium">
-              LIVE USERS
+            <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2.5 py-1 rounded-full font-mono font-medium flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              LIVE FASTAPI
             </span>
           </h1>
           <p className="text-slate-400 mt-1 text-sm">Monitor registered mobile users, subscription tiers, and engagement status.</p>
         </div>
+        <button
+          onClick={handleManualRefresh}
+          disabled={refreshing || loading}
+          title="Refresh Data"
+          className="p-2.5 rounded-xl border border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-all disabled:opacity-50 self-start md:self-auto"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-purple-400" : ""}`} />
+        </button>
       </div>
 
       {/* Stats Grid */}
@@ -145,12 +197,27 @@ export default function Subscribers() {
           <div className="flex flex-col md:flex-row items-center gap-8">
             <ResponsiveContainer width="100%" height={220} className="max-w-xs">
               <PieChart>
-                <Pie data={planChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} dataKey="value" paddingAngle={3}>
+                <Pie
+                  data={
+                    breakdown && breakdown.totalSubscribers > 0
+                      ? planChartData
+                      : [{ name: "Registered Members", value: 100, color: "#6366f1" }]
+                  }
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={90}
+                  dataKey="value"
+                  paddingAngle={3}
+                >
                   {planChartData.map((entry, i) => (
                     <Cell key={`cell-${i}`} fill={entry.color} stroke="#0f172a" strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => v.toLocaleString()} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff' }} />
+                <Tooltip
+                  formatter={(v: number, name: string) => [`${v.toLocaleString()} subscribers`, name]}
+                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px", color: "#fff" }}
+                />
               </PieChart>
             </ResponsiveContainer>
             <div className="flex-1 space-y-3.5 w-full">
@@ -158,14 +225,21 @@ export default function Subscribers() {
                 <div key={d.name} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5">
                     <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-                    <span className="text-slate-200 font-medium text-sm">{d.name} Membership</span>
+                    <span className="text-slate-200 font-medium text-sm">{d.name} Plan</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-36 h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.round((d.value / 12543) * 100)}%`, backgroundColor: d.color }} />
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(d.percentage || 5, 2)}%`, backgroundColor: d.color }}
+                      />
                     </div>
-                    <span className="text-slate-300 font-mono w-16 text-right font-semibold">{d.value.toLocaleString()}</span>
-                    <span className="text-slate-500 font-mono w-10 text-right">{Math.round((d.value / 12543) * 100)}%</span>
+                    <span className="text-slate-300 font-mono w-16 text-right font-semibold">
+                      {d.value.toLocaleString()}
+                    </span>
+                    <span className="text-slate-500 font-mono w-12 text-right">
+                      {d.percentage !== undefined ? `${d.percentage}%` : ""}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -212,8 +286,15 @@ export default function Subscribers() {
                       <SelectTrigger className="h-9 text-xs bg-slate-900 border-slate-800 text-slate-200"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
                         <SelectItem value="all">All Plans</SelectItem>
-                        <SelectItem value="Premium">Premium</SelectItem>
-                        <SelectItem value="Basic">Basic</SelectItem>
+                        {availablePlans.map((p) => (
+                          <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                        ))}
+                        {availablePlans.length === 0 && (
+                          <>
+                            <SelectItem value="Premium">Premium</SelectItem>
+                            <SelectItem value="Basic">Basic</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -224,7 +305,7 @@ export default function Subscribers() {
                       <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
                         <SelectItem value="all">All Status</SelectItem>
                         <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Trial">Trial</SelectItem>
+                        <SelectItem value="Free">Free</SelectItem>
                         <SelectItem value="Cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
@@ -280,9 +361,17 @@ export default function Subscribers() {
                   <TableRow key={subscriber.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
                     <TableCell className="py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 via-indigo-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                          {subscriber.name.charAt(0)}
-                        </div>
+                        {subscriber.avatarUrl ? (
+                          <img
+                            src={subscriber.avatarUrl}
+                            alt={subscriber.name}
+                            className="h-10 w-10 rounded-full object-cover border border-purple-500/20"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 via-indigo-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                            {subscriber.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <div>
                           <div className="font-semibold text-sm text-slate-100">{subscriber.name}</div>
                           <div className="text-xs text-slate-400 font-mono">{subscriber.email}</div>
@@ -291,16 +380,15 @@ export default function Subscribers() {
                     </TableCell>
                     <TableCell className="py-3.5">
                       <Badge variant="outline" className={`gap-1 font-mono text-xs border ${
-                        subscriber.plan === "Premium" ? "bg-purple-500/10 text-purple-300 border-purple-500/30" : "bg-blue-500/10 text-blue-300 border-blue-500/30"
+                        subscriber.status === "Active" ? "bg-purple-500/10 text-purple-300 border-purple-500/30" : "bg-slate-800 text-slate-300 border-slate-700"
                       }`}>
-                        {subscriber.plan === "Premium" && <Crown className="h-3 w-3 text-purple-400" />}
+                        {subscriber.status === "Active" && <Crown className="h-3 w-3 text-purple-400" />}
                         {subscriber.plan}
                       </Badge>
                     </TableCell>
                     <TableCell className="py-3.5">
                       <Badge variant="outline" className={`font-mono text-xs border ${
-                        subscriber.status === "Active" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" :
-                        subscriber.status === "Trial" ? "bg-amber-500/10 text-amber-300 border-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"
+                        subscriber.status === "Active" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-slate-800 text-slate-400 border-slate-700"
                       }`}>
                         {subscriber.status}
                       </Badge>
@@ -329,3 +417,4 @@ export default function Subscribers() {
     </div>
   );
 }
+
