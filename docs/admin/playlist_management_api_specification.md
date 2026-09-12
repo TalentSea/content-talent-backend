@@ -131,34 +131,7 @@ GET /api/v1/admin/playlists?page=1&limit=20
 
 ---
 
-### 3. `GET /api/v1/admin/playlists/{playlist_id}` — Get Playlist Details
-
-Retrieves full metadata for a single playlist container.
-
-#### Request Headers
-```http
-Authorization: Bearer <creator_access_token>
-```
-
-#### Path Parameters
-- `playlist_id` (integer, required): Database primary key ID of the playlist.
-
-#### Response Specification (`200 OK`)
-```json
-{
-  "id": 104,
-  "name": "Trending Sci-Fi Collection",
-  "description": "The highest rated sci-fi series and updates on our app.",
-  "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/playlist_104.jpg",
-  "video_count": 12,
-  "created_at": "2024-05-01T00:00:00Z",
-  "updated_at": "2024-06-10T00:00:00Z"
-}
-```
-
----
-
-### 4. `PUT /api/v1/admin/playlists/{playlist_id}` — Update Playlist Details
+### 3. `PUT /api/v1/admin/playlists/{playlist_id}` — Update Playlist Details
 
 Updates playlist textual metadata (`name`, `description`).
 
@@ -191,7 +164,7 @@ Content-Type: application/json
 
 ---
 
-### 5. `POST /api/v1/admin/playlists/{playlist_id}/thumbnail/upload` — Upload Playlist Banner Image (Proxy Upload)
+### 4. `POST /api/v1/admin/playlists/{playlist_id}/thumbnail/upload` — Upload Playlist Banner Image (Proxy Upload)
 
 Uploads a playlist cover banner image (`assets/playlists/pl_{playlist_id}_{timestamp}.{ext}`) with timestamp CDN cache-busting to Bunny Storage Zone.
 
@@ -210,13 +183,13 @@ Content-Type: multipart/form-data
 #### Response Specification (`200 OK`)
 ```json
 {
-  "status": "success"
+  "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/pl_104_172345.jpg"
 }
 ```
 
 ---
 
-### 6. `DELETE /api/v1/admin/playlists/{playlist_id}` — Delete Playlist
+### 5. `DELETE /api/v1/admin/playlists/{playlist_id}` — Delete Playlist
 
 Deletes a playlist from the database and drops video link mappings (does NOT delete underlying videos).
 
@@ -239,7 +212,7 @@ Authorization: Bearer <creator_access_token>
 
 ## 📽️ Playlist Video Attachment Sub-Resource Endpoints
 
-### 7. `GET /api/v1/admin/playlists/{playlist_id}/videos` — List Videos Inside Playlist (Paginated)
+### 6. `GET /api/v1/admin/playlists/{playlist_id}/videos` — List Videos Inside Playlist (Paginated)
 
 Retrieves a paginated list of videos attached to a specific playlist with ordering and attached timestamp.
 
@@ -267,11 +240,11 @@ Authorization: Bearer <creator_access_token>
     {
       "id": 101,
       "title": "Mad Max: Fury Road",
-      "description": "A story set in a post-apocalyptic wasteland.",
       "category": "action",
       "status": "published",
       "is_playable": true,
       "views": 12400,
+      "likes": 340,
       "duration": "18:42",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_abc123xyz/thumbnail.jpg",
       "order": 1,
@@ -283,7 +256,7 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 8. `POST /api/v1/admin/playlists/{playlist_id}/videos` — Add Videos to Playlist
+### 7. `POST /api/v1/admin/playlists/{playlist_id}/videos` — Add Videos to Playlist
 
 Adds an array of video IDs to the specified playlist.
 
@@ -312,7 +285,7 @@ Content-Type: application/json
 
 ---
 
-### 9. `DELETE /api/v1/admin/playlists/{playlist_id}/videos/{video_id}` — Remove Single Video from Playlist
+### 8. `DELETE /api/v1/admin/playlists/{playlist_id}/videos/{video_id}` — Remove Single Video from Playlist
 
 Removes a single video from a playlist without deleting the video asset itself.
 
@@ -334,7 +307,7 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 10. `DELETE /api/v1/admin/playlists/{playlist_id}/videos` — Bulk Remove Videos from Playlist
+### 9. `DELETE /api/v1/admin/playlists/{playlist_id}/videos` — Bulk Remove Videos from Playlist
 
 Removes multiple videos from a playlist in a single batch request.
 
@@ -363,7 +336,7 @@ Content-Type: application/json
 
 ---
 
-### 11. `GET /api/v1/admin/playlists/{playlist_id}/available_videos` — Get Available Videos for Playlist Picker (Paginated)
+### 10. `GET /api/v1/admin/playlists/{playlist_id}/available_videos` — Get Available Videos for Playlist Picker (Paginated)
 
 Fetches a paginated list of uploaded videos owned by the creator that are **not** currently included in the specified playlist (used for populating "Add Videos to Playlist" picker UI).
 
@@ -398,11 +371,11 @@ GET /api/v1/admin/playlists/104/available_videos?search=FastAPI&category=tutoria
     {
       "id": 102,
       "title": "Inception",
-      "description": "A thief who steals corporate secrets through dream-sharing technology.",
       "category": "sci-fi",
       "status": "published",
       "is_playable": true,
       "views": 18500,
+      "likes": 450,
       "duration": "148:00",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_abc888lmn/thumbnail.jpg",
       "created_at": "2024-05-20T00:00:00Z"
@@ -413,7 +386,7 @@ GET /api/v1/admin/playlists/104/available_videos?search=FastAPI&category=tutoria
 
 ---
 
-### 12. `PUT /api/v1/admin/playlists/{playlist_id}/videos/reorder` — Reorder Videos inside Playlist
+### 11. `PUT /api/v1/admin/playlists/{playlist_id}/videos/reorder` — Reorder Videos inside Playlist
 
 Persists updated sequence positions (`order`) of videos attached to a playlist following drag-and-drop actions in the Admin UI.
 

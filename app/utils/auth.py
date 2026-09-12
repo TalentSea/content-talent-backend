@@ -1,24 +1,52 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
+
 import jwt
 from fastapi import HTTPException, status
+
 from app.config import get_settings
 
-def create_access_token(user_id: int, username: str, expires_delta_minutes: int = 60) -> str:
+
+def create_access_token(
+    user_id: int,
+    username: str = "",
+    creator_id: int | None = None,
+    expires_delta_minutes: int | None = None,
+) -> str:
     """
-    Encodes user_id and username into a signed JWT access token.
+    Encodes user_id, username, and creator_id into a signed JWT access token.
     """
     settings = get_settings()
+    if expires_delta_minutes is None:
+        expires_delta_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
     secret_key = settings.JWT_SECRET_KEY or "dev_secret_key_change_in_production"
     expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta_minutes)
-    
+
     to_encode = {
         "sub": str(user_id),
         "user_id": user_id,
-        "username": username,
-        "exp": expire
+        "username": username or f"user_{user_id}",
+        "creator_id": creator_id,
+        "exp": expire,
     }
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
+
+
+def create_refresh_token_string() -> str:
+    """
+    Generates a cryptographically secure 64-character hex random string for refresh token.
+    """
+    return secrets.token_hex(32)
+
+
+def hash_refresh_token(token: str) -> str:
+    """
+    Computes SHA-256 hash string of raw refresh token for safe DB storage.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
 
 def decode_access_token(token: str) -> dict:
     """
@@ -27,7 +55,7 @@ def decode_access_token(token: str) -> dict:
     """
     settings = get_settings()
     secret_key = settings.JWT_SECRET_KEY or "dev_secret_key_change_in_production"
-    
+
     try:
         payload = jwt.decode(token, secret_key, algorithms=[settings.JWT_ALGORITHM])
         user_id: int = payload.get("user_id")
@@ -50,4 +78,3 @@ def decode_access_token(token: str) -> dict:
             detail="Could not validate authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-

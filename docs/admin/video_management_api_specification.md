@@ -294,23 +294,14 @@ GET /api/v1/admin/videos?status=published&search=FastAPI&sort=newest&page=1&limi
     {
       "id": 101,
       "title": "Introduction to FastAPI & OTT Streaming",
-      "description": "Learn how to build a production grade video upload pipeline using Bunny.net.",
       "category": "tutorials",
-      "tags": ["fastapi", "python", "bunny-stream"],
       "status": "published",
       "encode_progress": 100,
       "is_playable": true,
       "views": 12400,
+      "likes": 340,
       "duration": "18:42",
       "main_thumbnail_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/thumbnail.jpg",
-      "captions_data": [
-        {
-          "srclang": "en-auto",
-          "label": "EN",
-          "is_default": true,
-          "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en-auto.vtt"
-        }
-      ],
       "published_at": "2024-06-01T00:00:00Z",
       "scheduled_at": null,
       "created_at": "2024-05-20T00:00:00Z"
@@ -355,6 +346,7 @@ Authorization: Bearer <creator_access_token>
   "encode_progress": 65,
   "is_playable": false,
   "views": 0,
+  "likes": 0,
   "duration": null,
   "playback_url": null,
   "main_thumbnail_url": "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_1.jpg",
@@ -381,6 +373,7 @@ Authorization: Bearer <creator_access_token>
   "encode_progress": 100,
   "is_playable": true,
   "views": 12400,
+  "likes": 340,
   "duration": "18:42",
   "playback_url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1719825600",
   "main_thumbnail_url": "https://your-storage-pull-zone.b-cdn.net/vid_987654321_abc/thumb_1.jpg",
@@ -394,6 +387,18 @@ Authorization: Bearer <creator_access_token>
       "label": "EN",
       "is_default": true,
       "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/captions/en-auto.vtt"
+    }
+  ],
+  "download_urls": [
+    {
+      "resolution": "1080p",
+      "label": "1080p HD",
+      "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/play_1080p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
+    },
+    {
+      "resolution": "720p",
+      "label": "720p HD",
+      "url": "https://your-pull-zone.b-cdn.net/vid_987654321_abc/play_720p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
     }
   ],
   "published_at": "2024-06-01T00:00:00Z",

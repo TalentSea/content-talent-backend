@@ -1,41 +1,109 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 
+from fastapi import FastAPI
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+
+from app.config import get_settings
 from app.database import init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
+from app.repositories.admin.video_repository import VideoRepository
+from app.repositories.mobile.auth_repository import AuthRepository
+from app.repositories.mobile.user_subscription_repository import (
+    UserSubscriptionRepository,
+)
 from app.routes.admin import (
-    admin_video_router,
+    admin_branding_router,
+    admin_category_router,
+    admin_comment_router,
+    admin_dashboard_router,
+    admin_featured_video_router,
     admin_playlist_router,
     admin_profile_router,
-    admin_comment_router
+    admin_subscription_plan_router,
+    admin_video_router,
 )
-
-import asyncio
-import logging
+from app.routes.mobile import (
+    mobile_auth_router,
+    mobile_branding_router,
+    mobile_category_router,
+    mobile_comment_router,
+    mobile_featured_video_router,
+    mobile_payment_router,
+    mobile_playlist_router,
+    mobile_subscription_plan_router,
+    mobile_subscription_router,
+    mobile_video_router,
+)
+from app.routes.webhook_routes import router as webhook_router
 
 logger = logging.getLogger(__name__)
 
+
 async def scheduled_video_auto_publisher():
-    """Background task running every 60s to publish due scheduled videos."""
-    from app.repositories.video_repository import VideoRepository
+    """Background task running on configurable interval to publish due scheduled videos."""
     repo = VideoRepository()
     while True:
         try:
             count = repo.publish_due_scheduled_videos()
             if count > 0:
-                logger.info(f"Auto-published {count} due scheduled videos.")
-        except Exception as e:
-            logger.error(f"Error in auto-publisher background loop: {str(e)}")
-        await asyncio.sleep(60)
+                logger.info("Auto-published %s due scheduled videos.", count)
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error in auto-publisher background loop: %s", e)
+        await asyncio.sleep(get_settings().AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS)
+
+
+async def scheduled_stale_guest_cleanup():
+    """Background task running once every 24 hours to purge stale guest accounts inactive > STALE_GUEST_CLEANUP_DAYS."""
+    repo = AuthRepository()
+    while True:
+        try:
+            cleanup_days = get_settings().STALE_GUEST_CLEANUP_DAYS
+            purged_count = repo.cleanup_stale_guest_subscribers(days=cleanup_days)
+            if purged_count > 0:
+                logger.info(
+                    "Stale Guest Cleanup Worker purged %s guest accounts inactive > %s days.",
+                    purged_count,
+                    cleanup_days,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error in stale guest cleanup background worker: %s", e)
+        await asyncio.sleep(86400)  # Runs once every 24 hours
+
+
+async def scheduled_subscription_expiration_worker():
+    """Background task running periodically to batch reconcile past-due active subscriptions."""
+    repo = UserSubscriptionRepository()
+    while True:
+        try:
+            expired_count = repo.expire_outdated_subscriptions()
+            if expired_count > 0:
+                logger.info(
+                    "Subscription Expiration Worker expired %s past-due subscriptions.",
+                    expired_count,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error("Error in subscription expiration background worker: %s", e)
+        await asyncio.sleep(
+            get_settings().SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     publisher_task = asyncio.create_task(scheduled_video_auto_publisher())
+    guest_cleanup_task = asyncio.create_task(scheduled_stale_guest_cleanup())
+    subscription_expiration_task = asyncio.create_task(
+        scheduled_subscription_expiration_worker()
+    )
     yield
     publisher_task.cancel()
+    guest_cleanup_task.cancel()
+    subscription_expiration_task.cancel()
+
 
 app = FastAPI(
     title="Creator OTT Platform API",
@@ -43,17 +111,34 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url=None,
-    redoc_url=None
+    redoc_url=None,
 )
 
 setup_cors_middleware(app)
 app.add_middleware(PeeweeDBMiddleware)
 
-# Register Admin Video, Playlist, Profile & Comment routers cleanly
+# Register Routers cleanly
+app.include_router(mobile_auth_router)
+app.include_router(mobile_video_router)
+app.include_router(mobile_category_router)
+app.include_router(mobile_playlist_router)
+app.include_router(mobile_comment_router)
+app.include_router(mobile_branding_router)
+app.include_router(mobile_featured_video_router)
+app.include_router(mobile_subscription_plan_router)
+app.include_router(mobile_payment_router)
+app.include_router(mobile_subscription_router)
+app.include_router(webhook_router)
 app.include_router(admin_video_router)
+app.include_router(admin_dashboard_router)
 app.include_router(admin_playlist_router)
 app.include_router(admin_profile_router)
+app.include_router(admin_branding_router)
 app.include_router(admin_comment_router)
+app.include_router(admin_category_router)
+app.include_router(admin_featured_video_router)
+app.include_router(admin_subscription_plan_router)
+
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
@@ -62,8 +147,9 @@ async def custom_swagger_ui_html():
         title=f"{app.title} - Swagger UI",
         swagger_js_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.9.0/swagger-ui-bundle.js",
         swagger_css_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.9.0/swagger-ui.min.css",
-        swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png"
+        swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
     )
+
 
 @app.get("/redoc", include_in_schema=False)
 async def custom_redoc_html():
@@ -71,8 +157,9 @@ async def custom_redoc_html():
         openapi_url=app.openapi_url,
         title=f"{app.title} - ReDoc",
         redoc_js_url="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js",
-        redoc_favicon_url="https://fastapi.tiangolo.com/img/favicon.png"
+        redoc_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
     )
+
 
 @app.get("/health", tags=["Health"])
 def health_check():
