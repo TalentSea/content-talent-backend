@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
       allowedHosts: true,
       proxy: {
         '/api': {
-          target: env.VITE_BACKEND_API_URL || 'http://138.68.140.83:8000',
+          target: env.VITE_BACKEND_API_URL || env.VITE_API_BASE_URL,
           changeOrigin: true,
         },
       },

@@ -5,14 +5,14 @@ function getBaseUrl(): string {
     (import.meta as any).env?.VITE_API_BASE_URL ||
     (import.meta as any).env?.VITE_BACKEND_API_URL ||
     (typeof window !== "undefined" && ((window as any).env?.VITE_API_BASE_URL || (window as any).env?.VITE_BACKEND_API_URL)) ||
-    "http://138.68.140.83:8000";
+    "";
 
   const trimmed = (envUrl || "").trim().replace(/\/+$/, "");
 
   // If page is loaded over HTTPS (e.g. Vercel deployment) and API URL is not secure HTTPS,
   // fallback to relative path ("") to route through Vercel /api reverse proxy and prevent Mixed Content blocking.
   if (typeof window !== "undefined" && window.location.protocol === "https:") {
-    if (!trimmed.startsWith("https://")) {
+    if (trimmed && !trimmed.startsWith("https://")) {
       console.warn(
         `[API Service] HTTPS page detected with non-HTTPS API URL ("${trimmed}"). Routing via relative proxy (/api) to prevent Mixed Content errors.`
       );
@@ -20,7 +20,7 @@ function getBaseUrl(): string {
     }
   }
 
-  return trimmed || "http://138.68.140.83:8000";
+  return trimmed;
 }
 
 const BASE_URL = getBaseUrl();
