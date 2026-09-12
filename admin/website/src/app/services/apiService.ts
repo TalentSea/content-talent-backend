@@ -1,6 +1,18 @@
 // API Service module for communicating with Content Management backend REST endpoints
 
 function getBaseUrl(): string {
+  // When running locally in Vite (dev server at localhost / 127.0.0.1), route through Vite's dev server proxy ("")
+  // to completely eliminate browser Cross-Origin (CORS) blocks and ngrok interstitial issues.
+  if (
+    import.meta.env.DEV ||
+    (typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname === "0.0.0.0"))
+  ) {
+    return "";
+  }
+
   const envUrl =
     (import.meta as any).env?.VITE_API_BASE_URL ||
     (import.meta as any).env?.VITE_BACKEND_API_URL ||
@@ -204,6 +216,7 @@ function getAuthHeaders(): HeadersInit {
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${getAuthToken()}`,
+    "ngrok-skip-browser-warning": "true",
   };
 }
 
@@ -540,7 +553,7 @@ export async function uploadThumbnail(
   const token = getAuthToken();
   const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails/upload?slot=${slot}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   return handleResponse(res);
@@ -642,7 +655,7 @@ export async function uploadCreatorLogo(file: File): Promise<{ logoUrl: string }
   const token = getAuthToken();
   const res = await fetch(`${BASE_URL}/api/v1/admin/branding/logo`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   const json = await handleResponse<any>(res);
@@ -658,7 +671,7 @@ export async function uploadCreatorBanner(file: File): Promise<{ bannerUrl: stri
   const token = getAuthToken();
   const res = await fetch(`${BASE_URL}/api/v1/admin/branding/banner`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   const json = await handleResponse<any>(res);
@@ -1012,13 +1025,13 @@ export async function uploadPlaylistBanner(
   const token = getAuthToken();
   let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/thumbnail/upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   if (res.status === 404) {
     res = await fetch(`${BASE_URL}/playlists/${playlistId}/thumbnail/upload`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
       body: formData,
     });
   }
