@@ -136,7 +136,7 @@ Authorization: Bearer <admin_access_token>
 - `start_date`, `end_date`: Exact ISO date boundary resolved for this calculation.
 - `currency`: Default currency code (`"INR"`).
 - `total_revenue`: Sum of captured payments in ₹ INR with period-over-period growth.
-- `total_views`: Sum of video views with period-over-period growth.
+- `total_views`: Sum of verified subscriber playback views logged via the immutable `VideoViewEvent` ledger (strictly adheres to the resolved date window, verified against 30% watch threshold, and debounced).
 - `total_users`: Total registered audience accounts with user acquisition growth.
 - `total_subscribers`: Paying members with an active subscription (`status = 'active'`) and conversion growth.
 - `total_content`: Catalog inventory breakdown:

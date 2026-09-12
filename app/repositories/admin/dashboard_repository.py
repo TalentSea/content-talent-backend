@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from peewee import fn
@@ -7,7 +7,7 @@ from app.models.payment import Payment
 from app.models.subscriber import Subscriber
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user_subscription import UserSubscription
-from app.models.video import Video, WatchHistory
+from app.models.video import Video, VideoViewEvent
 
 
 class DashboardRepository:
@@ -36,20 +36,18 @@ class DashboardRepository:
         self, creator_id: int, start_dt: datetime, end_dt: datetime
     ) -> int:
         """
-        Counts playback sessions in window via WatchHistory.
-        Falls back to Video.views sum if no watch history events exist.
+        Counts verified playback views in window via immutable VideoViewEvent ledger.
         """
-        history_views = (
-            WatchHistory.select(fn.COUNT(WatchHistory.id))
-            .join(Video)
+        views = (
+            VideoViewEvent.select(fn.COUNT(VideoViewEvent.id))
             .where(
-                Video.user == creator_id,
-                WatchHistory.last_watched_at >= start_dt,
-                WatchHistory.last_watched_at <= end_dt,
+                VideoViewEvent.creator == creator_id,
+                VideoViewEvent.created_at >= start_dt,
+                VideoViewEvent.created_at <= end_dt,
             )
             .scalar()
         )
-        return int(history_views or 0)
+        return int(views or 0)
 
     def get_lifetime_views(self, creator_id: int) -> int:
         """Sums lifetime playback views across all creator videos."""
@@ -221,12 +219,9 @@ class DashboardRepository:
         Retrieves paginated recent members feed.
         filter_type: 'all' | 'subscribers' | 'users'
         """
-        active_sub_user_ids = (
-            UserSubscription.select(UserSubscription.user)
-            .where(
-                UserSubscription.creator == creator_id,
-                UserSubscription.status == "active",
-            )
+        active_sub_user_ids = UserSubscription.select(UserSubscription.user).where(
+            UserSubscription.creator == creator_id,
+            UserSubscription.status == "active",
         )
 
         if filter_type == "subscribers":
@@ -238,7 +233,9 @@ class DashboardRepository:
                 )
                 .join(Subscriber, on=(UserSubscription.user == Subscriber.id))
                 .switch(UserSubscription)
-                .join(SubscriptionPlan, on=(UserSubscription.plan == SubscriptionPlan.id))
+                .join(
+                    SubscriptionPlan, on=(UserSubscription.plan == SubscriptionPlan.id)
+                )
                 .where(
                     UserSubscription.creator == creator_id,
                     UserSubscription.status == "active",
@@ -311,7 +308,10 @@ class DashboardRepository:
             if user_ids:
                 subs = (
                     UserSubscription.select(UserSubscription, SubscriptionPlan)
-                    .join(SubscriptionPlan, on=(UserSubscription.plan == SubscriptionPlan.id))
+                    .join(
+                        SubscriptionPlan,
+                        on=(UserSubscription.plan == SubscriptionPlan.id),
+                    )
                     .where(
                         UserSubscription.user.in_(user_ids),
                         UserSubscription.creator == creator_id,
@@ -330,7 +330,9 @@ class DashboardRepository:
                         "name": u.name,
                         "email": u.email,
                         "avatar_url": u.avatar_url,
-                        "plan_name": sub_info.plan.name if sub_info and sub_info.plan else None,
+                        "plan_name": sub_info.plan.name
+                        if sub_info and sub_info.plan
+                        else None,
                         "is_paid": bool(sub_info is not None),
                         "subscribed_at": sub_info.created_at if sub_info else None,
                         "joined_at": u.created_at,

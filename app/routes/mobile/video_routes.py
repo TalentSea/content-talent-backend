@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.dependencies import CurrentSubscriber
 from app.schemas.mobile.video_schemas import (
@@ -182,6 +182,11 @@ def sync_watch_progress(
     payload: MobileWatchProgressRequest,
     current_subscriber: CurrentSubscriber,
 ):
+    if current_subscriber.get("role") != "subscriber":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subscriber access required to sync watch progress",
+        )
     mobile_video_service.update_watch_progress(
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
@@ -195,11 +200,17 @@ def sync_watch_progress(
     response_model=MobileViewCountResponse,
     status_code=status.HTTP_200_OK,
     summary="Increment Video View Count",
-    description="Atomically increments the watch view counter for a published video asset.",
+    description="Atomically increments the watch view counter for a published video asset after zero-trust watch threshold verification.",
 )
 def record_video_view(video_id: int, current_subscriber: CurrentSubscriber):
+    if current_subscriber.get("role") != "subscriber":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subscriber access required to record views",
+        )
     return mobile_video_service.record_video_view(
         video_id=video_id,
+        subscriber_id=current_subscriber["user_id"],
         creator_id=current_subscriber.get("creator_id"),
     )
 

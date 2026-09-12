@@ -10,7 +10,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.subscriber import Subscriber
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user_subscription import UserSubscription
-from app.models.video import Video, VideoLike, VideoSave, WatchHistory
+from app.models.video import Video, VideoLike, VideoSave, VideoViewEvent, WatchHistory
 
 __all__ = [
     "Admin",
@@ -30,5 +30,7 @@ __all__ = [
     "Video",
     "VideoLike",
     "VideoSave",
+    "VideoViewEvent",
     "WatchHistory",
 ]
+

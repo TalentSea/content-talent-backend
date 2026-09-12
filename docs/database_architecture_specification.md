@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **17 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **18 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -17,6 +17,7 @@ erDiagram
     ADMIN ||--o{ SUBSCRIBER : "hosts / tenants (1:N)"
     ADMIN ||--o{ PAYMENT : "receives transactions (1:N)"
     ADMIN ||--o{ USER_SUBSCRIPTION : "grants entitlements (1:N)"
+    ADMIN ||--o{ VIDEO_VIEW_EVENT : "aggregates telemetry (1:N)"
 
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
     SUBSCRIBER ||--o{ VIDEO_LIKE : "likes (1:N)"
@@ -26,6 +27,7 @@ erDiagram
     SUBSCRIBER ||--o{ COMMENT_LIKE : "likes comment (1:N)"
     SUBSCRIBER ||--o{ PAYMENT : "originates transactions (1:N)"
     SUBSCRIBER ||--o{ USER_SUBSCRIPTION : "holds subscriptions (1:N)"
+    SUBSCRIBER ||--o{ VIDEO_VIEW_EVENT : "generates views (1:N)"
 
     SUBSCRIPTION_PLAN ||--o{ PAYMENT : "billed tier (1:N)"
     SUBSCRIPTION_PLAN ||--o{ USER_SUBSCRIPTION : "assigned tier (1:N)"
@@ -38,6 +40,7 @@ erDiagram
     VIDEO ||--o{ PLAYLIST_VIDEO : "included in playlists (1:N)"
     VIDEO ||--o{ FEATURED_VIDEO : "featured in home carousel (1:N)"
     VIDEO ||--o{ COMMENT : "has comments (1:N)"
+    VIDEO ||--o{ VIDEO_VIEW_EVENT : "has view events (1:N)"
 
     PLAYLIST ||--o{ PLAYLIST_VIDEO : "contains ordered videos (1:N)"
     COMMENT ||--o{ COMMENT : "parent/child reply thread (1:N)"
@@ -403,4 +406,24 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `status` | `VARCHAR(30)` | Standard (INDEX) | NO | `"active"` | Access status (`"active"`, `"expired"`) |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Entitlement creation timestamp |
 | `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last status update timestamp |
+
+---
+
+### 18. `video_view_events` Table (Immutable Telemetry & Analytics Event Ledger)
+* **Model File**: [`app/models/video.py`](../app/models/video.py)
+* **Table Name**: `video_view_events`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of view event |
+| `video_id` | `INTEGER` | **FK ➔ `videos.id` (CASCADE)** | NO | None | Video asset that was streamed |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio owning the video asset |
+| `subscriber_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Authenticated subscriber who completed $\ge 30\%$ playback |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Playback view event registration timestamp |
+
+#### Indexes
+* **Composite Index `(creator_id, created_at)`**: Powers instantaneous Admin Dashboard windowed telemetry queries (`WHERE creator_id = :id AND created_at BETWEEN :start AND :end`) in sub-2ms.
+* **Composite Index `(video_id, created_at)`**: Powers fast per-video historical performance analytics.
+* **Composite Index `(video_id, subscriber_id, created_at)`**: Powers sub-millisecond anti-spam verification (30-minute session debounce and 24-hour daily view capping).
+
 

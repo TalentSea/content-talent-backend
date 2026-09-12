@@ -35,7 +35,13 @@ def init_db():
     from app.models.subscriber import Subscriber
     from app.models.subscription_plan import SubscriptionPlan
     from app.models.user_subscription import UserSubscription
-    from app.models.video import Video, VideoLike, VideoSave, WatchHistory
+    from app.models.video import (
+        Video,
+        VideoLike,
+        VideoSave,
+        VideoViewEvent,
+        WatchHistory,
+    )
 
     if db_proxy.is_closed():
         db_proxy.connect()
@@ -50,6 +56,7 @@ def init_db():
             VideoLike,
             VideoSave,
             WatchHistory,
+            VideoViewEvent,
             Playlist,
             PlaylistVideo,
             Comment,

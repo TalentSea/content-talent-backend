@@ -1,5 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -21,7 +20,7 @@ from app.schemas.shared.common_schemas import PaginatedResponse
 IST = ZoneInfo("Asia/Kolkata")
 
 
-def compute_growth_percentage(current_val: float | int, previous_val: float | int) -> float:
+def compute_growth_percentage(current_val: float, previous_val: float) -> float:
     """
     Computes period-over-period percentage growth adhering to the division-by-zero
     mathematical model defined in the API specification.
@@ -62,8 +61,8 @@ class DashboardService:
 
         if start_date_str and end_date_str:
             try:
-                start_d = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                end_d = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                start_d = date.fromisoformat(start_date_str)
+                end_d = date.fromisoformat(end_date_str)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -137,11 +136,6 @@ class DashboardService:
         # 2. Total Views
         views_curr = self.repo.get_views_in_window(creator_id, curr_start, curr_end)
         views_prev = self.repo.get_views_in_window(creator_id, prev_start, prev_end)
-        if views_curr == 0 and views_prev == 0:
-            # If no time-windowed watch histories exist, surface lifetime video views as baseline
-            lifetime = self.repo.get_lifetime_views(creator_id)
-            views_curr = lifetime
-
         views_metric = GrowthMetric(
             current=views_curr,
             previous=views_prev,
@@ -235,7 +229,14 @@ class DashboardService:
             while cursor <= curr_end:
                 b_start = cursor
                 b_end = datetime(
-                    cursor.year, cursor.month, cursor.day, 23, 59, 59, 999999, tzinfo=IST
+                    cursor.year,
+                    cursor.month,
+                    cursor.day,
+                    23,
+                    59,
+                    59,
+                    999999,
+                    tzinfo=IST,
                 )
                 date_str = b_start.strftime("%Y-%m-%d")
                 label_str = b_start.strftime("%d %b")

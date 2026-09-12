@@ -197,12 +197,26 @@ class MobileVideoService:
         )
 
     def record_video_view(
-        self, video_id: int, creator_id: int | None = None
+        self, video_id: int, subscriber_id: int, creator_id: int | None = None
     ) -> MobileViewCountResponse:
         """
-        Increments views counter for a published video asset.
+        Increments views counter for a published video asset after validating
+        backend 30% threshold and anti-spam debouncing.
         """
-        new_views = self.repo.increment_view_count(video_id, creator_id=creator_id)
+        try:
+            new_views = self.repo.increment_view_count(
+                video_id=video_id,
+                subscriber_id=subscriber_id,
+                creator_id=creator_id,
+            )
+        except ValueError as err:
+            if str(err) == "WATCH_THRESHOLD_NOT_MET":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="WATCH_THRESHOLD_NOT_MET",
+                )
+            raise
+
         if new_views is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

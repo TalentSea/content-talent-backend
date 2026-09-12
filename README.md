@@ -12,7 +12,7 @@ The project strictly follows a **5-Layer Clean Architecture** separating routing
 content-talent-backend/
 ├── .agents/                      # Team AI Agent Skills & Architecture Playbooks
 ├── docs/                         # Architecture & API Specifications
-│   ├── database_architecture_specification.md # Complete 15-Table Database Schema Specification
+│   ├── database_architecture_specification.md # Complete 18-Table Database Schema Specification
 │   ├── admin/                    # Admin Portal API Specifications
 │   └── mobile/                   # Mobile Application API Specifications
 ├── app/
@@ -34,7 +34,7 @@ content-talent-backend/
 │   │   ├── user_subscription.py  # Active subscriber membership entitlements & validity entity
 │   │   ├── payment.py            # Razorpay orders and payment transactions ledger entity
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
-│   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave and WatchHistory entities
+│   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave, WatchHistory, and VideoViewEvent entities
 │   │   ├── playlist.py           # Playlist and junction entities
 │   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
@@ -155,6 +155,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 ## Technical Features
 
 - **Creator Studio Dashboard & Real-Time Analytics Subsystem**: Multi-widget studio analytics engine featuring high-level KPI overview cards with period-over-period growth telemetry (`GET /api/v1/admin/dashboard/stats`), dynamic chronological time-series area charts (`GET /api/v1/admin/dashboard/analytics`) with auto-interval grouping (day/week/month), subscription tier distribution (`GET /api/v1/admin/dashboard/subscription-breakdown`) with actual period revenue and subscriber shares, and a paginated recent members feed (`GET /api/v1/admin/dashboard/recent-activity`) with audience segmentation (`all`, `subscribers`, `users`), strictly excluding anonymous guests.
+- **Immutable View Telemetry & Zero-Trust Anti-Spam Gatekeeper**: Dedicated append-only `video_view_events` ledger decoupled from mutable user watch history, ensuring creator view analytics remain permanent and tamper-proof even when subscribers purge personal history. Enforces strict server-side 30% watch threshold verification against `watch_history`, 30-minute continuous session debouncing, rolling 24-hour daily capping (max 3 views/day), and strict subscriber-only role validation.
 - **Razorpay Payment Gateway & Cryptographic Signature Verification**: Production-grade monetization engine featuring order initialization (`POST /api/v1/mobile/payments/create-order`), SHA-256 HMAC cryptographic signature verification (`POST /api/v1/mobile/payments/verify`), atomic database transaction commits with automatic rollback on failure, idempotent entitlement activation, and an asynchronous fallback webhook listener (`POST /api/v1/webhooks/razorpay`).
 - **Two-Pillar Subscription Expiration Architecture**: Real-time Just-In-Time (JIT) lazy expiration checks on subscriber requests paired with an automated background task (`scheduled_subscription_expiration_worker`) on the FastAPI lifespan event loop to systematically expire outdated memberships.
 - **Single-Query Hero Carousel Curation (`likes_count` Subquery)**: Ultra-optimized home screen featured video carousel mapping (`GET /api/v1/mobile/featured-videos`) fetching video metadata, subscriber engagement flags (`is_liked`, `is_saved`), and real-time total likes count via correlated SQL scalar subqueries in 1 single database roundtrip with zero N+1 query overhead.
@@ -274,7 +275,17 @@ MAX_THUMBNAIL_SIZE_MB=5
 MAX_PLAYLIST_COVER_SIZE_MB=5
 MAX_LOGO_SIZE_MB=5
 MAX_BANNER_SIZE_MB=10
+
+# Video Playback, Anti-Spam Telemetry & Decision Parameters
+VIDEO_VIEW_WATCH_THRESHOLD_PERCENT=30.0
+VIDEO_VIEW_COOLDOWN_MINUTES=30
+VIDEO_VIEW_MAX_DAILY_PER_USER=3
+VIDEO_VIEW_DAILY_WINDOW_HOURS=24
+VIDEO_COMPLETION_THRESHOLD_PERCENT=95.0
+CONTINUE_WATCHING_MIN_SECONDS=10
+POPULARITY_SCORE_LIKE_WEIGHT=3
 ```
+
 
 ---
 

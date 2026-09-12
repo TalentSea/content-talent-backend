@@ -1,9 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from peewee import PeeweeException, fn
 
-from app.models.video import Video, VideoLike, VideoSave, WatchHistory
+from app.config import get_settings
+from app.models.video import Video, VideoLike, VideoSave, VideoViewEvent, WatchHistory
 from app.utils.formatters import parse_duration_seconds
 
 logger = logging.getLogger(__name__)
@@ -138,18 +139,78 @@ class MobileVideoRepository:
             raise
 
     def increment_view_count(
-        self, video_id: int, creator_id: int | None = None
+        self,
+        video_id: int,
+        subscriber_id: int,
+        creator_id: int | None = None,
     ) -> int | None:
         """
-        Atomically increments views for a published video and updates its stored popularity_score.
+        Validates watch threshold from WatchHistory, enforces anti-spam
+        debouncing and daily view cap, logs VideoViewEvent, and atomically
+        increments Video.views counter and popularity score.
+        All thresholds and debounce windows are configured via environment settings.
         """
         video = self.get_public_video_by_id(video_id, creator_id=creator_id)
         if not video:
             return None
 
+        settings = get_settings()
+
+        # 1. Zero-Trust Verification: Check watch threshold in WatchHistory
+        history = WatchHistory.get_or_none(
+            (WatchHistory.video == video_id)
+            & (WatchHistory.subscriber == subscriber_id)
+        )
+        duration_seconds = parse_duration_seconds(video.duration)
+        threshold_ratio = settings.VIDEO_VIEW_WATCH_THRESHOLD_PERCENT / 100.0
+        threshold_seconds = duration_seconds * threshold_ratio if duration_seconds > 0 else 0
+        if not history or (
+            duration_seconds > 0 and history.last_position_seconds < threshold_seconds
+        ):
+            raise ValueError("WATCH_THRESHOLD_NOT_MET")
+
+        now = datetime.now(timezone.utc)
+
+        # 2. Anti-Spam Gate 1: Session cooldown debounce
+        cooldown_cutoff = now - timedelta(minutes=settings.VIDEO_VIEW_COOLDOWN_MINUTES)
+        recent_exists = (
+            VideoViewEvent.select()
+            .where(
+                VideoViewEvent.video == video_id,
+                VideoViewEvent.subscriber == subscriber_id,
+                VideoViewEvent.created_at >= cooldown_cutoff,
+            )
+            .exists()
+        )
+        if recent_exists:
+            # Debounced: View already counted within cooldown window
+            return video.views or 0
+
+        # 3. Anti-Spam Gate 2: Rolling daily cap
+        day_cutoff = now - timedelta(hours=settings.VIDEO_VIEW_DAILY_WINDOW_HOURS)
+        daily_count = (
+            VideoViewEvent.select()
+            .where(
+                VideoViewEvent.video == video_id,
+                VideoViewEvent.subscriber == subscriber_id,
+                VideoViewEvent.created_at >= day_cutoff,
+            )
+            .count()
+        )
+        if daily_count >= settings.VIDEO_VIEW_MAX_DAILY_PER_USER:
+            # Daily cap reached
+            return video.views or 0
+
+        # 4. Record legitimate view event and increment counters
+        VideoViewEvent.create(
+            video=video_id,
+            creator=video.user_id,
+            subscriber=subscriber_id,
+            created_at=now,
+        )
         video.views = (video.views or 0) + 1
         likes_count = self.get_video_likes_count(video_id)
-        video.popularity_score = video.views + (3 * likes_count)
+        video.popularity_score = video.views + (settings.POPULARITY_SCORE_LIKE_WEIGHT * likes_count)
         video.save()
         return video.views
 
@@ -195,7 +256,8 @@ class MobileVideoRepository:
                 is_liked = True
 
             total_likes = self.get_video_likes_count(video_id)
-            video.popularity_score = (video.views or 0) + (3 * total_likes)
+            settings = get_settings()
+            video.popularity_score = (video.views or 0) + (settings.POPULARITY_SCORE_LIKE_WEIGHT * total_likes)
             video.save()
 
             return is_liked, total_likes
@@ -298,12 +360,13 @@ class MobileVideoRepository:
             if not video:
                 return False
 
+            settings = get_settings()
             duration_seconds = parse_duration_seconds(video.duration)
             now = datetime.now(timezone.utc)
             completed = False
             if duration_seconds > 0:
                 progress_pct = (progress_seconds / float(duration_seconds)) * 100.0
-                if progress_pct >= 95.0:
+                if progress_pct >= settings.VIDEO_COMPLETION_THRESHOLD_PERCENT:
                     completed = True
 
             history_record = WatchHistory.get_or_none(
@@ -391,13 +454,14 @@ class MobileVideoRepository:
         Optionally filters by creator_id for tenant isolation.
         """
         try:
+            settings = get_settings()
             query = (
                 WatchHistory.select(WatchHistory, Video)
                 .join(Video)
                 .where(
                     (WatchHistory.subscriber == subscriber_id)
                     & (WatchHistory.completed == False)
-                    & (WatchHistory.last_position_seconds >= 10)
+                    & (WatchHistory.last_position_seconds >= settings.CONTINUE_WATCHING_MIN_SECONDS)
                     & (fn.LOWER(Video.status).in_(["published", "ready"]))
                     & (Video.is_playable == True)
                 )

@@ -39,6 +39,7 @@ def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
     return {
         "user_id": sub.id,
         "creator_id": sub.creator_id,
+        "role": sub.role,
     }
 
 

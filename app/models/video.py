@@ -106,3 +106,29 @@ class WatchHistory(BaseModel):
     class Meta:
         table_name = "watch_history"
         indexes = ((("video", "subscriber"), True),)
+
+
+class VideoViewEvent(BaseModel):
+    """
+    Immutable event ledger for every validated playback view by an authenticated subscriber.
+    Powers creator telemetry, time-series charts, and windowed analytics.
+    Permanent and independent of subscriber personal watch history deletions.
+    """
+
+    video = ForeignKeyField(Video, backref="view_events", on_delete="CASCADE")
+    creator = ForeignKeyField(
+        model=Admin, backref="view_events", on_delete="CASCADE"
+    )
+    subscriber = ForeignKeyField(
+        Subscriber, backref="view_events", on_delete="CASCADE"
+    )
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+    class Meta:
+        table_name = "video_view_events"
+        indexes = (
+            (("creator", "created_at"), False),
+            (("video", "created_at"), False),
+            (("video", "subscriber", "created_at"), False),
+        )
+

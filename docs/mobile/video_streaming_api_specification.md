@@ -374,17 +374,24 @@ Authorization: Bearer <access_token>  (Required: Strictly requires subscriber ro
 
 ### 9. `POST /api/v1/mobile/videos/{video_id}/progress` — Sync Watch Progress Heartbeat
 
-Syncs playback watch position from the mobile video player (sent every 10 seconds or on pause).
+Syncs playback watch position from the mobile video player into `watch_history`.
+
+#### Calling Schedule & Triggers (Mobile Client Rules)
+To guarantee precise resume positioning and zero-trust view eligibility, the mobile player must dispatch this endpoint at four deterministic milestones:
+1. **Playback Start**: Dispatched immediately upon video start/resume (`progress_seconds = 0` or initial resume second).
+2. **Periodic Interval**: Dispatched every **10 seconds** during continuous streaming playback.
+3. **30% Watch Threshold Trigger**: Dispatched the exact moment playback crosses **30% of video duration** ($0.30 \times \text{duration}$). Immediately after this sync completes, the mobile player calls `POST /api/v1/mobile/videos/{video_id}/views`.
+4. **Lifecycle Events**: Dispatched on player pause, seek/scrub release, app backgrounding, screen exit (`dispose()`), or video completion ($\ge 95\%$).
 
 #### Request Headers
 ```http
-Authorization: Bearer <access_token>  (Required)
+Authorization: Bearer <access_token>  (Required: Strictly requires subscriber role)
 ```
 
 #### Request Body
 ```json
 {
-  "progress_seconds": 425
+  "progress_seconds": 18
 }
 ```
 
@@ -398,11 +405,18 @@ HTTP/1.1 204 No Content
 
 ### 10. `POST /api/v1/mobile/videos/{video_id}/views` — Increment View Count
 
-Registers a legitimate watch view when the mobile subscriber streams past the watch threshold (e.g., 10 seconds).
+Registers an immutable, verified watch view for creator analytics. Strictly verified on the backend (Zero-Trust Model).
+
+#### Backend Verification Pipeline (Zero-Trust Security)
+When this endpoint is invoked, the backend independently verifies four strict security and anti-spam gates before crediting a view:
+1. **Subscriber Role Enforcement**: Caller must be an authenticated account with `role == 'subscriber'`. Anonymous guest accounts (`role == 'guest'`) are rejected with `HTTP 403 Forbidden` (`"Subscriber access required to record views"`).
+2. **Backend Watch Progress Verification**: The backend queries `watch_history` for `(video_id, subscriber_id)` and independently validates that `last_position_seconds >= VIDEO_VIEW_WATCH_THRESHOLD_PERCENT` (default: `30.0%` of video duration). If the client has not actually streamed at least this threshold, the request is rejected with `HTTP 400 Bad Request` (`"WATCH_THRESHOLD_NOT_MET"`).
+3. **Session Debounce Cooldown**: Checks `video_view_events` to ensure no view has been credited to this subscriber for this video within `VIDEO_VIEW_COOLDOWN_MINUTES` (default: `30` minutes). Replays within the cooldown window count as the same continuous viewing session.
+4. **Daily View Cap**: Checks `video_view_events` to ensure this subscriber has not exceeded `VIDEO_VIEW_MAX_DAILY_PER_USER` (default: `3` views) for this video within a rolling `VIDEO_VIEW_DAILY_WINDOW_HOURS` (default: `24` hours), preventing loop and bot manipulation.
 
 #### Request Headers
 ```http
-Authorization: Bearer <access_token>  (Optional)
+Authorization: Bearer <access_token>  (Required: Strictly requires subscriber role)
 ```
 
 #### Response Specification (`200 OK`)
