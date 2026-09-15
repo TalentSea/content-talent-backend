@@ -58,6 +58,7 @@ class MobileVideoDetailResponse(BaseModel):
     progress_percentage: float = 0.0
     thumbnail_url: str | None = None
     hls_stream_url: str | None = None
+    ad_tag_url: str | None = None
     download_urls: list[MobileVideoDownloadUrlResponse] = Field(default_factory=list)
     captions: list[MobileVideoCaptionResponse] = Field(default_factory=list)
     published_at: datetime | None = None

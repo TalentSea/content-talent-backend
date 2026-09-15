@@ -353,6 +353,7 @@ Authorization: Bearer <access_token>  (Required: Strictly requires subscriber ro
   "progress_percentage": 35.4,
   "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_101_main.jpg",
   "hls_stream_url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_9988/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1786195200",
+  "ad_tag_url": "https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator=",
   "download_urls": [
     {
       "resolution": "1080p",
@@ -369,6 +370,18 @@ Authorization: Bearer <access_token>  (Required: Strictly requires subscriber ro
   "published_at": "2026-08-05T10:00:00Z"
 }
 ```
+
+#### Ad Monetization & Entitlement Logic (`ad_tag_url`)
+The `ad_tag_url` field is dynamically computed by the backend based on the subscriber's active subscription tier:
+- **Premium Subscribers (`plan_type = "no_ads"`)**:
+  - `ad_tag_url`: `null`
+  - **Client Behavior**: The mobile/web player skips the ad SDK completely and immediately begins streaming `hls_stream_url` without delays.
+- **Standard Subscribers (`plan_type = "with_ads"`) & Free Users**:
+  - `ad_tag_url`: `"https://pubads.g.doubleclick.net/..."` (Google IMA VAST Tag)
+  - **Client Behavior**: The player passes `ad_tag_url` into the **Google Interactive Media Ads (IMA) SDK**. IMA automatically serves the 15-second skippable pre-roll ad with a 5-second countdown. Once skipped or completed, the player transitions to `hls_stream_url`.
+- **Ads Disabled Globally**:
+  - If `GOOGLE_IMA_VAST_TAG_URL` is empty in server `.env`, `ad_tag_url` is always `null` for all users.
+
 
 ---
 

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     CONTINUE_WATCHING_MIN_SECONDS: int
     POPULARITY_SCORE_LIKE_WEIGHT: int
 
+    # Video Ad Monetization (Google IMA / VAST)
+    GOOGLE_IMA_VAST_TAG_URL: str = ""
+
     @property
     def allowed_image_extensions_tuple(self) -> tuple[str, ...]:
         """

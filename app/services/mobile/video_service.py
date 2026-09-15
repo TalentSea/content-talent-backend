@@ -3,6 +3,9 @@ import logging
 from fastapi import HTTPException, status
 
 from app.config import get_settings
+from app.repositories.mobile.user_subscription_repository import (
+    UserSubscriptionRepository,
+)
 from app.repositories.mobile.video_repository import MobileVideoRepository
 from app.schemas.mobile.video_schemas import (
     MobileVideoCaptionResponse,
@@ -30,6 +33,7 @@ class MobileVideoService:
 
     def __init__(self):
         self.repo = MobileVideoRepository()
+        self.sub_repo = UserSubscriptionRepository()
 
     def _to_list_item_response(
         self, v, pos: int | None = None, pct: float | None = None
@@ -183,6 +187,25 @@ class MobileVideoService:
                 video.id, subscriber_id
             )
 
+        # 5. Evaluate In-Stream Video Ad Entitlement
+        ad_tag_url = None
+        vast_tag = (
+            settings.GOOGLE_IMA_VAST_TAG_URL.strip()
+            if settings.GOOGLE_IMA_VAST_TAG_URL
+            else None
+        )
+        if vast_tag:
+            is_premium_ad_free = False
+            if subscriber_id:
+                active_sub = self.sub_repo.get_active_subscription(
+                    user_id=subscriber_id, creator_id=video.user_id
+                )
+                if active_sub and getattr(active_sub.plan, "plan_type", None) == "no_ads":
+                    is_premium_ad_free = True
+
+            if not is_premium_ad_free:
+                ad_tag_url = vast_tag
+
         return MobileVideoDetailResponse(
             id=video.id,
             title=video.title,
@@ -198,6 +221,7 @@ class MobileVideoService:
             progress_percentage=progress_pct,
             thumbnail_url=video.main_thumbnail_url,
             hls_stream_url=hls_stream_url,
+            ad_tag_url=ad_tag_url,
             download_urls=download_urls,
             captions=captions,
             published_at=video.published_at,
