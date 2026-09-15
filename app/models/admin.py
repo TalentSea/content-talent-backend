@@ -26,5 +26,18 @@ class Admin(BaseModel):
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
+    @property
+    def name(self) -> str:
+        """
+        Returns full creator name, or email prefix if profile name is blank,
+        falling back cleanly to 'Creator'.
+        """
+        full_name = f"{self.first_name or ''} {self.last_name or ''}".strip()
+        if full_name:
+            return full_name
+        if self.email and "@" in self.email:
+            return self.email.split("@")[0].replace(".", " ").replace("_", " ").title()
+        return "Creator"
+
     class Meta:
         table_name = "admins"

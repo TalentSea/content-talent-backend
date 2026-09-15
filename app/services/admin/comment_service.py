@@ -40,15 +40,11 @@ class CommentService:
         # For Admin Creator posts where c.user is None
         creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
         creator_id = creator.id if creator else 0
-        name = (
-            f"{creator.first_name or ''} {creator.last_name or ''}".strip()
-            if creator
-            else "Creator Admin"
-        )
+        name = creator.name if creator else "Creator"
         avatar_url = creator.avatar_url if creator else None
         return CommentAuthorResponse(
             id=creator_id,
-            name=name or "Creator Admin",
+            name=name,
             avatar_url=avatar_url,
             is_creator=True,
         )

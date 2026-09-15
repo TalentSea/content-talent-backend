@@ -39,7 +39,7 @@ class MobileCommentService:
         creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
         return MobileCommentAuthorResponse(
             id=creator.id if creator else 0,
-            name=creator.name if creator else "Admin Creator",
+            name=creator.name if creator else "Creator",
             avatar_url=creator.avatar_url if creator else None,
             is_creator=True,
         )
