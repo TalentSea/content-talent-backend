@@ -70,20 +70,5 @@ def init_db():
         safe=True,
     )
 
-    # Ensure at least one default test creator exists in admins table for development/auth testing
-    if Admin.select().count() == 0:
-        Admin.create(
-            email="creator@example.com",
-            first_name="Creator",
-            last_name="Name",
-            bio="Content creator and educator",
-            website="https://example.com",
-            phone="+1 (555) 123-4567",
-            location="San Francisco, CA",
-            twitter_url="https://twitter.com/username",
-            youtube_url="https://youtube.com/@username",
-            instagram_url="https://instagram.com/username",
-        )
-
     if not db_proxy.is_closed():
         db_proxy.close()

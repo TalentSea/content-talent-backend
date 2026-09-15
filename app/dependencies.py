@@ -3,7 +3,6 @@ from typing import Annotated, Any
 from fastapi import Depends, File, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 
-from app.config import get_settings
 from app.models.admin import Admin
 from app.models.subscriber import Subscriber
 from app.utils.auth import decode_access_token
@@ -72,22 +71,6 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
     Guards Admin Web Portal routes (/api/v1/admin/*) to ensure the caller is strictly an Admin Creator.
     Extracts admin user_id directly from token context. Subscriber tokens are rejected.
     """
-    settings = get_settings()
-    static_key = settings.STATIC_API_KEY or "talentsea_secret_api_key_2026"
-
-    # Static API Key & Dev token override for Admin Portal testing
-    if token in (static_key, "test_token"):
-        admin, _ = Admin.get_or_create(
-            email="creator@example.com",
-            defaults={"first_name": "Creator", "last_name": "Admin"},
-        )
-        return {
-            "user_id": admin.id,
-            "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip()
-            or "Creator Admin",
-            "email": admin.email,
-        }
-
     payload = decode_access_token(token)
 
     # Reject non-admin tokens (e.g. subscriber or guest credentials) on admin routes
@@ -111,8 +94,7 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
 
     return {
         "user_id": admin.id,
-        "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip()
-        or "Creator Admin",
+        "name": admin.name,
         "email": admin.email,
     }
 
