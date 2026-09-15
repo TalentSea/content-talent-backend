@@ -19,10 +19,7 @@ class MobileSubscriptionPlanRepository:
         try:
             return list(
                 SubscriptionPlan.select()
-                .where(
-                    (SubscriptionPlan.user == creator_id)
-                    & (SubscriptionPlan.is_active == 1)
-                )
+                .where(SubscriptionPlan.user == creator_id)
                 .order_by(
                     SubscriptionPlan.display_order.asc(),
                     SubscriptionPlan.created_at.asc(),

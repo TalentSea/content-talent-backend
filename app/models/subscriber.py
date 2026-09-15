@@ -24,3 +24,6 @@ class Subscriber(BaseModel):
 
     class Meta:
         table_name = "subscribers"
+        indexes = (
+            (("creator", "provider", "provider_id"), True),
+        )

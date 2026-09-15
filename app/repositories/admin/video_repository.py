@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from peewee import PeeweeException, fn
 
@@ -158,7 +157,7 @@ class VideoRepository:
         Flips status = 'published', published_at = scheduled_at, and clears scheduled_at = None.
         """
         try:
-            now = datetime.now(ZoneInfo("Asia/Kolkata"))
+            now = datetime.now(timezone.utc)
             count = (
                 Video.update(
                     status="published",

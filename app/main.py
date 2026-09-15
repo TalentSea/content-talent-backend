@@ -15,6 +15,7 @@ from app.repositories.mobile.user_subscription_repository import (
     UserSubscriptionRepository,
 )
 from app.routes.admin import (
+    admin_auth_router,
     admin_branding_router,
     admin_category_router,
     admin_comment_router,
@@ -129,6 +130,7 @@ app.include_router(mobile_subscription_plan_router)
 app.include_router(mobile_payment_router)
 app.include_router(mobile_subscription_router)
 app.include_router(webhook_router)
+app.include_router(admin_auth_router)
 app.include_router(admin_video_router)
 app.include_router(admin_dashboard_router)
 app.include_router(admin_playlist_router)

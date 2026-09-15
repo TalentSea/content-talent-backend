@@ -155,10 +155,8 @@ class PlaylistRepository:
             PlaylistVideo.select(fn.MAX(PlaylistVideo.order))
             .where(PlaylistVideo.playlist == playlist)
             .scalar()
-            or 0
         )
-
-        curr_order = max_order + 1 if max_order > 0 else 0
+        curr_order = 0 if max_order is None else max_order + 1
         for vid_id in video_ids:
             exists = (
                 Video.select()

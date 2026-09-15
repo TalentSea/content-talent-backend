@@ -130,7 +130,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of the branding record |
 | `user_id` | `INTEGER` | **FK ➔ `admins.id` (UNIQUE, CASCADE)** | NO | None | Admin creator who owns this studio branding |
-| `creator_name` | `VARCHAR(255)` | Standard | YES | `NULL` | Public studio display name |
+| `studio_name` | `VARCHAR(255)` | Standard | YES | `NULL` | Public studio / channel display name |
 | `tagline` | `VARCHAR(255)` | Standard | YES | `NULL` | Studio app tagline |
 | `description` | `TEXT` | Standard | YES | `NULL` | Studio channel description |
 | `banner_url` | `VARCHAR(500)` | Standard | YES | `NULL` | CDN cover banner URL |
@@ -206,7 +206,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `bunny_video_id` | `VARCHAR(255)` | **UNIQUE** | NO | None | Bunny Stream GUID container identifier |
 | `title` | `VARCHAR(255)` | Standard | NO | None | Mandatory video title |
 | `description` | `TEXT` | Standard | NO | None | Mandatory video description |
-| `category` | `VARCHAR(100)` | Standard | NO | None | Mandatory category slug association |
+| `category` | `VARCHAR(100)` | Standard | YES | `NULL` | Category name association (set to NULL when category is deleted) |
 | `status` | `VARCHAR(20)` | Standard | NO | `"PENDING"` | Processing status (`PENDING`, `ENCODING`, `READY`, `PLAYABLE`, `SCHEDULED`, `FAILED`) |
 | `encode_progress`| `INTEGER` | Standard | NO | `0` | Transcoding progress percentage (0-100) |
 | `is_playable` | `BOOLEAN` | Standard | NO | `False` | Playable state flag (True when 240p+ ready) |
@@ -349,21 +349,23 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of plan tier |
 | `user_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Admin Creator Studio owning this plan |
-| `name` | `VARCHAR(100)` | Standard | NO | None | Display title of plan (e.g. "Basic", "Premium") |
-| `description` | `TEXT` | Standard | YES | `NULL` | Tagline / summary text |
+| `plan_type` | `VARCHAR(20)` | Standard | NO | None | Fixed tier identity: `'with_ads'` or `'no_ads'` |
+| `name` | `VARCHAR(100)` | Standard | NO | None | Creator's display title for plan |
+| `description` | `TEXT` | Standard | YES | `NULL` | Creator's custom tagline / summary text |
 | `base_price` | `FLOAT` | Standard | NO | `0.0` | Base non-discounted price in ₹ |
 | `discount_percentage` | `FLOAT` | Standard | NO | `0.0` | Discount percentage (0 to 100) |
 | `final_price` | `FLOAT` | Standard | NO | `0.0` | Computed charge price in ₹ after discount |
 | `currency` | `VARCHAR(10)` | Standard | NO | `"INR"` | Currency ISO code (`"INR"`) |
-| `billing_period_value` | `INTEGER` | Standard | NO | `1` | Interval quantity (e.g. `1`, `12`, `24`) |
-| `billing_period_unit` | `VARCHAR(20)` | Standard | NO | `"months"` | Interval unit (`"days"`, `"months"`, `"years"`) |
-| `features` | `JSON` | Standard | NO | `[]` | Feature string list for card checklist |
-| `badge_text` | `VARCHAR(50)` | Standard | YES | `NULL` | Marketing tag (e.g. `"15% OFF"`, `"⚡"`) |
-| `is_active` | `BOOLEAN` | Standard | NO | `True` | Visibility flag for mobile subscribers |
-| `display_order` | `INTEGER` | Standard | NO | `1` | Sequence for drag-and-drop ordering |
+| `billing_period_value` | `INTEGER` | Standard | NO | `1` | Interval quantity (`1`) |
+| `billing_period_unit` | `VARCHAR(20)` | Standard | NO | `"months"` | Interval unit (`"months"`) |
+| `badge_text` | `VARCHAR(50)` | Standard | YES | `NULL` | Marketing tag (e.g. `"Popular"`, `"Best Value"`) |
+| `display_order` | `INTEGER` | Standard | NO | `1` | Display sequence (`1` for with-ads, `2` for no-ads) |
 | `active_subscribers` | `INTEGER` | Standard | NO | `0` | Counter cache of active subscribers enrolled |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Creation timestamp |
 | `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last updated timestamp |
+
+> [!NOTE]
+> Technical feature checklists are maintained in `app/constants/plans.py` and dynamically injected by the backend during API serialization based on `plan_type`. Both tiers are permanently active for mobile paywall continuity.
 
 ---
 

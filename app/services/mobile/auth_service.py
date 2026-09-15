@@ -110,8 +110,10 @@ class AuthService:
 
         # Generate App JWT Access Token containing user_id and creator_id
         username_str = subscriber.name or f"subscriber_{subscriber.id}"
+        role_str = subscriber.role or ("subscriber" if subscriber.provider != "guest" else "guest")
         access_token = create_access_token(
             user_id=subscriber.id,
+            role=role_str,
             username=username_str,
             creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,
@@ -144,6 +146,7 @@ class AuthService:
 
         access_token = create_access_token(
             user_id=subscriber.id,
+            role="guest",
             username=subscriber.name or f"guest_{subscriber.id}",
             creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,
@@ -221,8 +224,10 @@ class AuthService:
 
         # Issue new token pair
         username_str = subscriber.name or f"subscriber_{subscriber.id}"
+        role_str = subscriber.role or ("subscriber" if subscriber.provider != "guest" else "guest")
         new_access_token = create_access_token(
             user_id=subscriber.id,
+            role=role_str,
             username=username_str,
             creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,

@@ -274,17 +274,14 @@ Authorization: Bearer <admin_access_token>
 
 ### 3.3 `GET /api/v1/admin/dashboard/subscription-breakdown` — Donut / Pie Chart
 
-Returns subscriber distribution and actual captured revenue grouped by subscription plan tier for the selected date window, empowering the frontend to render donut charts by either subscribers or revenue.
+Returns subscriber distribution and actual captured revenue grouped by the creator's two subscription plan tiers for the selected date window, empowering the frontend to render donut charts by either subscribers or revenue.
 
 #### Business Logic & Data Fidelity
 
 - **Date Filtering**: Accepts `range` presets or custom `start_date` and `end_date` calendar boundaries, keeping the donut chart dynamically synchronized with the dashboard date filter.
 - **Dual Telemetry (Subscribers & Revenue)**: Each tier provides both `subscribers` count with `subscribers_percentage` and period `revenue` with `revenue_percentage`, enabling zero-cost frontend toggling between **"By Subscribers"** and **"By Revenue"**.
-- **Strict Plan Name Uniqueness**: In the database, every plan name is guaranteed unique per creator.
-- **Active Plans (`is_active: true`)**: Current tiers available for new purchases appear with their configured name and badge text.
-- **Retired / Deactivated Plans (`is_active: false`)**: If a plan was deactivated but still generated revenue or contains subscribers within their valid access window, it is returned with its **exact real name and `plan_id`**, preserving 100% data fidelity. The frontend uses `is_active: false` to visually style it (e.g. gray slice or "Archived" pill).
-- **`badge_text` Field Integrity**: The backend **never** forces `badge_text` to `null` or overrides it with `"Archived"`. If the creator configured a badge (e.g. `"Founder Offer"`), that exact string is returned regardless of active state. If the creator left it empty, it remains `null`. Active/inactive state is strictly governed by `is_active: true | false`.
-- **Zero Clutter**: Tiers with zero subscribers and zero revenue in the selected window that are also inactive do not appear.
+- **Two-Tier Model Fidelity**: Returns the creator's two fixed tiers (`Standard with Ads` and `Premium Ad-Free`) in display order sequence, delivering an immediate two-tier ratio breakdown.
+- **Lean Telemetry Payload**: Marketing badges and deprecated active/inactive flags are omitted to keep the BI chart payload lean and focused strictly on visualization metrics.
 
 #### Headers
 
@@ -302,51 +299,27 @@ Authorization: Bearer <admin_access_token>
 
 ```json
 {
-  "start_date": "2026-06-11",
-  "end_date": "2026-09-09",
+  "start_date": "2026-08-15",
+  "end_date": "2026-09-14",
   "currency": "INR",
-  "total_subscribers": 12543,
-  "total_revenue": 135693.0,
+  "total_subscribers": 1250,
+  "total_revenue": 165000.0,
   "tiers": [
     {
       "plan_id": 1,
-      "name": "Pro Yearly",
-      "badge_text": "Most Popular",
-      "is_active": true,
-      "subscribers": 6898,
-      "subscribers_percentage": 55.0,
-      "revenue": 82776.0,
-      "revenue_percentage": 61.0
+      "name": "Standard with Ads",
+      "subscribers": 450,
+      "subscribers_percentage": 36.0,
+      "revenue": 44550.0,
+      "revenue_percentage": 27.0
     },
     {
       "plan_id": 2,
-      "name": "Standard Monthly",
-      "badge_text": null,
-      "is_active": true,
-      "subscribers": 3762,
-      "subscribers_percentage": 30.0,
-      "revenue": 40707.0,
-      "revenue_percentage": 30.0
-    },
-    {
-      "plan_id": 3,
-      "name": "Starter",
-      "badge_text": null,
-      "is_active": true,
-      "subscribers": 1505,
-      "subscribers_percentage": 12.0,
-      "revenue": 8140.0,
-      "revenue_percentage": 6.0
-    },
-    {
-      "plan_id": 4,
-      "name": "Early Bird",
-      "badge_text": "Limited Offer",
-      "is_active": false,
-      "subscribers": 378,
-      "subscribers_percentage": 3.0,
-      "revenue": 4070.0,
-      "revenue_percentage": 3.0
+      "name": "Premium Ad-Free",
+      "subscribers": 800,
+      "subscribers_percentage": 64.0,
+      "revenue": 120450.0,
+      "revenue_percentage": 73.0
     }
   ]
 }
@@ -358,15 +331,14 @@ Authorization: Bearer <admin_access_token>
 - `currency`: Default currency code (`"INR"`).
 - `total_subscribers`: Total count of active subscribers across all tiers (used for donut center text).
 - `total_revenue`: Total captured revenue in ₹ INR across all tiers during the selected period (used for donut center text).
-- `tiers`: Array of subscription tier segments:
-  - `plan_id`: Database ID of the subscription plan.
-  - `name`: Real name of the plan (e.g. `"Pro Yearly"`).
-  - `badge_text`: Custom creator marketing badge from the database (`"Most Popular"` or `null`).
-  - `is_active`: Boolean flag indicating if the plan is currently active or deactivated.
-  - `subscribers`: Number of active subscribers currently enrolled in this plan.
+- `tiers`: Array of subscription tier segments (ordered by `display_order`):
+  - `plan_id`: Database ID of the subscription plan (unique React key).
+  - `name`: Real customized title of the plan (e.g. `"Standard with Ads"`, `"Premium Ad-Free"`).
+  - `subscribers`: Number of active subscribers currently enrolled in this tier.
   - `subscribers_percentage`: Share of total subscribers rounded to 1 decimal place.
-  - `revenue`: Actual captured revenue generated by this plan in ₹ INR during the selected period.
+  - `revenue`: Actual captured revenue generated by this tier in ₹ INR during the selected period.
   - `revenue_percentage`: Share of total period revenue rounded to 1 decimal place.
+
 
 ---
 

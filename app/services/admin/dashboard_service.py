@@ -343,8 +343,6 @@ class DashboardService:
                 SubscriptionTierItem(
                     plan_id=t["plan_id"],
                     name=t["name"],
-                    badge_text=t["badge_text"],
-                    is_active=t["is_active"],
                     subscribers=subs_cnt,
                     subscribers_percentage=subs_pct,
                     revenue=rev_val,

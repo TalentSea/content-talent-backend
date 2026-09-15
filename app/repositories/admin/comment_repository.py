@@ -3,7 +3,7 @@ import logging
 from peewee import PeeweeException, fn
 
 from app.models.admin import Admin
-from app.models.comment import Comment, CommentLike
+from app.models.comment import Comment
 from app.models.video import Video
 
 logger = logging.getLogger(__name__)
@@ -135,39 +135,6 @@ class CommentRepository:
         except PeeweeException as e:
             logger.error("Error fetching replies for comment %s: %s", comment_id, e)
             return [], 0
-
-    def is_comment_liked_by_user(self, comment_id: int, user_id: int) -> bool:
-        """
-        Checks if a specific user has a row in comment_likes table.
-        """
-        try:
-            return (
-                CommentLike.select()
-                .where(
-                    (CommentLike.comment == comment_id) & (CommentLike.user == user_id)
-                )
-                .exists()
-            )
-        except PeeweeException as e:
-            logger.error("Error checking like state for comment %s: %s", comment_id, e)
-            return False
-
-    def get_user_liked_comment_ids(
-        self, comment_ids: list[int], user_id: int | None
-    ) -> set[int]:
-        """
-        Batches liked comment IDs for a user in 1 single query.
-        """
-        if not comment_ids or not user_id:
-            return set()
-        try:
-            liked_query = CommentLike.select(CommentLike.comment).where(
-                (CommentLike.user == user_id) & (CommentLike.comment.in_(comment_ids))
-            )
-            return {row.comment_id for row in liked_query}
-        except PeeweeException as e:
-            logger.error("Error batch fetching liked comment IDs: %s", e)
-            return set()
 
     def create_top_level_comment(
         self, video: Video, creator_user: Admin, text: str

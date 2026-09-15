@@ -24,7 +24,7 @@ class BrandingService:
     def _to_branding_response(self, branding) -> BrandingResponse:
         """Helper to map a Branding ORM instance to a BrandingResponse DTO."""
         return BrandingResponse(
-            creator_name=branding.creator_name,
+            studio_name=branding.studio_name,
             tagline=branding.tagline,
             description=branding.description,
             banner_url=branding.banner_url,
@@ -40,7 +40,7 @@ class BrandingService:
         branding = self.repo.get_by_user_id(user_id)
         if not branding:
             return BrandingResponse(
-                creator_name=None,
+                studio_name=None,
                 tagline=None,
                 description=None,
                 banner_url=None,
@@ -62,7 +62,7 @@ class BrandingService:
         branding = self.repo.get_by_user_id(creator_id)
         if not branding:
             return BrandingResponse(
-                creator_name=None,
+                studio_name=None,
                 tagline=None,
                 description=None,
                 banner_url=None,

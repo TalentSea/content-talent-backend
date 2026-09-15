@@ -59,21 +59,21 @@ class CategoryRepository:
             if simple:
                 return [(cat, 0) for cat in categories]
 
-            results = []
-            for cat in categories:
-                count = (
-                    Video.select()
-                    .where(
-                        (Video.user == user_id)
-                        & (fn.LOWER(Video.category) == cat.slug)
-                        & (fn.LOWER(Video.status).in_(["published", "ready"]))
-                        & (Video.is_playable == True)
-                    )
-                    .count()
+            video_counts_query = (
+                Video.select(
+                    fn.LOWER(Video.category).alias("cat_name"),
+                    fn.COUNT(Video.id).alias("v_count"),
                 )
-                results.append((cat, count))
-
-            return results
+                .where(
+                    (Video.user == user_id)
+                    & (Video.category.is_null(False))
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
+                )
+                .group_by(fn.LOWER(Video.category))
+            )
+            counts_map = {row.cat_name: row.v_count for row in video_counts_query}
+            return [(cat, counts_map.get(cat.name.lower().strip(), 0)) for cat in categories]
         except PeeweeException as e:
             logger.error("Error querying categories for user %s: %s", user_id, e)
             raise
@@ -174,7 +174,7 @@ class CategoryRepository:
 
             # Unlink associated videos safely
             Video.update(category=None).where(
-                (Video.user == user_id) & (fn.LOWER(Video.category) == cat.slug)
+                (Video.user == user_id) & (fn.LOWER(Video.category) == cat.name.lower().strip())
             ).execute()
 
             cat.delete_instance()

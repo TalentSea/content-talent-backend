@@ -19,6 +19,16 @@ def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
     Guards Mobile API routes (/api/v1/mobile/*) to ensure caller is strictly a Mobile Subscriber or Guest.
     """
     payload = decode_access_token(token)
+
+    # Reject non-subscriber tokens (e.g. admin credentials) on mobile routes
+    token_role = payload.get("role")
+    if token_role not in ("subscriber", "guest"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Mobile subscriber credentials required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user_id = payload["user_id"]
 
     # Validate strictly against Subscriber table
@@ -79,6 +89,15 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
         }
 
     payload = decode_access_token(token)
+
+    # Reject non-admin tokens (e.g. subscriber or guest credentials) on admin routes
+    if payload.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Admin portal authorization required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user_id = payload["user_id"]
 
     # Validate strictly against Admin table

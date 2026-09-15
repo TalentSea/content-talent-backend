@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from peewee import PeeweeException
+from peewee import IntegrityError, PeeweeException
 
 from app.config import get_settings
 from app.models.refresh_token import RefreshToken
@@ -65,18 +65,26 @@ class AuthRepository:
         """
         Creates a new social subscriber bound to creator_id in the database.
         """
-        sub = Subscriber.create(
-            creator=creator_id,
-            email=email,
-            name=name,
-            avatar_url=avatar_url,
-            provider=provider,
-            provider_id=provider_id,
-            role="subscriber",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-        return sub
+        try:
+            sub = Subscriber.create(
+                creator=creator_id,
+                email=email,
+                name=name,
+                avatar_url=avatar_url,
+                provider=provider,
+                provider_id=provider_id,
+                role="subscriber",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            return sub
+        except IntegrityError:
+            existing = self.find_user_by_provider_or_email(
+                creator_id, provider, provider_id, email
+            )
+            if existing:
+                return existing
+            raise
 
     def update_user_profile_info(
         self, subscriber: Subscriber, name: str | None, avatar_url: str | None
@@ -186,19 +194,35 @@ class AuthRepository:
             sub.save()
             return sub
 
-        sub = Subscriber.create(
-            creator=creator_id,
-            name="Guest User",
-            email=None,
-            avatar_url=None,
-            provider="guest",
-            provider_id=device_id,
-            role="guest",
-            is_active=True,
-            created_at=now,
-            updated_at=now,
-        )
-        return sub
+        try:
+            sub = Subscriber.create(
+                creator=creator_id,
+                name="Guest User",
+                email=None,
+                avatar_url=None,
+                provider="guest",
+                provider_id=device_id,
+                role="guest",
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+            return sub
+        except IntegrityError:
+            sub = (
+                Subscriber.select()
+                .where(
+                    (Subscriber.creator == creator_id)
+                    & (Subscriber.provider == "guest")
+                    & (Subscriber.provider_id == device_id)
+                )
+                .first()
+            )
+            if sub:
+                sub.updated_at = now
+                sub.save()
+                return sub
+            raise
 
     def upgrade_guest_subscriber(
         self,

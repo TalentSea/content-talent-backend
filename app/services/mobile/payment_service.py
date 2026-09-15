@@ -111,7 +111,6 @@ class MobilePaymentService:
         plan = SubscriptionPlan.get_or_none(
             (SubscriptionPlan.id == plan_id)
             & (SubscriptionPlan.user == creator_id)
-            & (SubscriptionPlan.is_active == 1)
         )
         if not plan:
             raise HTTPException(

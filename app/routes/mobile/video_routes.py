@@ -208,9 +208,15 @@ def record_video_view(video_id: int, current_subscriber: CurrentSubscriber):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Subscriber access required to record views",
         )
+    user_id = current_subscriber.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found in subscriber session",
+        )
     return mobile_video_service.record_video_view(
         video_id=video_id,
-        subscriber_id=current_subscriber["user_id"],
+        subscriber_id=user_id,
         creator_id=current_subscriber.get("creator_id"),
     )
 

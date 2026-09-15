@@ -22,7 +22,7 @@ This document details the public API endpoint for Mobile Application subscribers
 
 ```json
 {
-  "creator_name": "TechNics Training Studio",
+  "studio_name": "TechNics Training Studio",
   "tagline": "Master Modern Software Engineering & Cloud Architecture",
   "description": "Learn backend clean architecture, OTT video streaming systems, and cloud infrastructure with hands-on projects.",
   "banner_url": "https://talentsea77999.b-cdn.net/assets/branding/banner_1_1787293643.jpg",
@@ -35,7 +35,7 @@ This document details the public API endpoint for Mobile Application subscribers
 
 ```json
 {
-  "creator_name": null,
+  "studio_name": null,
   "tagline": null,
   "description": null,
   "banner_url": null,

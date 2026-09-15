@@ -11,6 +11,7 @@ class Admin(BaseModel):
     """
 
     email = CharField(unique=True, max_length=255, index=True)
+    password_hash = CharField(max_length=255, null=True)
     first_name = CharField(max_length=100, null=True)
     last_name = CharField(max_length=100, null=True)
     phone = CharField(max_length=50, null=True)

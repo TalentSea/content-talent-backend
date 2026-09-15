@@ -1,52 +1,76 @@
 # Admin Subscription Plans Management API Specification
 
-This document details the RESTful API endpoints for Web Admin Creators to configure, manage, edit, reorder, and curate Subscription Plan Tiers displayed on the mobile application paywall checkout screen.
+This document details the RESTful API endpoints for Web Admin Creators to configure, price, and customize their two fixed Subscription Plan Tiers displayed on the mobile application paywall checkout screen.
 
 ---
 
-## 1. System Architecture & Security Standards
+## 1. System Architecture & Two-Tier Business Model
 
-### 1.1 Base Route Prefix
-```http
-/api/v1/admin/plans
-```
+### 1.1 Strict Two-Tier Subscription Model
 
-### 1.2 Authentication & Authorization
-* All endpoints require a valid Admin Creator JWT Bearer token passed in the HTTP request header:
-```http
-Authorization: Bearer <admin_access_token>
-```
-* **Multi-Tenant Isolation**: Extracted `current_user["user_id"]` guarantees creators can only view, create, edit, reorder, or delete subscription plans belonging to their own creator studio.
+The platform enforces a standardized, multi-tenant **Two-Tier Architecture** provisioned atomically during creator studio onboarding (`create_creator.py`):
 
-### 1.3 Localization & Pricing Standards
-* **Default Currency**: `"INR"` (Indian Rupee ₹).
-* **Discount Calculation**:
+1. **Tier 1 (`plan_type = "with_ads"` / `display_order = 1`)**: Standard with Ads tier.
+2. **Tier 2 (`plan_type = "no_ads"` / `display_order = 2`)**: Premium Ad-Free tier.
+
+### 1.2 Built-in Platform Features (`app/constants/plans.py`)
+
+Feature checklists describe the platform's technical streaming capabilities and are maintained centrally in `app/constants/plans.py`. When API endpoints serve plan details to the web admin portal or mobile app, the backend dynamically attaches the corresponding feature list:
+
+- **Tier 1 (`with_ads`) Features**:
+  - Full video catalog access
+  - Standard definition (720p) streaming
+  - Occasional short advertisements
+  - 1 concurrent device stream
+- **Tier 2 (`no_ads`) Features**:
+  - 100% Ad-free streaming
+  - Full HD (1080p) crystal-clear resolution
+  - Offline mobile video downloads
+  - Up to 3 concurrent device screens
+  - Early access to new releases
+
+> [!NOTE]
+> Creators **do not** create or edit technical feature bullets. Technical entitlements (ad-insertion, resolution, downloads, concurrent screen limits) are platform-governed.
+
+### 1.3 ocalization & Pricing Standards
+
+- **Default Currency**: `"INR"` (Indian Rupee ₹).
+- **Discount Calculation**:
   $$\text{final\_price} = \text{base\_price} \times \left(1 - \frac{\text{discount\_percentage}}{100}\right)$$
-* **Billing Period Standards**:
-  - `billing_period_value`: Positive integer (e.g. `7`, `1`, `12`, `24`).
-  - `billing_period_unit`: `"days"`, `"months"`, or `"years"`.
+- **Billing Period**: Standardized monthly billing (`billing_period_value = 1`, `billing_period_unit = "months"`).
 
 ---
 
 ## 2. Standard HTTP Error Responses
 
-All error responses across all endpoints follow the standard FastAPI JSON error envelope:
+All error responses follow the standard FastAPI JSON error envelope:
 
-#### 1. `400 Bad Request` — Schema Validation / Invalid Value
+#### 1. `400 Bad Request` — Validation / Invalid Value
+
 ```json
 {
-  "detail": "Subscription plan with name 'Basic' already exists for this creator studio"
+  "detail": "Discount percentage must be between 0 and 100"
 }
 ```
 
-#### 2. `401 Unauthorized` — Missing or Invalid Bearer Token
+#### 2. `401 Unauthorized` — Missing or Invalid Token
+
 ```json
 {
   "detail": "Could not validate credentials"
 }
 ```
 
-#### 3. `404 Not Found` — Resource Not Found or Forbidden Ownership
+#### 3. `403 Forbidden` — Role Mismatch
+
+```json
+{
+  "detail": "Forbidden: Admin portal authorization required"
+}
+```
+
+#### 4. `404 Not Found` — Plan Not Found or Belongs to Another Creator
+
 ```json
 {
   "detail": "Subscription plan 104 not found"
@@ -57,275 +81,124 @@ All error responses across all endpoints follow the standard FastAPI JSON error 
 
 ## 3. API Endpoint Specifications
 
-### 3.1 `GET /api/v1/admin/plans` — List All Creator Subscription Plans
+### 3.1 `GET /api/v1/admin/plans` — List Creator Subscription Plans
 
-Retrieves all subscription plans owned by the authenticated creator studio (both active and inactive), ordered by `display_order` ascending, enriched with live active subscriber counts and monthly revenue stats in ₹ INR.
+Retrieves the 2 fixed subscription plans owned by the authenticated creator studio, enriched with built-in feature lists from `app/constants/plans.py` and live subscriber and monthly revenue metrics.
 
 #### Headers
+
 ```http
 Authorization: Bearer <admin_access_token>
 ```
 
 #### Response Envelope (`200 OK`)
+
 ```json
 [
   {
     "id": 1,
-    "name": "Basic",
-    "description": "Perfect for getting started",
-    "base_price": 799.00,
+    "plan_type": "with_ads",
+    "name": "Standard with Ads",
+    "description": "Access to our full catalog with occasional commercial breaks.",
+    "base_price": 99.0,
     "discount_percentage": 0.0,
-    "final_price": 799.00,
+    "final_price": 99.0,
     "currency": "INR",
     "billing_period_value": 1,
     "billing_period_unit": "months",
     "features": [
-      "Access to basic content library",
-      "Standard video quality",
-      "Community access",
-      "Email support"
+      "Full video catalog access",
+      "Standard definition (720p) streaming",
+      "Occasional short advertisements",
+      "1 concurrent device stream"
     ],
-    "badge_text": null,
-    "is_active": true,
+    "badge_text": "Popular",
     "display_order": 1,
-    "active_subscribers": 4309,
-    "monthly_revenue": 3442891.00,
+    "active_subscribers": 142,
+    "monthly_revenue": 14058.0,
     "created_at": "2026-08-20T10:00:00Z",
-    "updated_at": "2026-08-29T12:00:00Z"
+    "updated_at": "2026-09-14T12:00:00Z"
   },
   {
     "id": 2,
-    "name": "Premium",
-    "description": "Best for serious learners",
-    "base_price": 2499.00,
-    "discount_percentage": 0.0,
-    "final_price": 2499.00,
-    "currency": "INR",
-    "billing_period_value": 24,
-    "billing_period_unit": "months",
-    "features": [
-      "Access to all premium content",
-      "4K video quality",
-      "Priority community access",
-      "Live Q&A sessions",
-      "Downloadable resources",
-      "24/7 priority support"
-    ],
-    "badge_text": "⚡",
-    "is_active": true,
-    "display_order": 2,
-    "active_subscribers": 8234,
-    "monthly_revenue": 16460000.00,
-    "created_at": "2026-08-20T10:00:00Z",
-    "updated_at": "2026-08-29T12:00:00Z"
-  },
-  {
-    "id": 3,
-    "name": "Annual Basic",
-    "description": "Save 15% with annual billing",
-    "base_price": 7999.00,
-    "discount_percentage": 15.0,
-    "final_price": 6799.15,
+    "plan_type": "no_ads",
+    "name": "Premium Ad-Free",
+    "description": "Enjoy completely uninterrupted premium streaming in full HD.",
+    "base_price": 199.0,
+    "discount_percentage": 10.0,
+    "final_price": 179.1,
     "currency": "INR",
     "billing_period_value": 1,
-    "billing_period_unit": "years",
+    "billing_period_unit": "months",
     "features": [
-      "All Basic plan features",
-      "2 months free",
-      "Annual exclusive content"
+      "100% Ad-free streaming",
+      "Full HD (1080p) crystal-clear resolution",
+      "Offline mobile video downloads",
+      "Up to 3 concurrent device screens",
+      "Early access to new releases"
     ],
-    "badge_text": "15% OFF",
-    "is_active": true,
-    "display_order": 3,
-    "active_subscribers": 1245,
-    "monthly_revenue": 8465000.00,
+    "badge_text": "Best Value",
+    "display_order": 2,
+    "active_subscribers": 310,
+    "monthly_revenue": 55521.0,
     "created_at": "2026-08-20T10:00:00Z",
-    "updated_at": "2026-08-29T12:00:00Z"
+    "updated_at": "2026-09-14T12:00:00Z"
   }
 ]
 ```
 
 ---
 
-### 3.2 `POST /api/v1/admin/plans` — Create Subscription Plan
+### 3.2 `PUT /api/v1/admin/plans/{plan_id}` — Update Subscription Plan Pricing & Copy
 
-Creates a new subscription plan tier for the creator studio from the Create Plan modal.
+Saves creator customizations for a plan tier from the Edit modal. The backend automatically recomputes `final_price` and preserves the built-in features and technical tier identity.
 
 #### Headers
+
 ```http
 Authorization: Bearer <admin_access_token>
 Content-Type: application/json
 ```
 
 #### Request Payload
+
 ```json
 {
-  "name": "Annual Basic",
-  "base_price": 7999.00,
+  "name": "Fan Pass (With Ads)",
+  "description": "Watch all my videos with occasional short ads",
+  "base_price": 129.0,
   "discount_percentage": 15.0,
-  "billing_period_value": 1,
-  "billing_period_unit": "years",
-  "description": "Save 15% with annual billing",
-  "features": [
-    "All Basic plan features",
-    "2 months free",
-    "Annual exclusive content"
-  ],
-  "badge_text": "15% OFF",
-  "is_active": true
+  "badge_text": "MOST POPULAR"
 }
 ```
 
-#### Response Envelope (`201 Created`)
-```json
-{
-  "id": 3,
-  "name": "Annual Basic",
-  "description": "Save 15% with annual billing",
-  "base_price": 7999.00,
-  "discount_percentage": 15.0,
-  "final_price": 6799.15,
-  "currency": "INR",
-  "billing_period_value": 1,
-  "billing_period_unit": "years",
-  "features": [
-    "All Basic plan features",
-    "2 months free",
-    "Annual exclusive content"
-  ],
-  "badge_text": "15% OFF",
-  "is_active": true,
-  "display_order": 3,
-  "active_subscribers": 0,
-  "monthly_revenue": 0.00,
-  "created_at": "2026-08-29T21:00:00Z",
-  "updated_at": "2026-08-29T21:00:00Z"
-}
-```
-
----
-
-### 3.3 `PUT /api/v1/admin/plans/{plan_id}` — Update Subscription Plan
-
-Saves edits to an existing subscription plan tier (*Save Changes* button in Edit Modal).
-
-#### Headers
-```http
-Authorization: Bearer <admin_access_token>
-Content-Type: application/json
-```
-
-#### Request Payload
-```json
-{
-  "name": "Annual Basic Plus",
-  "base_price": 7999.00,
-  "discount_percentage": 20.0,
-  "billing_period_value": 1,
-  "billing_period_unit": "years",
-  "description": "Save 20% with annual billing",
-  "features": [
-    "All Basic plan features",
-    "2 months free",
-    "Annual exclusive content",
-    "Bonus cheat-sheets"
-  ],
-  "badge_text": "20% OFF",
-  "is_active": true
-}
-```
+_(All fields are optional. Unsupplied fields retain their current database values)._
 
 #### Response Envelope (`200 OK`)
-```json
-{
-  "id": 3,
-  "name": "Annual Basic Plus",
-  "description": "Save 20% with annual billing",
-  "base_price": 7999.00,
-  "discount_percentage": 20.0,
-  "final_price": 6399.20,
-  "currency": "INR",
-  "billing_period_value": 1,
-  "billing_period_unit": "years",
-  "features": [
-    "All Basic plan features",
-    "2 months free",
-    "Annual exclusive content",
-    "Bonus cheat-sheets"
-  ],
-  "badge_text": "20% OFF",
-  "is_active": true,
-  "display_order": 3,
-  "active_subscribers": 1245,
-  "monthly_revenue": 8465000.00,
-  "created_at": "2026-08-20T10:00:00Z",
-  "updated_at": "2026-08-29T21:05:00Z"
-}
-```
 
----
-
-### 3.4 `DELETE /api/v1/admin/plans/{plan_id}` — Delete Subscription Plan
-
-Deletes a subscription plan tier (trash bin icon).
-
-#### Headers
-```http
-Authorization: Bearer <admin_access_token>
-```
-
-#### Response Envelope (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Subscription plan 3 deleted successfully"
-}
-```
-
----
-
-### 3.5 `PATCH /api/v1/admin/plans/{plan_id}/toggle-active` — Quick Toggle Active Status
-
-Toggles `is_active` (`true`/`false`) without requiring the full modal payload.
-
-#### Headers
-```http
-Authorization: Bearer <admin_access_token>
-```
-
-#### Response Envelope (`200 OK`)
 ```json
 {
   "id": 1,
-  "name": "Basic",
-  "is_active": false,
-  "updated_at": "2026-08-29T21:10:00Z"
-}
-```
-
----
-
-### 3.6 `PUT /api/v1/admin/plans/reorder` — Reorder Display Sequence
-
-Atomically updates display order sequence for subscription plan cards on the admin grid.
-
-#### Headers
-```http
-Authorization: Bearer <admin_access_token>
-Content-Type: application/json
-```
-
-#### Request Payload
-```json
-{
-  "ids": [2, 1, 3]
-}
-```
-
-#### Response Envelope (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Subscription plan order updated"
+  "plan_type": "with_ads",
+  "name": "Fan Pass (With Ads)",
+  "description": "Watch all my videos with occasional short ads",
+  "base_price": 129.0,
+  "discount_percentage": 15.0,
+  "final_price": 109.65,
+  "currency": "INR",
+  "billing_period_value": 1,
+  "billing_period_unit": "months",
+  "features": [
+    "Full video catalog access",
+    "Standard definition (720p) streaming",
+    "Occasional short advertisements",
+    "1 concurrent device stream"
+  ],
+  "badge_text": "MOST POPULAR",
+  "display_order": 1,
+  "active_subscribers": 142,
+  "monthly_revenue": 15570.3,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-09-14T12:15:00Z"
 }
 ```

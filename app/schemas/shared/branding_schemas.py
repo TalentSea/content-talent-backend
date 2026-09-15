@@ -8,7 +8,7 @@ class BrandingResponse(BaseModel):
     Response DTO representing the creator's white-label app branding and studio identity.
     """
 
-    creator_name: str | None = None
+    studio_name: str | None = None
     tagline: str | None = None
     description: str | None = None
     banner_url: str | None = None
@@ -22,8 +22,8 @@ class BrandingUpdateRequest(BaseModel):
     Supports partial updates where only specified fields are modified.
     """
 
-    creator_name: str | None = Field(
-        None, max_length=255, description="Public creator / studio name"
+    studio_name: str | None = Field(
+        None, max_length=255, description="Public creator studio / channel name"
     )
     tagline: str | None = Field(
         None, max_length=255, description="App tagline or slogan"

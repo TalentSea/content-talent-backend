@@ -129,8 +129,7 @@ class MobileVideoService:
             avail_res = (
                 video.available_resolutions
                 if isinstance(video.available_resolutions, list)
-                and video.available_resolutions
-                else ["1080p", "720p", "480p", "360p"]
+                else []
             )
             for res in avail_res:
                 mp4_url = generate_signed_mp4_url(
@@ -145,15 +144,23 @@ class MobileVideoService:
 
         # 3. Generate Closed Captions VTT tracks
         captions: list[MobileVideoCaptionResponse] = []
-        if video.bunny_video_id and pull_zone_url:
+        if video.bunny_video_id and pull_zone_url and video.captions_data:
             base_cdn = pull_zone_url.rstrip("/")
-            captions.append(
-                MobileVideoCaptionResponse(
-                    language="English",
-                    srclang="en",
-                    url=f"{base_cdn}/{video.bunny_video_id}/captions/en.vtt",
-                )
-            )
+            for cap in video.captions_data:
+                if isinstance(cap, dict) and cap.get("srclang"):
+                    srclang = str(cap.get("srclang")).strip()
+                    lang_name = str(cap.get("label") or srclang.capitalize()).strip()
+                    vtt_url = (
+                        cap.get("url")
+                        or f"{base_cdn}/{video.bunny_video_id}/captions/{srclang}.vtt"
+                    )
+                    captions.append(
+                        MobileVideoCaptionResponse(
+                            language=lang_name,
+                            srclang=srclang,
+                            url=vtt_url,
+                        )
+                    )
 
         tags_list = (
             list(video.tags or [])

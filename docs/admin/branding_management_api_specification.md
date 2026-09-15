@@ -10,9 +10,9 @@ Authorization: Bearer <creator_access_token>
 Identity and creator ownership are strictly derived from the validated JWT token context (`get_current_admin`). Under no circumstances is `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities.
 
 ### Architecture Overview
-- **Domain Purpose**: Manages the public-facing **Creator Identity & White-Label OTT App Branding** (Creator Name, Tagline, Description, Hero Banner, and Studio Logo). This is distinct from personal admin account settings (`Settings -> Profile`).
+- **Domain Purpose**: Manages the public-facing **Creator Identity & White-Label OTT App Branding** (Studio Name, Tagline, Description, Hero Banner, and Studio Logo). This is distinct from personal admin account settings (`Settings -> Profile`).
 - **Backend Service**: FastAPI (Python) handles authentication, schema validation, state management, and file upload processing.
-- **Database**: Relational Database (Peewee ORM) stores branding attributes (`creator_name`, `tagline`, `description`, `banner_url`, `logo_url`, `updated_at`).
+- **Database**: Relational Database (Peewee ORM) stores branding attributes (`studio_name`, `tagline`, `description`, `banner_url`, `logo_url`, `updated_at`).
 - **Cloud Storage Service**: Bunny Storage API stores and serves uploaded branding assets (`assets/branding/logo_{user_id}_{timestamp}.{ext}`, `assets/branding/banner_{user_id}_{timestamp}.{ext}`) via public Storage Pull Zone CDN (`https://talentsea77999.b-cdn.net`).
 
 ---
@@ -46,7 +46,7 @@ All error responses follow the standard FastAPI JSON error envelope:
 {
   "detail": [
     {
-      "loc": ["body", "creator_name"],
+      "loc": ["body", "studio_name"],
       "msg": "field required",
       "type": "value_error.missing"
     }
@@ -79,7 +79,7 @@ Authorization: Bearer <creator_access_token>
 #### Response Specification (`200 OK`)
 ```json
 {
-  "creator_name": "Creator Academy",
+  "studio_name": "Creator Academy",
   "tagline": "Learn from industry leaders",
   "description": "Your premier portal for high-impact software engineering, UI design, and modern technology courses taught by top industry pioneers.",
   "banner_url": "https://talentsea77999.b-cdn.net/assets/branding/banner_1_1724220000.jpg",
@@ -92,7 +92,7 @@ Authorization: Bearer <creator_access_token>
 
 ### 2. `PUT /api/v1/admin/branding` — Update Creator Identity Text
 
-Updates text attributes (**Creator Name**, **Tagline**, and **Description**) when the creator modifies and saves identity details.
+Updates text attributes (**Studio Name**, **Tagline**, and **Description**) when the creator modifies and saves identity details.
 
 #### Request Headers
 ```http
@@ -106,7 +106,7 @@ All attributes in `BrandingUpdateRequest` support partial updating (`exclude_uns
 ##### Full Form Submission:
 ```json
 {
-  "creator_name": "Creator Academy",
+  "studio_name": "Creator Academy",
   "tagline": "Learn from industry leaders",
   "description": "Your premier portal for high-impact software engineering, UI design, and modern technology courses taught by top industry pioneers."
 }
@@ -124,7 +124,7 @@ Returns the authoritative, freshly updated creator branding object, enabling the
 
 ```json
 {
-  "creator_name": "Creator Academy",
+  "studio_name": "Creator Academy",
   "tagline": "Master Modern Engineering from Scratch",
   "description": "Your premier portal for high-impact software engineering, UI design, and modern technology courses taught by top industry pioneers.",
   "banner_url": "https://talentsea77999.b-cdn.net/assets/branding/banner_1_1724220000.jpg",

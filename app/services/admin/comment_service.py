@@ -83,7 +83,7 @@ class CommentService:
             video, creator_user, payload.text.strip()
         )
 
-        creator_name = (
+        author_name = (
             f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
             or "Creator Admin"
         )
@@ -93,7 +93,7 @@ class CommentService:
             text=comment.text,
             author=CommentAuthorResponse(
                 id=creator_user.id,
-                name=creator_name,
+                name=author_name,
                 avatar_url=creator_user.avatar_url,
                 is_creator=True,
             ),
@@ -135,14 +135,11 @@ class CommentService:
 
         comment_ids = [c.id for c in comments]
         reply_counts_map = self.comment_repo.get_batch_reply_counts(comment_ids)
-        liked_set = self.comment_repo.get_user_liked_comment_ids(
-            comment_ids, creator_id
-        )
 
         items: list[CommentItemResponse] = []
         for c in comments:
             reply_count = reply_counts_map.get(c.id, 0)
-            is_liked = c.id in liked_set
+            is_hearted = bool(getattr(c, "is_hearted_by_creator", False))
 
             item = CommentItemResponse(
                 id=c.id,
@@ -150,9 +147,9 @@ class CommentService:
                 author=self._build_author_response(c),
                 video_id=c.video.id,
                 video_title=c.video.title,
-                likes=c.likes,
-                is_hearted_by_creator=getattr(c, "is_hearted_by_creator", False),
-                is_liked=is_liked,
+                likes=c.likes or 0,
+                is_hearted_by_creator=is_hearted,
+                is_liked=is_hearted,
                 reply_count=reply_count,
                 created_at=c.created_at,
             )
@@ -184,12 +181,9 @@ class CommentService:
             comment_id=comment_id, sort=sort, page=page, limit=limit
         )
 
-        reply_ids = [r.id for r in replies_raw]
-        liked_set = self.comment_repo.get_user_liked_comment_ids(reply_ids, creator_id)
-
         items: list[CommentReplyResponse] = []
         for r in replies_raw:
-            is_liked = r.id in liked_set
+            is_hearted = bool(getattr(r, "is_hearted_by_creator", False))
             items.append(
                 CommentReplyResponse(
                     id=r.id,
@@ -197,8 +191,8 @@ class CommentService:
                     text=r.text,
                     author=self._build_author_response(r),
                     likes=r.likes or 0,
-                    is_hearted_by_creator=getattr(r, "is_hearted_by_creator", False),
-                    is_liked=is_liked,
+                    is_hearted_by_creator=is_hearted,
+                    is_liked=is_hearted,
                     created_at=r.created_at,
                 )
             )
@@ -228,7 +222,7 @@ class CommentService:
             )
 
         reply = self.comment_repo.create_reply(comment, creator_user, payload.text)
-        creator_name = (
+        author_name = (
             f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
             or "Creator Admin"
         )
@@ -239,7 +233,7 @@ class CommentService:
             text=reply.text,
             author=CommentAuthorResponse(
                 id=creator_user.id,
-                name=creator_name,
+                name=author_name,
                 avatar_url=creator_user.avatar_url,
                 is_creator=True,
             ),

@@ -102,11 +102,11 @@ Authorization: Bearer <creator_access_token>
        Category,
        fn.COUNT(Video.id).alias("content_count")
    ).join(
-       Video, on=(Category.slug == Video.category), join_type="LEFT OUTER"
+       Video, on=(fn.LOWER(Category.name) == fn.LOWER(Video.category)), join_type="LEFT OUTER"
    ).where(
        (Category.user == user_id) &
-       (Video.status == "published") &
-       (Video.transcoding_status == "READY")
+       (fn.LOWER(Video.status).in_(["published", "ready"])) &
+       (Video.is_playable == True)
    ).group_by(Category.id).order_by(Category.display_order.asc())
    ```
 

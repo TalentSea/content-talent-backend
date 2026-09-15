@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from peewee import fn
@@ -86,11 +86,13 @@ class DashboardRepository:
 
     def get_active_subscribers_count(self, creator_id: int) -> int:
         """Counts distinct users currently holding an active subscription."""
+        now = datetime.now(timezone.utc)
         res = (
             UserSubscription.select(fn.COUNT(fn.DISTINCT(UserSubscription.user)))
             .where(
                 UserSubscription.creator == creator_id,
                 UserSubscription.status == "active",
+                UserSubscription.end_date > now,
             )
             .scalar()
         )
@@ -173,6 +175,7 @@ class DashboardRepository:
         plan_revenues = {row.plan_id: float(row.total_amount) for row in revenue_query}
 
         # 2. Active subscriber counts per plan
+        now = datetime.now(timezone.utc)
         active_counts_query = (
             UserSubscription.select(
                 UserSubscription.plan.alias("plan_id"),
@@ -181,6 +184,7 @@ class DashboardRepository:
             .where(
                 UserSubscription.creator == creator_id,
                 UserSubscription.status == "active",
+                UserSubscription.end_date > now,
             )
             .group_by(UserSubscription.plan)
         )
@@ -197,18 +201,14 @@ class DashboardRepository:
         for plan in plans:
             sub_cnt = sub_counts.get(plan.id, 0)
             rev_val = round(plan_revenues.get(plan.id, 0.0), 2)
-            # Include tier if it has subscribers, generated revenue, or is currently active
-            if sub_cnt > 0 or rev_val > 0.0 or plan.is_active:
-                results.append(
-                    {
-                        "plan_id": plan.id,
-                        "name": plan.name,
-                        "badge_text": plan.badge_text,
-                        "is_active": bool(plan.is_active),
-                        "subscribers": sub_cnt,
-                        "revenue": rev_val,
-                    }
-                )
+            results.append(
+                {
+                    "plan_id": plan.id,
+                    "name": plan.name,
+                    "subscribers": sub_cnt,
+                    "revenue": rev_val,
+                }
+            )
 
         return results
 
@@ -219,9 +219,11 @@ class DashboardRepository:
         Retrieves paginated recent members feed.
         filter_type: 'all' | 'subscribers' | 'users'
         """
+        now = datetime.now(timezone.utc)
         active_sub_user_ids = UserSubscription.select(UserSubscription.user).where(
             UserSubscription.creator == creator_id,
             UserSubscription.status == "active",
+            UserSubscription.end_date > now,
         )
 
         if filter_type == "subscribers":
@@ -239,6 +241,7 @@ class DashboardRepository:
                 .where(
                     UserSubscription.creator == creator_id,
                     UserSubscription.status == "active",
+                    UserSubscription.end_date > now,
                     Subscriber.role == "subscriber",
                 )
                 .order_by(UserSubscription.created_at.desc())
@@ -316,6 +319,7 @@ class DashboardRepository:
                         UserSubscription.user.in_(user_ids),
                         UserSubscription.creator == creator_id,
                         UserSubscription.status == "active",
+                        UserSubscription.end_date > now,
                     )
                 )
                 for s in subs:

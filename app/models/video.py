@@ -31,7 +31,7 @@ class Video(BaseModel):
     bunny_video_id = CharField(unique=True, max_length=255)
     title = CharField(max_length=255, null=False)
     description = TextField(null=False)
-    category = CharField(max_length=100, null=False)
+    category = CharField(max_length=100, null=True)
     status = CharField(max_length=20, default="PENDING")
     encode_progress = IntegerField(default=0)
     is_playable = BooleanField(default=False)

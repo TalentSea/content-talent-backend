@@ -1,8 +1,9 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, UploadFile, status
+from peewee import fn
 
 from app.config import get_settings
 from app.models.video import VideoLike
@@ -188,10 +189,13 @@ class VideoService:
             created_at=video.created_at,
         )
 
-    def _to_video_list_item_response(self, video) -> VideoListItemResponse:
+    def _to_video_list_item_response(
+        self, video, likes: int | None = None
+    ) -> VideoListItemResponse:
         """
         Maps a Video Peewee ORM instance to a lightweight VideoListItemResponse DTO matching spec doc API 3.
         """
+        likes_count = likes if likes is not None else self._get_likes_count(video.id)
         return VideoListItemResponse(
             id=video.id,
             title=video.title,
@@ -200,7 +204,7 @@ class VideoService:
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
             views=video.views or 0,
-            likes=self._get_likes_count(video.id),
+            likes=likes_count,
             duration=video.duration,
             main_thumbnail_url=video.main_thumbnail_url,
             published_at=video.published_at,
@@ -417,86 +421,25 @@ class VideoService:
             limit=limit,
         )
 
-        # Sync live status/duration/published_at/available_resolutions for videos in PENDING/ENCODING/UPLOAD_FINISHED or missing metadata
-        updated_videos = []
-        pull_zone = get_settings().BUNNY_PULL_ZONE_URL.rstrip("/")
-        for v in videos:
-            if v.status in ("PENDING", "ENCODING", "PROCESSING", "UPLOAD_FINISHED") or (
-                v.is_playable
-                and (
-                    not v.duration or not v.published_at or not v.available_resolutions
-                )
-            ):
-                try:
-                    status_data = get_bunny_video_status(v.bunny_video_id)
-                    if status_data:
-                        code = status_data.get("status")
-                        prog = status_data.get("encodeProgress")
-                        length = status_data.get("length")
-                        duration_str = format_duration(length)
+        video_ids = [v.id for v in videos]
+        likes_map: dict[int, int] = {}
+        if video_ids:
+            counts = (
+                VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id))
+                .where(VideoLike.video.in_(video_ids))
+                .group_by(VideoLike.video)
+                .tuples()
+            )
+            likes_map = {vid: cnt for vid, cnt in counts}
 
-                        available_resolutions = None
-                        if "availableResolutions" in status_data:
-                            raw_res = status_data.get("availableResolutions")
-                            if isinstance(raw_res, str):
-                                available_resolutions = [
-                                    r.strip() for r in raw_res.split(",") if r.strip()
-                                ]
-                            elif isinstance(raw_res, list):
-                                available_resolutions = [
-                                    str(r).strip() for r in raw_res if str(r).strip()
-                                ]
-
-                        captions_list = status_data.get("captions") or []
-                        captions_data = []
-                        if captions_list:
-                            for idx, track in enumerate(captions_list):
-                                if isinstance(track, dict) and track.get("srclang"):
-                                    srclang = str(track.get("srclang")).strip()
-                                    label = str(
-                                        track.get("label") or srclang.upper()
-                                    ).strip()
-                                    captions_data.append(
-                                        {
-                                            "srclang": srclang,
-                                            "label": label,
-                                            "is_default": (idx == 0),
-                                            "url": f"{pull_zone}/{v.bunny_video_id}/captions/{srclang}.vtt",
-                                        }
-                                    )
-
-                        state = (
-                            resolve_bunny_status(code, live_progress=prog)
-                            if code is not None
-                            else None
-                        )
-                        if state:
-                            v = (
-                                self.repo.update_video_status(
-                                    bunny_video_id=v.bunny_video_id,
-                                    status=state.db_status,
-                                    encode_progress=state.progress,
-                                    is_playable=state.is_playable,
-                                    captions_data=captions_data
-                                    if captions_data
-                                    else None,
-                                    available_resolutions=available_resolutions,
-                                    duration=duration_str,
-                                )
-                                or v
-                            )
-                except Exception as e:  # noqa: BLE001
-                    logger.warning(
-                        "Failed auto-sync duration for video %s: %s",
-                        v.bunny_video_id,
-                        e,
-                    )
-            updated_videos.append(v)
-
-        items = [self._to_video_list_item_response(v) for v in updated_videos]
+        items = [
+            self._to_video_list_item_response(v, likes=likes_map.get(v.id, 0))
+            for v in videos
+        ]
         return PaginatedResponse.create(
             items=items, total=total, page=page, limit=limit
         )
+
 
     def get_video_details(self, user_id: int, video_id: int) -> VideoResponse:
         """
@@ -756,9 +699,11 @@ class VideoService:
 
         try:
             scheduled_dt_str = f"{payload.date} {payload.time}"
-            scheduled_dt = datetime.strptime(
-                scheduled_dt_str, "%Y-%m-%d %H:%M"
-            ).replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            scheduled_dt = (
+                datetime.strptime(scheduled_dt_str, "%Y-%m-%d %H:%M")
+                .replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+                .astimezone(timezone.utc)
+            )
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

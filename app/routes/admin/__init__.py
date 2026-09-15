@@ -1,3 +1,4 @@
+from app.routes.admin.auth_routes import router as admin_auth_router
 from app.routes.admin.branding_routes import router as admin_branding_router
 from app.routes.admin.category_routes import router as admin_category_router
 from app.routes.admin.comment_routes import router as admin_comment_router
@@ -13,6 +14,7 @@ from app.routes.admin.subscription_plan_routes import (
 from app.routes.admin.video_routes import router as admin_video_router
 
 __all__ = [
+    "admin_auth_router",
     "admin_branding_router",
     "admin_category_router",
     "admin_comment_router",
@@ -23,3 +25,4 @@ __all__ = [
     "admin_subscription_plan_router",
     "admin_video_router",
 ]
+

@@ -12,9 +12,9 @@ The project strictly follows a **5-Layer Clean Architecture** separating routing
 content-talent-backend/
 ├── .agents/                      # Team AI Agent Skills & Architecture Playbooks
 ├── docs/                         # Architecture & API Specifications
-│   ├── database_architecture_specification.md # Complete 18-Table Database Schema Specification
+│   ├── mobile/                   # Mobile Application API Specifications
 │   ├── admin/                    # Admin Portal API Specifications
-│   └── mobile/                   # Mobile Application API Specifications
+│   ├── database_architecture_specification.md # Complete 18-Table Database Schema Specification
 ├── app/
 │   ├── config.py                 # Pydantic environment configuration and settings
 │   ├── database.py               # Peewee database proxy and table initialization
@@ -39,6 +39,7 @@ content-talent-backend/
 │   │   └── comment.py            # Comment, thread replies, and junction entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
 │   │   ├── admin/                # Creator Admin Repositories
+│   │   │   ├── auth_repository.py
 │   │   │   ├── dashboard_repository.py
 │   │   │   ├── video_repository.py
 │   │   │   ├── playlist_repository.py
@@ -72,6 +73,7 @@ content-talent-backend/
 │   │   │   ├── subscription_plan_routes.py # Mobile Subscription Plans (/api/v1/mobile/plans)
 │   │   │   └── video_routes.py   # Mobile Video Catalog & HLS Player (/api/v1/mobile/videos)
 │   │   └── admin/                # Admin Panel Creator Endpoints
+│   │       ├── auth_routes.py    # Admin Authentication & Token Lifecycle (/api/v1/admin/auth)
 │   │       ├── dashboard_routes.py# Admin Studio Dashboard & Analytics (/api/v1/admin/dashboard)
 │   │       ├── branding_routes.py# Admin Studio Branding & Customization (/api/v1/admin/branding)
 │   │       ├── category_routes.py# Admin Categories & Reordering (/api/v1/admin/categories)
@@ -83,6 +85,7 @@ content-talent-backend/
 │   │       └── video_routes.py   # Admin Video Management & Scheduling (/api/v1/admin/videos)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
 │   │   ├── admin/                # Creator Admin DTO Schemas
+│   │   │   ├── auth_schemas.py
 │   │   │   ├── dashboard_schemas.py
 │   │   │   ├── video_schemas.py
 │   │   │   ├── playlist_schemas.py
@@ -104,8 +107,11 @@ content-talent-backend/
 │   │       ├── common_schemas.py
 │   │       ├── branding_schemas.py
 │   │       └── category_schemas.py
+│   ├── scripts/                  # Administrative Automation & CLI Utilities
+│   │   └── create_creator.py     # Atomic Creator Admin, Studio Branding & Plans Onboarding CLI
 │   ├── services/                 # Business Logic & Cloud Orchestration
 │   │   ├── admin/                # Creator Admin Services
+│   │   │   ├── auth_service.py
 │   │   │   ├── dashboard_service.py
 │   │   │   ├── video_service.py
 │   │   │   ├── playlist_service.py
@@ -125,7 +131,7 @@ content-talent-backend/
 │   │       ├── branding_service.py
 │   │       └── category_service.py
 │   └── utils/                    # Cloud Helper Utilities & Cryptography
-│       ├── auth.py               # JWT token encoding and decoding
+│       ├── auth.py               # PBKDF2 password hashing & JWT token encoding/decoding
 │       ├── idp_verifiers.py      # Google OIDC RSA and Facebook Graph API verifiers
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
 │       ├── bunny_signature.py    # TUS and HLS presigned token signature helpers
@@ -154,12 +160,14 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ## Technical Features
 
+- **Creator Admin Authentication & Dual-Token Session Architecture**: Secure admin identity lifecycle (`/api/v1/admin/auth/*`) enforcing in-memory 30-minute access tokens and 60-day `HttpOnly; Secure; SameSite=Strict` refresh cookies. Features NIST SP 800-132 PBKDF2-HMAC-SHA256 password hashing (600,000 iterations), single-use refresh token rotation, non-destructive multi-device session isolation (ensuring a stale device attempting refresh never disrupts an active session on a newer device), and session profile rehydration (`GET /me`).
+- **Atomic Creator Studio Onboarding CLI**: Zero public registration architecture (`/register` eliminated for anti-abuse). Internal operator CLI (`app.scripts.create_creator`) that atomically provisions the `Admin` user, 1:1 `Branding` studio identity, and two mandatory subscription tiers (`with_ads` and `no_ads`) within a single database transaction.
 - **Creator Studio Dashboard & Real-Time Analytics Subsystem**: Multi-widget studio analytics engine featuring high-level KPI overview cards with period-over-period growth telemetry (`GET /api/v1/admin/dashboard/stats`), dynamic chronological time-series area charts (`GET /api/v1/admin/dashboard/analytics`) with auto-interval grouping (day/week/month), subscription tier distribution (`GET /api/v1/admin/dashboard/subscription-breakdown`) with actual period revenue and subscriber shares, and a paginated recent members feed (`GET /api/v1/admin/dashboard/recent-activity`) with audience segmentation (`all`, `subscribers`, `users`), strictly excluding anonymous guests.
 - **Immutable View Telemetry & Zero-Trust Anti-Spam Gatekeeper**: Dedicated append-only `video_view_events` ledger decoupled from mutable user watch history, ensuring creator view analytics remain permanent and tamper-proof even when subscribers purge personal history. Enforces strict server-side 30% watch threshold verification against `watch_history`, 30-minute continuous session debouncing, rolling 24-hour daily capping (max 3 views/day), and strict subscriber-only role validation.
 - **Razorpay Payment Gateway & Cryptographic Signature Verification**: Production-grade monetization engine featuring order initialization (`POST /api/v1/mobile/payments/create-order`), SHA-256 HMAC cryptographic signature verification (`POST /api/v1/mobile/payments/verify`), atomic database transaction commits with automatic rollback on failure, idempotent entitlement activation, and an asynchronous fallback webhook listener (`POST /api/v1/webhooks/razorpay`).
 - **Two-Pillar Subscription Expiration Architecture**: Real-time Just-In-Time (JIT) lazy expiration checks on subscriber requests paired with an automated background task (`scheduled_subscription_expiration_worker`) on the FastAPI lifespan event loop to systematically expire outdated memberships.
 - **Single-Query Hero Carousel Curation (`likes_count` Subquery)**: Ultra-optimized home screen featured video carousel mapping (`GET /api/v1/mobile/featured-videos`) fetching video metadata, subscriber engagement flags (`is_liked`, `is_saved`), and real-time total likes count via correlated SQL scalar subqueries in 1 single database roundtrip with zero N+1 query overhead.
-- **Subscription Plans & Monetization Tier Management**: Dedicated multi-tenant endpoints (`/api/v1/admin/plans` and `/api/v1/mobile/plans`) for managing subscription tiers, automatic discount calculations, billing periods (days/months/years), feature checklists, marketing badge tags, atomic display sequence reordering with automatic gap compaction on deletion, and Pattern 3 counter cache columns for sub-millisecond dashboard reads.
+- **Subscription Plans & Monetization Tier Management**: Standardized Two-Tier OTT monetization architecture (Tier 1: with-ads and Tier 2: no-ads) with platform-governed technical feature checklists (`app.constants.plans`), admin endpoints (`GET /api/v1/admin/plans` and `PUT /api/v1/admin/plans/{id}`) for pricing, discount %, and custom copy, mobile paywall checkout feed (`GET /api/v1/mobile/plans`), and counter cache columns for sub-millisecond reads.
 - **Anonymous Guest Sessions and In-Place Social Account Upgrading**: Hardware-bound `device_id` guest sessions (`POST /api/v1/auth/guest`) allowing users to skip signup on first launch. When a guest later signs in with Google or Facebook, their existing guest account is upgraded in-place without losing watch history or likes.
 - **Creator Studio Branding and White-Label App Identity**: Dedicated endpoints (`/api/v1/admin/branding`) managing public studio name, tagline, channel description, hero cover banner, and app logo assets, completely separated from personal account settings.
 - **Unified Cloud Image Uploader Engine**: Reusable image upload utility enforcing dynamic file size limits and MIME validation (`JPG`, `PNG`, `WebP`, `SVG`), with automatic cloud cleanup of replaced assets to avoid storage bloat.
@@ -183,6 +191,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 ## API Summary Breakdown (88 Total Endpoints)
 
 - **Admin Endpoints (53)**:
+  - Creator Authentication & Session Lifecycle: 4 endpoints
   - Studio Dashboard & Analytics: 4 endpoints
   - Video Management & Scheduling: 11 endpoints
   - Playlist Management: 11 endpoints
@@ -191,7 +200,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Studio Branding & Customization: 4 endpoints
   - Account Profile & Social Links: 3 endpoints
   - Featured Videos Curation: 3 endpoints
-  - Subscription Plans Management: 6 endpoints
+  - Subscription Plans Management: 2 endpoints
 - **Mobile Endpoints (33)**:
   - Video Catalog, Player, History, Likes & Saves: 12 endpoints
   - Comments & Replies: 6 endpoints
@@ -286,6 +295,48 @@ CONTINUE_WATCHING_MIN_SECONDS=10
 POPULARITY_SCORE_LIKE_WEIGHT=3
 ```
 
+---
+
+## 🚀 Creator Onboarding & Setup (Provisioning CLI)
+
+The platform operates as a specialized **White-Labeled Creator OTT Platform**. To eliminate bot account creation, orphaned tenant database records, and credential stuffing attacks, there is intentionally **zero public sign-up (`/register`)** on the Creator Admin portal.
+
+Instead, platform administrators provision verified creator accounts atomically using the internal CLI onboarding utility (`app.scripts.create_creator`):
+
+```bash
+# Option A: Direct provisioning with command-line arguments:
+python -m app.scripts.create_creator \
+    --email creator@studio.com \
+    --password "SecureSecretPass123!" \
+    --first-name "John" \
+    --last-name "Doe" \
+    --studio-name "John Doe Studio"
+
+# Option B: Secure interactive execution (password prompted with hidden terminal input):
+python -m app.scripts.create_creator --email creator@studio.com --studio-name "John Doe Studio"
+# Prompt: Enter creator password (min 8 chars): [hidden]
+# Prompt: Confirm creator password: [hidden]
+```
+
+### CLI Arguments Reference
+
+| Argument        |  Type  | Required | Description                                                                                                      |
+| :-------------- | :----: | :------: | :--------------------------------------------------------------------------------------------------------------- |
+| `--email`       | String | **Yes**  | Creator's primary login email address (case-insensitive, trimmed).                                               |
+| `--password`    | String | **Yes**  | Initial login password (minimum 8 characters). If omitted, prompts interactively via `getpass`.                  |
+| `--first-name`  | String |    No    | Creator's first name.                                                                                            |
+| `--last-name`   | String |    No    | Creator's last name.                                                                                             |
+| `--studio-name` | String |    No    | Public channel / OTT studio brand name (defaults to `f"{first_name} {last_name} Studio"` or `"Creator Studio"`). |
+
+### 🔒 Atomic Provisioning Invariants
+
+Every onboarding execution runs inside a single database transaction (`with db_proxy.atomic():`):
+
+1. **Admin Account**: Created with NIST SP 800-132 compliant PBKDF2-HMAC-SHA256 password hashing (600,000 iterations, 16-byte random salt).
+2. **1:1 Studio Identity (`Branding`)**: Immediately binds a branding record with `studio_name`, ensuring mobile app subscribers and the web admin shell never encounter `null` studio references or 404 errors.
+3. **Two Fixed Subscription Tiers (`SubscriptionPlan`)**:
+   - **Plan 1 (`Standard with Ads`)**: ₹99/month (`base_price=99.0`, `features=["Full video catalog access", "Standard definition streaming", "Occasional short advertisements"]`).
+   - **Plan 2 (`Premium Ad-Free`)**: ₹199/month (`base_price=199.0`, `features=["100% Ad-free streaming", "Ultra HD resolution", "Offline mobile downloads", "Early access to original releases"]`).
 
 ---
 
@@ -305,9 +356,10 @@ docker-compose down
 ```
 
 Access the interactive API documentation upon startup:
-- **Swagger Interactive UI**: `http://localhost:8000/docs`
-- **ReDoc Interactive UI**: `http://localhost:8000/redoc`
-- **Health Check Endpoint**: `http://localhost:8000/health`
+
+- **Swagger Interactive UI**: `http://138.68.140.83:8000/docs`
+- **ReDoc Interactive UI**: `http://138.68.140.83:8000/redoc`
+- **Health Check Endpoint**: `http://138.68.140.83:8000/health`
 
 ---
 
@@ -323,7 +375,10 @@ py -m venv .venv
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Launch development server with hot-reload:
+# 4. Atomically provision initial Creator Admin account:
+python -m app.scripts.create_creator --email creator@studio.com --password "SecureSecret123!" --studio-name "Creator Studio"
+
+# 5. Launch development server with hot-reload:
 py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -334,9 +389,12 @@ py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Technical specifications and architecture documentation:
 
 ### 🏛️ Database Architecture
+
 - [Complete 17-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
+
+- [Creator Admin Authentication & Identity Lifecycle API Specification](docs/admin/admin_authentication_api_specification.md)
 - [Studio Dashboard & Analytics API Specification](docs/admin/dashboard_analytics_api_specification.md)
 - [Branding Management API Specification](docs/admin/branding_management_api_specification.md)
 - [Video Management API Specification](docs/admin/video_management_api_specification.md)
@@ -348,6 +406,7 @@ Technical specifications and architecture documentation:
 - [Subscription Plans Management API Specification](docs/admin/subscription_plans_management_api_specification.md)
 
 ### 📱 Mobile Application API Specifications
+
 - [Mobile Social Authentication Specification](docs/mobile/social_authentication_api_specification.md)
 - [Mobile Branding Specification](docs/mobile/branding_api_specification.md)
 - [Mobile Video Streaming Specification](docs/mobile/video_streaming_api_specification.md)

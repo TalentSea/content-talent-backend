@@ -1,8 +1,10 @@
 import logging
 
 from fastapi import HTTPException, status
+from peewee import fn
 
 from app.config import get_settings
+from app.models.video import VideoLike
 from app.repositories.admin.featured_video_repository import FeaturedVideoRepository
 from app.schemas.admin.featured_video_schemas import (
     FeaturedAvailableVideoResponse,
@@ -23,7 +25,14 @@ class FeaturedVideoService:
     def __init__(self, repo: FeaturedVideoRepository | None = None) -> None:
         self.repo = repo or FeaturedVideoRepository()
 
-    def _map_item(self, featured_row, video_row) -> FeaturedVideoItemResponse:
+    def _map_item(
+        self, featured_row, video_row, likes: int | None = None
+    ) -> FeaturedVideoItemResponse:
+        likes_count = (
+            likes
+            if likes is not None
+            else (video_row.likes.count() if hasattr(video_row.likes, "count") else 0)
+        )
         return FeaturedVideoItemResponse(
             id=featured_row.id,
             video_id=video_row.id,
@@ -34,7 +43,7 @@ class FeaturedVideoService:
             main_thumbnail_url=video_row.main_thumbnail_url,
             duration=video_row.duration,
             views=video_row.views or 0,
-            likes=video_row.likes.count() if hasattr(video_row.likes, "count") else 0,
+            likes=likes_count,
             status=video_row.status,
             created_at=video_row.created_at,
         )
@@ -44,7 +53,21 @@ class FeaturedVideoService:
         Retrieves featured videos list for creator_id matching spec doc API 3.1.
         """
         rows = self.repo.get_featured_videos(creator_id)
-        return [self._map_item(f_row, f_row.video) for f_row in rows]
+        video_ids = [f_row.video.id for f_row in rows]
+        likes_map: dict[int, int] = {}
+        if video_ids:
+            counts = (
+                VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id))
+                .where(VideoLike.video.in_(video_ids))
+                .group_by(VideoLike.video)
+                .tuples()
+            )
+            likes_map = {vid: cnt for vid, cnt in counts}
+
+        return [
+            self._map_item(f_row, f_row.video, likes=likes_map.get(f_row.video.id, 0))
+            for f_row in rows
+        ]
 
     def sync_featured_videos(
         self, creator_id: int, payload: FeaturedVideoSyncRequest
@@ -62,7 +85,21 @@ class FeaturedVideoService:
         updated_rows = self.repo.sync_featured_videos(
             creator_id=creator_id, video_ids=payload.video_ids
         )
-        items = [self._map_item(f_row, f_row.video) for f_row in updated_rows]
+        video_ids = [f_row.video.id for f_row in updated_rows]
+        likes_map: dict[int, int] = {}
+        if video_ids:
+            counts = (
+                VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id))
+                .where(VideoLike.video.in_(video_ids))
+                .group_by(VideoLike.video)
+                .tuples()
+            )
+            likes_map = {vid: cnt for vid, cnt in counts}
+
+        items = [
+            self._map_item(f_row, f_row.video, likes=likes_map.get(f_row.video.id, 0))
+            for f_row in updated_rows
+        ]
 
         return FeaturedVideoSyncResponse(
             status="success",

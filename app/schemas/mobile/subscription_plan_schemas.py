@@ -9,6 +9,7 @@ class MobileSubscriptionPlanResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    plan_type: str = "with_ads"
     name: str
     description: str | None = None
     base_price: float
