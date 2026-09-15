@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from peewee import CharField, DateTimeField, TextField
+from peewee import CharField, DateTimeField, PeeweeException, TextField
 
 from app.models.base import BaseModel
 
@@ -38,6 +38,37 @@ class Admin(BaseModel):
         if self.email and "@" in self.email:
             return self.email.split("@")[0].replace(".", " ").replace("_", " ").title()
         return "Creator"
+
+    @property
+    def display_name(self) -> str:
+        """
+        Returns official studio branding name if set, otherwise creator name,
+        falling back cleanly to 'Creator'.
+        """
+        try:
+            from app.models.branding import Branding
+
+            branding = Branding.get_or_none(Branding.user == self.id)
+            if branding and branding.studio_name and branding.studio_name.strip():
+                return branding.studio_name.strip()
+        except (PeeweeException, AttributeError, ImportError):
+            pass
+        return self.name
+
+    @property
+    def display_avatar_url(self) -> str | None:
+        """
+        Returns official studio branding logo URL if set, otherwise creator avatar_url.
+        """
+        try:
+            from app.models.branding import Branding
+
+            branding = Branding.get_or_none(Branding.user == self.id)
+            if branding and branding.logo_url and branding.logo_url.strip():
+                return branding.logo_url.strip()
+        except (PeeweeException, AttributeError, ImportError):
+            pass
+        return self.avatar_url
 
     class Meta:
         table_name = "admins"

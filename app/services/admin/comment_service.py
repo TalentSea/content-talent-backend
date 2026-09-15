@@ -39,13 +39,10 @@ class CommentService:
             )
         # For Admin Creator posts where c.user is None
         creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
-        creator_id = creator.id if creator else 0
-        name = creator.name if creator else "Creator"
-        avatar_url = creator.avatar_url if creator else None
         return CommentAuthorResponse(
-            id=creator_id,
-            name=name,
-            avatar_url=avatar_url,
+            id=creator.id if creator else 0,
+            name=creator.display_name if creator else "Creator",
+            avatar_url=creator.display_avatar_url if creator else None,
             is_creator=True,
         )
 
@@ -79,18 +76,13 @@ class CommentService:
             video, creator_user, payload.text.strip()
         )
 
-        author_name = (
-            f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
-            or "Creator Admin"
-        )
-
         return CommentItemResponse(
             id=comment.id,
             text=comment.text,
             author=CommentAuthorResponse(
                 id=creator_user.id,
-                name=author_name,
-                avatar_url=creator_user.avatar_url,
+                name=creator_user.display_name,
+                avatar_url=creator_user.display_avatar_url,
                 is_creator=True,
             ),
             video_id=video.id,
@@ -218,10 +210,6 @@ class CommentService:
             )
 
         reply = self.comment_repo.create_reply(comment, creator_user, payload.text)
-        author_name = (
-            f"{creator_user.first_name or ''} {creator_user.last_name or ''}".strip()
-            or "Creator Admin"
-        )
 
         return CommentReplyCreateResponse(
             id=reply.id,
@@ -229,8 +217,8 @@ class CommentService:
             text=reply.text,
             author=CommentAuthorResponse(
                 id=creator_user.id,
-                name=author_name,
-                avatar_url=creator_user.avatar_url,
+                name=creator_user.display_name,
+                avatar_url=creator_user.display_avatar_url,
                 is_creator=True,
             ),
             likes=0,
