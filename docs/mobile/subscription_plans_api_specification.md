@@ -4,7 +4,7 @@ This document details the RESTful API endpoint for Mobile Subscribers and Guest 
 
 ---
 
-## 1. System Architecture & Security Standards
+## 1. System Architecture & Two-Tier Business Model
 
 ### 1.1 Base Route Prefix
 ```http
@@ -17,15 +17,34 @@ This document details the RESTful API endpoint for Mobile Subscribers and Guest 
 Authorization: Bearer <subscriber_access_token>
 ```
 * **Creator Multi-Tenancy**: The endpoint automatically filters plans for the subscriber's bound creator studio (`creator_id`).
-* **Active Status Filter**: Only plans where `is_active = true` are returned to mobile subscribers.
+
+### 1.3 Standardized Two-Tier OTT Architecture
+The platform enforces a standardized two-tier OTT subscription paywall provisioned for every creator:
+1. **Tier 1 (`plan_type = "with_ads"`, `display_order = 1`)**: Standard ad-supported tier.
+2. **Tier 2 (`plan_type = "no_ads"`, `display_order = 2`)**: Premium ad-free streaming & offline download tier.
+
+### 1.4 Dynamic Platform Features (`app/constants/plans.py`)
+Technical streaming entitlements (resolution, offline download availability, concurrent screens, and ad insertion policy) are maintained centrally in `app/constants/plans.py`. When mobile clients fetch the paywall feed, the backend dynamically injects the appropriate feature bullet list into the response:
+
+* **With-Ads Tier Features**:
+  * Full video catalog access
+  * Standard definition (720p) streaming
+  * Occasional short advertisements
+  * 1 concurrent device stream
+* **No-Ads Tier Features**:
+  * 100% Ad-free streaming
+  * Full HD (1080p) crystal-clear resolution
+  * Offline mobile video downloads
+  * Up to 3 concurrent device screens
+  * Early access to new releases
 
 ---
 
 ## 2. API Endpoint Specification
 
-### 2.1 `GET /api/v1/mobile/plans` — List Active Subscription Plans Feed
+### 2.1 `GET /api/v1/mobile/plans` — List Subscription Plans Feed
 
-Retrieves active creator subscription plan tiers sorted by `display_order` ascending for mobile paywall checkout.
+Retrieves creator subscription plan tiers sorted by `display_order` ascending for mobile paywall checkout.
 
 #### Request Headers
 ```http
@@ -37,61 +56,44 @@ Authorization: Bearer <subscriber_access_token>
 [
   {
     "id": 1,
-    "name": "Basic",
-    "description": "Perfect for getting started",
-    "base_price": 799.00,
+    "plan_type": "with_ads",
+    "name": "Standard with Ads",
+    "description": "Stream unlimited content with occasional ads",
+    "base_price": 499.00,
     "discount_percentage": 0.0,
-    "final_price": 799.00,
+    "final_price": 499.00,
     "currency": "INR",
     "billing_period_value": 1,
     "billing_period_unit": "months",
     "features": [
-      "Access to basic content library",
-      "Standard video quality",
-      "Community access",
-      "Email support"
+      "Full video catalog access",
+      "Standard definition (720p) streaming",
+      "Occasional short advertisements",
+      "1 concurrent device stream"
     ],
     "badge_text": null,
     "display_order": 1
   },
   {
     "id": 2,
-    "name": "Premium",
-    "description": "Best for serious learners",
-    "base_price": 2499.00,
-    "discount_percentage": 0.0,
-    "final_price": 2499.00,
-    "currency": "INR",
-    "billing_period_value": 24,
-    "billing_period_unit": "months",
-    "features": [
-      "Access to all premium content",
-      "4K video quality",
-      "Priority community access",
-      "Live Q&A sessions",
-      "Downloadable resources",
-      "24/7 priority support"
-    ],
-    "badge_text": "⚡",
-    "display_order": 2
-  },
-  {
-    "id": 3,
-    "name": "Annual Basic",
-    "description": "Save 15% with annual billing",
-    "base_price": 7999.00,
-    "discount_percentage": 15.0,
-    "final_price": 6799.15,
+    "plan_type": "no_ads",
+    "name": "Premium Ad-Free",
+    "description": "Enjoy crystal-clear Full HD streaming without interruptions",
+    "base_price": 999.00,
+    "discount_percentage": 10.0,
+    "final_price": 899.10,
     "currency": "INR",
     "billing_period_value": 1,
-    "billing_period_unit": "years",
+    "billing_period_unit": "months",
     "features": [
-      "All Basic plan features",
-      "2 months free",
-      "Annual exclusive content"
+      "100% Ad-free streaming",
+      "Full HD (1080p) crystal-clear resolution",
+      "Offline mobile video downloads",
+      "Up to 3 concurrent device screens",
+      "Early access to new releases"
     ],
-    "badge_text": "15% OFF",
-    "display_order": 3
+    "badge_text": "POPULAR",
+    "display_order": 2
   }
 ]
 ```

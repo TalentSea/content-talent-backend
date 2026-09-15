@@ -158,6 +158,8 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Account registration timestamp |
 | `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Account last update timestamp |
 
+* **Unique Composite Index**: `(("creator", "provider", "provider_id"), True)` — Enforces 1 unique subscriber account per auth provider per creator studio.
+
 ---
 
 ### 4. `refresh_tokens` Table (Mobile Subscriber Sessions)
@@ -215,7 +217,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `available_resolutions`| `JSON` | Standard | NO | `[]` | List of encoded resolutions (e.g. `["720p", "1080p"]`) |
 | `tags` | `JSON` | Standard | NO | `[]` | List of search keywords/tags |
 | `alt_thumbnail_urls`| `JSON` | Standard | NO | `[]` | List of alternative thumbnail URLs (Slots 1 & 2) |
-| `scheduled_at` | `DATETIME` | Standard | YES | `NULL` | IST scheduled publication date/time |
+| `scheduled_at` | `DATETIME` | Standard | YES | `NULL` | Normalized UTC scheduled publication date/time |
 | `published_at` | `DATETIME` | Standard | YES | `NULL` | Actual publication date/time |
 | `views` | `INTEGER` | Standard | NO | `0` | Total play view counter |
 | `popularity_score`| `INTEGER` | **INDEX** | NO | `0` | Precomputed score formula: `views + (3 * likes)` |
