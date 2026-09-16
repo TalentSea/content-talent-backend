@@ -22,14 +22,14 @@ def create_access_token(
     settings = get_settings()
     if expires_delta_minutes is None:
         expires_delta_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    secret_key = settings.JWT_SECRET_KEY or "dev_secret_key_change_in_production"
+    secret_key = settings.JWT_SECRET_KEY
     expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta_minutes)
 
     to_encode = {
         "sub": str(user_id),
         "user_id": user_id,
         "role": role,
-        "username": username or f"user_{user_id}",
+        "username": username,
         "creator_id": creator_id,
         "exp": expire,
     }
@@ -57,7 +57,7 @@ def decode_access_token(token: str) -> dict:
     Raises HTTPException(401) if token is expired or invalid.
     """
     settings = get_settings()
-    secret_key = settings.JWT_SECRET_KEY or "dev_secret_key_change_in_production"
+    secret_key = settings.JWT_SECRET_KEY
 
     try:
         payload = jwt.decode(token, secret_key, algorithms=[settings.JWT_ALGORITHM])
@@ -118,4 +118,3 @@ def verify_password(plain_password: str, password_hash: str | None) -> bool:
     ).hex()
 
     return secrets.compare_digest(computed_hash, expected_hash)
-

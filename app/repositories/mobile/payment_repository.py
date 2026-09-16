@@ -21,7 +21,7 @@ class PaymentRepository:
         plan_id: int,
         razorpay_order_id: str,
         amount: float,
-        currency: str = "INR",
+        currency: str,
     ) -> Payment | None:
         """
         Creates a new payment record initialized in 'created' status.

@@ -59,8 +59,8 @@ class MobileVideoDetailResponse(BaseModel):
     thumbnail_url: str | None = None
     hls_stream_url: str | None = None
     ad_tag_url: str | None = None
-    download_urls: list[MobileVideoDownloadUrlResponse] = Field(default_factory=list)
-    captions: list[MobileVideoCaptionResponse] = Field(default_factory=list)
+    download_urls: list[MobileVideoDownloadUrlResponse] | None = None
+    captions: list[MobileVideoCaptionResponse] | None = None
     published_at: datetime | None = None
 
 

@@ -16,6 +16,9 @@ class SubscriptionPlanUpdateRequest(BaseModel):
     badge_text: str | None = Field(default=None, max_length=50)
 
 
+from app.config import get_settings
+
+
 class SubscriptionPlanItemResponse(BaseModel):
     """
     Response DTO representing a creator subscription plan with live stats and built-in features.
@@ -30,7 +33,9 @@ class SubscriptionPlanItemResponse(BaseModel):
     base_price: float
     discount_percentage: float = 0.0
     final_price: float
-    currency: str = "INR"
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY
+    )
     billing_period_value: int = 1
     billing_period_unit: str = "months"
     features: list[str] = Field(default_factory=list)

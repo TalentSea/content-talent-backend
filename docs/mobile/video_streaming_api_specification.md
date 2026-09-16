@@ -70,6 +70,7 @@ The mobile video subsystem strictly enforces Role-Based Access Control (RBAC) ac
      - `GET /api/v1/mobile/videos/saved` *(My Saved Videos / Watchlist)*
      - `POST /api/v1/mobile/videos/{id}/like` *(Toggle Video Like)*
      - `POST /api/v1/mobile/videos/{id}/save` *(Toggle Video Save)*
+     - `POST /api/v1/mobile/videos/{id}/ad-impression` *(Record In-Stream Ad Impression Telemetry)*
    - **Behavior**: All strictly enforce `Depends(get_current_subscriber)`. Rejects Guests with `HTTP 403 Forbidden`.
 
 ---
@@ -329,14 +330,69 @@ Authorization: Bearer <access_token>  (Required)
 
 ### 8. `GET /api/v1/mobile/videos/{video_id}` — Video Details & Presigned HLS / MP4 Stream Player
 
-Retrieves complete video metadata, **time-bound presigned HLS player URL** (`playlist.m3u8?token=...`), **presigned MP4 download links** for offline playback (filtered by available resolutions), dynamic `is_liked` & `is_saved` state, and **`last_position_seconds`** to resume playback.
+Retrieves complete video metadata. If the authenticated user holds an active subscription under this creator studio, it attaches the **time-bound presigned HLS player URL** (`playlist.m3u8?token=...`), **presigned MP4 download links**, and **closed caption tracks**. 
+
+If the user is **unsubscribed or expired**, all protected media assets (`hls_stream_url`, `download_urls`, `captions`, and `ad_tag_url`) are strictly set to `null`, enabling the mobile app to render a high-converting **"Subscribe to Watch"** preview screen while safeguarding proprietary content.
 
 #### Request Headers
 ```http
-Authorization: Bearer <access_token>  (Required: Strictly requires subscriber role)
+Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest token)
 ```
 
-#### Response Specification (`200 OK`)
+#### 🛡️ Playback Entitlement & Asset Security Matrix
+
+| Field in Response | 🚫 Unsubscribed / Free User | 🍿 Standard Tier (`with_ads`) | 💎 Premium Tier (`no_ads`) |
+| :--- | :---: | :---: | :---: |
+| **Metadata (`title`, `thumbnail_url`, `description`, etc.)** | ✅ Included | ✅ Included | ✅ Included |
+| **`hls_stream_url`** | ❌ **`null`** (Locked) | ✅ **Presigned HLS URL** | ✅ **Presigned HLS URL** |
+| **`download_urls`** | ❌ **`null`** (Locked) | ✅ **Presigned MP4 URLs** | ✅ **Presigned MP4 URLs** |
+| **`captions`** | ❌ **`null`** (Locked) | ✅ **VTT Caption Tracks** | ✅ **VTT Caption Tracks** |
+| **`ad_tag_url`** | ❌ **`null`** (No Content Stream) | ✅ **VAST / VMAP Ad Tag** | ❌ **`null`** (Ad-Free) |
+
+---
+
+#### 💡 Architectural Rationale: Why Protected Assets & `ad_tag_url` are `null` for Unsubscribed Users
+
+1. **Why `captions` is `null`:**
+   - Closed caption (`.vtt`) files contain the full verbatim transcript of the video. Exposing captions to unsubscribed users allows automated scraping and theft of proprietary video scripts and educational course content. Setting `captions: null` protects intellectual property.
+
+2. **Why `download_urls` is `null`:**
+   - Offline MP4 downloads are exclusively available to active subscribers. Setting `download_urls: null` ensures no direct raw video files can be retrieved or reverse-engineered by unsubscribed clients.
+
+3. **Why `ad_tag_url` is `null`:**
+   - **Google Ad Manager / IAB Policy Compliance:** VAST/VMAP video ads are in-stream formats that require an active content stream. Firing video ads on a locked screen without playable content produces phantom impressions and 0% viewability, which violates Google Ad Manager terms and risks creator/platform account penalization for invalid traffic.
+   - **Monetization & Conversion Funnel:** In-stream ads monetize users who selected the lower-priced **Standard (`with_ads`)** subscription. Unsubscribed users should not see third-party commercial ads; their user journey must be 100% focused on subscribing via the high-converting in-app paywall.
+   - **Client Performance:** Prevents the mobile client from needlessly initializing the Google IMA SDK container or consuming network bandwidth on preview screens.
+
+---
+
+#### Response Specifications (`200 OK`)
+
+##### Response A: Unsubscribed User (Playback Locked — Show "Subscribe to Watch")
+```json
+{
+  "id": 101,
+  "title": "Mastering Flutter & FastAPI Microservices",
+  "description": "Learn how to build high-performance video streaming mobile apps with adaptive bitrate HLS streaming and offline downloads.",
+  "category": "tutorials",
+  "tags": ["flutter", "fastapi", "hls", "ott"],
+  "duration": 1200,
+  "views_count": 14251,
+  "likes_count": 1240,
+  "is_liked": false,
+  "is_saved": false,
+  "last_position_seconds": 0,
+  "progress_percentage": 0.0,
+  "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_101_main.jpg",
+  "hls_stream_url": null,
+  "download_urls": null,
+  "captions": null,
+  "ad_tag_url": null,
+  "published_at": "2026-08-05T10:00:00Z"
+}
+```
+
+##### Response B: Standard Subscriber (`plan_type = "with_ads"`)
 ```json
 {
   "id": 101,
@@ -353,7 +409,41 @@ Authorization: Bearer <access_token>  (Required: Strictly requires subscriber ro
   "progress_percentage": 35.4,
   "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_101_main.jpg",
   "hls_stream_url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_9988/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1786195200",
+  "download_urls": [
+    {
+      "resolution": "720p",
+      "url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_9988/play_720p.mp4?token=x1y2z3...&expires=1786195200"
+    }
+  ],
+  "captions": [
+    {
+      "language": "English",
+      "srclang": "en",
+      "url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_9988/captions/en.vtt"
+    }
+  ],
   "ad_tag_url": "https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator=",
+  "published_at": "2026-08-05T10:00:00Z"
+}
+```
+
+##### Response C: Premium Subscriber (`plan_type = "no_ads"`)
+```json
+{
+  "id": 101,
+  "title": "Mastering Flutter & FastAPI Microservices",
+  "description": "Learn how to build high-performance video streaming mobile apps with adaptive bitrate HLS streaming and offline downloads.",
+  "category": "tutorials",
+  "tags": ["flutter", "fastapi", "hls", "ott"],
+  "duration": 1200,
+  "views_count": 14251,
+  "likes_count": 1240,
+  "is_liked": true,
+  "is_saved": false,
+  "last_position_seconds": 425,
+  "progress_percentage": 35.4,
+  "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_101_main.jpg",
+  "hls_stream_url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_9988/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1786195200",
   "download_urls": [
     {
       "resolution": "1080p",
@@ -367,21 +457,42 @@ Authorization: Bearer <access_token>  (Required: Strictly requires subscriber ro
       "url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_9988/captions/en.vtt"
     }
   ],
+  "ad_tag_url": null,
   "published_at": "2026-08-05T10:00:00Z"
 }
 ```
 
-#### Ad Monetization & Entitlement Logic (`ad_tag_url`)
-The `ad_tag_url` field is dynamically computed by the backend based on the subscriber's active subscription tier:
-- **Premium Subscribers (`plan_type = "no_ads"`)**:
-  - `ad_tag_url`: `null`
-  - **Client Behavior**: The mobile/web player skips the ad SDK completely and immediately begins streaming `hls_stream_url` without delays.
-- **Standard Subscribers (`plan_type = "with_ads"`) & Free Users**:
-  - `ad_tag_url`: `"https://pubads.g.doubleclick.net/..."` (Google IMA VAST Tag)
-  - **Client Behavior**: The player passes `ad_tag_url` into the **Google Interactive Media Ads (IMA) SDK**. IMA automatically serves the 15-second skippable pre-roll ad with a 5-second countdown. Once skipped or completed, the player transitions to `hls_stream_url`.
-- **Ads Disabled Globally**:
-  - If `GOOGLE_IMA_VAST_TAG_URL` is empty in server `.env`, `ad_tag_url` is always `null` for all users.
+---
 
+#### 📱 Mobile App Player Implementation (Client Logic)
+
+Mobile developers (Flutter, React Native, iOS, Android) use a clean entitlement check:
+
+```dart
+if (video.hls_stream_url != null) {
+  // 1. User holds an active subscription
+  if (video.ad_tag_url != null) {
+    // Standard Tier: Initialize Google IMA SDK with VAST/VMAP URL
+    player.playWithAds(video.hls_stream_url, adTag: video.ad_tag_url);
+  } else {
+    // Premium Tier: Stream directly with zero ads
+    player.playDirect(video.hls_stream_url);
+  }
+
+  // Attach closed captions if available
+  if (video.captions != null && video.captions.isNotEmpty) {
+    player.setSubtitles(video.captions);
+  }
+} else {
+  // 2. User is unsubscribed or expired: Render locked preview
+  // Protected media assets (hls_stream_url, download_urls, captions, ad_tag_url) are all null
+  showSubscribeToWatchOverlay(
+    thumbnailUrl: video.thumbnail_url,
+    title: video.title,
+    onSubscribeTap: () => navigateToSubscriptionPlans(),
+  );
+}
+```
 
 ---
 
@@ -476,6 +587,65 @@ Authorization: Bearer <access_token>  (Required)
   "is_saved": true
 }
 ```
+
+---
+
+### 13. `POST /api/v1/mobile/videos/{video_id}/ad-impression` — Record In-Stream Ad Impression Telemetry
+
+Dispatched by the mobile video player whenever the **Google Interactive Media Ads (IMA) SDK** fires an ad impression or milestone event during video playback on the Standard tier (`with_ads`).
+
+Logs an immutable, verified ad impression in the backend telemetry engine (`ad_impression_events`), powering real-time Creator Studio ad analytics, fill rate reporting, and monthly revenue settlement calculations.
+
+#### Calling Schedule & Triggers (Mobile Client Rules)
+1. **The Primary Trigger (`AdEvent.IMPRESSION`):**
+   - Dispatched the exact moment Google IMA SDK fires `AdEventType.IMPRESSION` (automatically triggered at the **2-second** mark of continuous viewable playback).
+   - This single API call officially marks the ad as counted/monetized in the creator's monthly revenue ledger.
+2. **Single Call Per Ad (No Double Counting):**
+   - The mobile app calls this endpoint **only once per ad**.
+3. **What Happens on Skip? (`AdEvent.SKIPPED`):**
+   - Skippable ads have a mandatory 5-second countdown before the user can click "Skip".
+   - Because the 2-second impression was already recorded at second 2, **the impression is already monetized**. If the user clicks "Skip" at second 5, the client simply transitions to the content video and does **not** make another API call.
+4. **Early App Exit (< 2 seconds):**
+   - If the user closes the app or navigates away before reaching 2 seconds, Google IMA SDK never fires `AdEventType.IMPRESSION`, and the mobile app must **not** call this endpoint.
+
+#### Request Headers
+```http
+Authorization: Bearer <access_token>  (Required: Strictly requires active subscriber role)
+Content-Type: application/json
+```
+
+#### Path Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :---: | :--- |
+| `video_id` | `integer` | Yes | Primary key ID of the video currently playing the ad |
+
+#### Request Body
+```json
+{
+  "event_type": "impression",
+  "ad_duration_seconds": 15
+}
+```
+
+#### Request Payload Validation Rules
+- `event_type`: Required string. Allowed values:
+  - `"impression"`: Ad has successfully started rendering and passed the 2-second IAB viewability mark.
+  - `"midpoint"`: Ad playback reached 50% duration.
+  - `"complete"`: Ad played to completion without being skipped.
+- `ad_duration_seconds`: Optional integer (default: `0`). Creative duration in seconds.
+
+#### Response Specification (`204 No Content`)
+```http
+HTTP/1.1 204 No Content
+(Empty response body for maximum performance and zero network overhead on mobile cellular connections)
+```
+
+#### 🛡️ Zero-Trust Verification & Anti-Spam Debounce Gates
+When this endpoint is invoked, the backend enforces 4 zero-trust validation checks:
+1. **Subscriber Role Enforcement:** Anonymous guest accounts are rejected with `HTTP 403 Forbidden` (`"Subscriber access required to log ad telemetry"`).
+2. **Active Subscription Verification:** Validates that caller holds an active subscription with `plan_type == 'with_ads'`. If caller holds a `no_ads` Premium subscription or is unsubscribed, request is rejected.
+3. **Published Video Validation:** Video must exist, be published, and belong to the calling tenant's creator studio.
+4. **Session Debounce Cooldown:** If multiple impression pings arrive for the same `(subscriber_id, video_id)` within `10 seconds`, duplicate pings are discarded to prevent client loop or replay attacks.
 
 ---
 

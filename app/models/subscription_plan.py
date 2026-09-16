@@ -9,6 +9,7 @@ from peewee import (
     TextField,
 )
 
+from app.config import get_settings
 from app.models.admin import Admin
 from app.models.base import BaseModel
 
@@ -34,7 +35,9 @@ class SubscriptionPlan(BaseModel):
     base_price = FloatField(default=0.0, null=False)
     discount_percentage = FloatField(default=0.0, null=False)
     final_price = FloatField(default=0.0, null=False)
-    currency = CharField(max_length=10, default="INR", null=False)
+    currency = CharField(
+        max_length=10, default=lambda: get_settings().DEFAULT_CURRENCY, null=False
+    )
     billing_period_value = IntegerField(default=1, null=False)
     billing_period_unit = CharField(max_length=20, default="months", null=False)
     badge_text = CharField(max_length=50, null=True)

@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
+
 
 class CategoryCreateRequest(BaseModel):
     """Request payload for creating a category."""
@@ -13,10 +15,10 @@ class CategoryCreateRequest(BaseModel):
         None, max_length=500, description="Optional description text"
     )
     icon: str | None = Field(
-        "📁", max_length=50, description="Emoji or icon identifier string"
+        default=None, max_length=50, description="Emoji or icon identifier string"
     )
     color: str | None = Field(
-        "#3b82f6", max_length=30, description="Hex accent color string"
+        default=None, max_length=30, description="Hex accent color string"
     )
 
 
@@ -42,8 +44,12 @@ class CategoryResponse(BaseModel):
     name: str
     slug: str
     description: str | None = None
-    icon: str = "📁"
-    color: str = "#3b82f6"
+    icon: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CATEGORY_ICON
+    )
+    color: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
+    )
     contentCount: int = 0
     order: int = 0
     createdAt: datetime | None = None
@@ -70,8 +76,12 @@ class MobileCategoryResponse(BaseModel):
     id: int
     name: str
     slug: str
-    icon: str = "📁"
-    color: str = "#3b82f6"
+    icon: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CATEGORY_ICON
+    )
+    color: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
+    )
 
 
 class MobileCategoryListResponse(BaseModel):

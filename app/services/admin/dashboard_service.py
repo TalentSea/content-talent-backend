@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
+from app.config import get_settings
 from app.repositories.admin.dashboard_repository import DashboardRepository
 from app.schemas.admin.dashboard_schemas import (
     AnalyticsDataPoint,
@@ -173,7 +174,7 @@ class DashboardService:
         return DashboardStatsResponse(
             start_date=start_d,
             end_date=end_d,
-            currency="INR",
+            currency=get_settings().DEFAULT_CURRENCY,
             total_revenue=revenue_metric,
             total_views=views_metric,
             total_users=users_metric,
@@ -293,7 +294,7 @@ class DashboardService:
             start_date=start_d.isoformat(),
             end_date=end_d.isoformat(),
             interval=resolved_interval,
-            currency="INR",
+            currency=get_settings().DEFAULT_CURRENCY,
             data_points=data_points,
         )
 
@@ -353,7 +354,7 @@ class DashboardService:
         return SubscriptionBreakdownResponse(
             start_date=start_d,
             end_date=end_d,
-            currency="INR",
+            currency=get_settings().DEFAULT_CURRENCY,
             total_subscribers=total_subscribers,
             total_revenue=total_revenue,
             tiers=tier_items,

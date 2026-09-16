@@ -19,7 +19,7 @@ class Branding(BaseModel):
         unique=True,
         on_delete="CASCADE",
     )
-    studio_name = CharField(max_length=255, null=True)
+    studio_name = CharField(max_length=255, null=False)
     tagline = CharField(max_length=255, null=True)
     description = TextField(null=True)
     banner_url = CharField(max_length=500, null=True)

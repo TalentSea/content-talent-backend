@@ -14,6 +14,9 @@ class CreateOrderRequest(BaseModel):
     )
 
 
+from app.config import get_settings
+
+
 class CreateOrderResponse(BaseModel):
     """
     Response envelope containing Razorpay SDK initialization parameters.
@@ -23,7 +26,10 @@ class CreateOrderResponse(BaseModel):
         ..., description="Razorpay official order ID (e.g. order_...)"
     )
     amount: int = Field(..., description="Amount in paise (e.g. 249900)")
-    currency: str = Field(default="INR", description="Currency ISO code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Currency ISO code",
+    )
     key_id: str = Field(..., description="Razorpay public API key ID")
 
 

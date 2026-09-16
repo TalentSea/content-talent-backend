@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
+
 # ---------------------------------------------------------------------------
 # API 1: /stats Schemas
 # ---------------------------------------------------------------------------
@@ -37,7 +39,10 @@ class DashboardStatsResponse(BaseModel):
         ..., description="Resolved ISO start date of current window"
     )
     end_date: date = Field(..., description="Resolved ISO end date of current window")
-    currency: str = Field("INR", description="Three-letter currency code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Three-letter currency code",
+    )
     total_revenue: GrowthMetric = Field(..., description="Revenue telemetry and growth")
     total_views: GrowthMetric = Field(
         ..., description="Playback views telemetry and growth"
@@ -87,7 +92,10 @@ class AnalyticsResponse(BaseModel):
     interval: str = Field(
         ..., description="Bucket interval applied: 'day', 'week', or 'month'"
     )
-    currency: str = Field("INR", description="Three-letter currency code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Three-letter currency code",
+    )
     data_points: list[AnalyticsDataPoint] = Field(
         ..., description="Ordered chronological array of time points"
     )
@@ -124,7 +132,10 @@ class SubscriptionBreakdownResponse(BaseModel):
         ..., description="Resolved ISO start date of current window"
     )
     end_date: date = Field(..., description="Resolved ISO end date of current window")
-    currency: str = Field("INR", description="Three-letter currency code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Three-letter currency code",
+    )
     total_subscribers: int = Field(
         ..., description="Total count of active subscribers across all tiers"
     )

@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # Video Ad Monetization (Google IMA / VAST)
     GOOGLE_IMA_VAST_TAG_URL: str = ""
 
+    # Platform & Content Defaults
+    DEFAULT_CURRENCY: str = "INR"
+    DEFAULT_CATEGORY_ICON: str = "📁"
+    DEFAULT_CATEGORY_COLOR: str = "#3b82f6"
+
     @property
     def allowed_image_extensions_tuple(self) -> tuple[str, ...]:
         """

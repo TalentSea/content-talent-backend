@@ -8,6 +8,7 @@ from peewee import (
     TextField,
 )
 
+from app.config import get_settings
 from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
@@ -45,7 +46,9 @@ class Payment(BaseModel):
     razorpay_payment_id = CharField(max_length=100, null=True, index=True)
     razorpay_signature = CharField(max_length=255, null=True)
     amount = FloatField(null=False)
-    currency = CharField(max_length=10, default="INR", null=False)
+    currency = CharField(
+        max_length=10, default=lambda: get_settings().DEFAULT_CURRENCY, null=False
+    )
     status = CharField(max_length=30, default="created", index=True, null=False)
     error_code = CharField(max_length=100, null=True)
     error_description = TextField(null=True)

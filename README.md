@@ -36,7 +36,8 @@ content-talent-backend/
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave, WatchHistory, and VideoViewEvent entities
 │   │   ├── playlist.py           # Playlist and junction entities
-│   │   └── comment.py            # Comment, thread replies, and junction entities
+│   │   ├── comment.py            # Comment, thread replies, and junction entities
+│   │   └── ad_monetization.py    # AdImpressionEvent, AdMonthlySettlement, and CreatorPayoutProfile entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
 │   │   ├── admin/                # Creator Admin Repositories
 │   │   │   ├── auth_repository.py
@@ -46,7 +47,8 @@ content-talent-backend/
 │   │   │   ├── comment_repository.py
 │   │   │   ├── profile_repository.py
 │   │   │   ├── featured_video_repository.py
-│   │   │   └── subscription_plan_repository.py
+│   │   │   ├── subscription_plan_repository.py
+│   │   │   └── monetization_repository.py
 │   │   ├── mobile/               # Mobile Subscriber Repositories
 │   │   │   ├── auth_repository.py
 │   │   │   ├── video_repository.py
@@ -188,9 +190,9 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ---
 
-## API Summary Breakdown (88 Total Endpoints)
+## API Summary Breakdown (90 Total Endpoints)
 
-- **Admin Endpoints (53)**:
+- **Admin Endpoints (55)**:
   - Creator Authentication & Session Lifecycle: 4 endpoints
   - Studio Dashboard & Analytics: 4 endpoints
   - Video Management & Scheduling: 11 endpoints
@@ -201,6 +203,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Account Profile & Social Links: 3 endpoints
   - Featured Videos Curation: 3 endpoints
   - Subscription Plans Management: 2 endpoints
+  - In-Stream Ad Monetization & VAST Settings: 2 endpoints
 - **Mobile Endpoints (33)**:
   - Video Catalog, Player, History, Likes & Saves: 12 endpoints
   - Comments & Replies: 6 endpoints

@@ -32,15 +32,15 @@ class MobileCommentService:
         if c.user:
             return MobileCommentAuthorResponse(
                 id=c.user.id,
-                name=c.user.name or f"Subscriber {c.user.id}",
+                name=c.user.name,
                 avatar_url=c.user.avatar_url,
                 is_creator=False,
             )
-        creator = c.video.user if (c.video and hasattr(c.video, "user")) else None
+        creator = c.video.user
         return MobileCommentAuthorResponse(
-            id=creator.id if creator else 0,
-            name=creator.display_name if creator else "Creator",
-            avatar_url=creator.display_avatar_url if creator else None,
+            id=creator.id,
+            name=creator.display_name,
+            avatar_url=creator.display_avatar_url,
             is_creator=True,
         )
 

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.config import get_settings
+
 
 class MobileSubscriptionPlanResponse(BaseModel):
     """
@@ -15,7 +17,7 @@ class MobileSubscriptionPlanResponse(BaseModel):
     base_price: float
     discount_percentage: float = 0.0
     final_price: float
-    currency: str = "INR"
+    currency: str = Field(default_factory=lambda: get_settings().DEFAULT_CURRENCY)
     billing_period_value: int = 1
     billing_period_unit: str = "months"
     features: list[str] = Field(default_factory=list)

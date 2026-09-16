@@ -40,10 +40,10 @@ class AuthService:
         """
         return UserProfileResponse(
             id=subscriber.id,
-            name=subscriber.name or f"Subscriber {subscriber.id}",
+            name=subscriber.name,
             email=subscriber.email,
             avatar_url=subscriber.avatar_url,
-            provider=subscriber.provider or "google",
+            provider=subscriber.provider,
             role="subscriber" if subscriber.provider != "guest" else "guest",
             created_at=subscriber.created_at,
         )
@@ -109,7 +109,7 @@ class AuthService:
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
         # Generate App JWT Access Token containing user_id and creator_id
-        username_str = subscriber.name or f"subscriber_{subscriber.id}"
+        username_str = subscriber.name
         role_str = subscriber.role or ("subscriber" if subscriber.provider != "guest" else "guest")
         access_token = create_access_token(
             user_id=subscriber.id,
@@ -147,7 +147,7 @@ class AuthService:
         access_token = create_access_token(
             user_id=subscriber.id,
             role="guest",
-            username=subscriber.name or f"guest_{subscriber.id}",
+            username=subscriber.name,
             creator_id=subscriber.creator_id,
             expires_delta_minutes=expire_minutes,
         )
@@ -223,7 +223,7 @@ class AuthService:
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
         # Issue new token pair
-        username_str = subscriber.name or f"subscriber_{subscriber.id}"
+        username_str = subscriber.name
         role_str = subscriber.role or ("subscriber" if subscriber.provider != "guest" else "guest")
         new_access_token = create_access_token(
             user_id=subscriber.id,

@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **18 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **21 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -9,6 +9,7 @@ This document provides a permanent visual, architectural, and **field-by-field s
 ```mermaid
 erDiagram
     ADMIN ||--o| BRANDING : "owns (1:1)"
+    ADMIN ||--o| CREATOR_PAYOUT_PROFILE : "registers payout bank (1:1)"
     ADMIN ||--o{ CATEGORY : "creates & manages (1:N)"
     ADMIN ||--o{ VIDEO : "uploads & owns (1:N)"
     ADMIN ||--o{ PLAYLIST : "curates & owns (1:N)"
@@ -18,6 +19,8 @@ erDiagram
     ADMIN ||--o{ PAYMENT : "receives transactions (1:N)"
     ADMIN ||--o{ USER_SUBSCRIPTION : "grants entitlements (1:N)"
     ADMIN ||--o{ VIDEO_VIEW_EVENT : "aggregates telemetry (1:N)"
+    ADMIN ||--o{ AD_IMPRESSION_EVENT : "earns from (1:N)"
+    ADMIN ||--o{ AD_MONTHLY_SETTLEMENT : "receives settlements (1:N)"
 
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
     SUBSCRIBER ||--o{ VIDEO_LIKE : "likes (1:N)"
@@ -28,6 +31,7 @@ erDiagram
     SUBSCRIBER ||--o{ PAYMENT : "originates transactions (1:N)"
     SUBSCRIBER ||--o{ USER_SUBSCRIPTION : "holds subscriptions (1:N)"
     SUBSCRIBER ||--o{ VIDEO_VIEW_EVENT : "generates views (1:N)"
+    SUBSCRIBER ||--o{ AD_IMPRESSION_EVENT : "watches video ads (1:N)"
 
     SUBSCRIPTION_PLAN ||--o{ PAYMENT : "billed tier (1:N)"
     SUBSCRIPTION_PLAN ||--o{ USER_SUBSCRIPTION : "assigned tier (1:N)"
@@ -41,6 +45,7 @@ erDiagram
     VIDEO ||--o{ FEATURED_VIDEO : "featured in home carousel (1:N)"
     VIDEO ||--o{ COMMENT : "has comments (1:N)"
     VIDEO ||--o{ VIDEO_VIEW_EVENT : "has view events (1:N)"
+    VIDEO ||--o{ AD_IMPRESSION_EVENT : "serves video ads (1:N)"
 
     PLAYLIST ||--o{ PLAYLIST_VIDEO : "contains ordered videos (1:N)"
     COMMENT ||--o{ COMMENT : "parent/child reply thread (1:N)"
@@ -429,5 +434,75 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 * **Composite Index `(creator_id, created_at)`**: Powers instantaneous Admin Dashboard windowed telemetry queries (`WHERE creator_id = :id AND created_at BETWEEN :start AND :end`) in sub-2ms.
 * **Composite Index `(video_id, created_at)`**: Powers fast per-video historical performance analytics.
 * **Composite Index `(video_id, subscriber_id, created_at)`**: Powers sub-millisecond anti-spam verification (30-minute session debounce and 24-hour daily view capping).
+
+---
+
+### 19. `ad_impression_events` Table (Immutable Video Ad Impression Telemetry)
+* **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
+* **Table Name**: `ad_impression_events`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of ad impression event |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio earning ad revenue from this impression |
+| `video_id` | `INTEGER` | **FK ➔ `videos.id` (CASCADE)** | NO | None | Video asset where the ad impression rendered |
+| `subscriber_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Viewer (authenticated subscriber or registered guest) |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Ad impression beacon registration timestamp |
+
+#### Indexes
+* **Composite Index `(creator_id, created_at)`**: Powers instantaneous date-window aggregations (`SUM`, `COUNT`) for Creator Studio real-time metrics (`/summary`) and interactive time-series charts (`/analytics`).
+* **Composite Index `(video_id, created_at)`**: Powers per-video monetization performance analytics.
+
+---
+
+### 20. `ad_monthly_settlements` Table (Monthly Financial Payout Statements & UTR Ledger)
+* **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
+* **Table Name**: `ad_monthly_settlements`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of settlement record |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio receiving the monthly payout |
+| `statement_id` | `VARCHAR(50)` | **UNIQUE (INDEX)** | NO | None | Official business statement ID (e.g. `STMT-2026-08-101`) |
+| `month` | `VARCHAR(7)` | Standard (INDEX) | NO | None | Billing cycle cycle formatted as `YYYY-MM` (e.g. `2026-08`) |
+| `impressions_count` | `INTEGER` | Standard | NO | `0` | Verified billable ad impressions served during the month |
+| `ecpm` | `FLOAT` | Standard | NO | `0.0` | Effective creator take-home CPM rate |
+| `amount` | `FLOAT` | Standard | NO | `0.0` | Final net payout amount transferred to creator's bank |
+| `currency` | `VARCHAR(10)` | Standard | NO | `DEFAULT_CURRENCY` | 3-letter currency code (e.g. `"INR"`) |
+| `status` | `VARCHAR(20)` | Standard (INDEX) | NO | `"accruing"` | Settlement state: `"accruing"`, `"reconciled"`, `"paid"` |
+| `scheduled_payout_date` | `DATE` | Standard | YES | `NULL` | Scheduled disbursement transfer date (e.g. `2026-09-28`) |
+| `settled_at` | `DATETIME` | Standard | YES | `NULL` | Exact timestamp when bank disbursement completed |
+| `transaction_reference` | `VARCHAR(100)` | Standard | YES | `NULL` | Official Bank UTR reference number |
+| `invoice_url` | `VARCHAR(500)` | Standard | YES | `NULL` | Secure CDN link to downloadable PDF statement |
+| `gross_revenue` | `FLOAT` | Standard | NO | `0.0` | *Internal audit:* Gross amount from Google (hidden from creator API) |
+| `platform_commission_pct`| `FLOAT` | Standard | NO | `30.0` | *Internal audit:* Commission % applied (hidden from creator API) |
+| `platform_fee` | `FLOAT` | Standard | NO | `0.0` | *Internal audit:* Platform cut retained (hidden from creator API) |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Record creation timestamp |
+| `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last modification timestamp |
+
+#### Constraints & Indexes
+* **Unique Composite Constraint `(creator_id, month)`**: Guarantees strictly one monthly settlement record per creator per calendar month.
+* **Composite Index `(creator_id, status)`**: Accelerates dashboard retrieval of pending payout (`"reconciled"`) and last completed payout (`"paid"`).
+
+---
+
+### 21. `creator_payout_profiles` Table (Creator Bank Payout Profile)
+* **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
+* **Table Name**: `creator_payout_profiles`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of payout profile |
+| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE, UNIQUE)** | NO | None | 1-to-1 link to Creator Admin account |
+| `account_holder_name` | `VARCHAR(100)` | Standard | YES | `NULL` | Official name registered with the bank |
+| `account_number` | `VARCHAR(50)` | Standard | YES | `NULL` | Full bank account number (masked in GET responses) |
+| `ifsc_code` | `VARCHAR(20)` | Standard | YES | `NULL` | Indian Financial System Code (e.g. `HDFC0000128`) |
+| `bank_name` | `VARCHAR(100)` | Standard | YES | `NULL` | Bank name auto-resolved from IFSC and saved at write-time |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Registration timestamp |
+| `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last update timestamp |
+
+#### Constraints & Indexes
+* **Unique Constraint `creator_id`**: Enforces strictly one bank payout profile per creator.
+
 
 

@@ -2,6 +2,7 @@ import logging
 
 from fastapi import HTTPException, status
 
+from app.config import get_settings
 from app.repositories.shared.category_repository import CategoryRepository
 from app.schemas.shared.category_schemas import (
     CategoryCreateRequest,
@@ -26,13 +27,14 @@ class CategoryService:
         self.repo = CategoryRepository()
 
     def _to_category_response(self, cat, content_count: int = 0) -> CategoryResponse:
+        settings = get_settings()
         return CategoryResponse(
             id=cat.id,
             name=cat.name,
             slug=cat.slug,
             description=cat.description,
-            icon=cat.icon or "📁",
-            color=cat.color or "#3b82f6",
+            icon=cat.icon or settings.DEFAULT_CATEGORY_ICON,
+            color=cat.color or settings.DEFAULT_CATEGORY_COLOR,
             contentCount=content_count,
             order=cat.display_order,
             createdAt=cat.created_at,
@@ -43,14 +45,15 @@ class CategoryService:
         """
         Retrieves lightweight categories for mobile catalog filter chips.
         """
+        settings = get_settings()
         categories = self.repo.list_public_mobile_categories(creator_id)
         data = [
             MobileCategoryResponse(
                 id=c.id,
                 name=c.name,
                 slug=c.slug,
-                icon=c.icon or "📁",
-                color=c.color or "#3b82f6",
+                icon=c.icon or settings.DEFAULT_CATEGORY_ICON,
+                color=c.color or settings.DEFAULT_CATEGORY_COLOR,
             )
             for c in categories
         ]

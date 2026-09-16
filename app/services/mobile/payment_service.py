@@ -150,7 +150,7 @@ class MobilePaymentService:
             ]
             payload = {
                 "amount": amount_paise,
-                "currency": plan.currency or "INR",
+                "currency": plan.currency or settings.DEFAULT_CURRENCY,
                 "receipt": receipt_str,
             }
             res = requests.post(url, json=payload, auth=auth, timeout=10)
@@ -183,7 +183,7 @@ class MobilePaymentService:
             plan_id=plan.id,
             razorpay_order_id=order_id,
             amount=final_price,
-            currency=plan.currency or "INR",
+            currency=plan.currency or settings.DEFAULT_CURRENCY,
         )
         if not payment:
             raise HTTPException(
@@ -194,7 +194,7 @@ class MobilePaymentService:
         return CreateOrderResponse(
             order_id=order_id,
             amount=amount_paise,
-            currency=plan.currency or "INR",
+            currency=plan.currency or settings.DEFAULT_CURRENCY,
             key_id=settings.RAZORPAY_KEY_ID,
         )
 

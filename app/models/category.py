@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from peewee import CharField, DateTimeField, ForeignKeyField, IntegerField, TextField
 
+from app.config import get_settings
 from app.models.admin import Admin
 from app.models.base import BaseModel
 
@@ -21,8 +22,8 @@ class Category(BaseModel):
     name = CharField(max_length=100)
     slug = CharField(max_length=120)
     description = TextField(null=True)
-    icon = CharField(max_length=50, default="📁")
-    color = CharField(max_length=30, default="#3b82f6")
+    icon = CharField(max_length=50, default=lambda: get_settings().DEFAULT_CATEGORY_ICON)
+    color = CharField(max_length=30, default=lambda: get_settings().DEFAULT_CATEGORY_COLOR)
     display_order = IntegerField(default=0)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))

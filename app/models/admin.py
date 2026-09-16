@@ -12,8 +12,8 @@ class Admin(BaseModel):
 
     email = CharField(unique=True, max_length=255, index=True)
     password_hash = CharField(max_length=255, null=True)
-    first_name = CharField(max_length=100, null=True)
-    last_name = CharField(max_length=100, null=True)
+    first_name = CharField(max_length=100, null=False)
+    last_name = CharField(max_length=100, null=False)
     phone = CharField(max_length=50, null=True)
     location = CharField(max_length=255, null=True)
     bio = TextField(null=True)
@@ -29,21 +29,14 @@ class Admin(BaseModel):
     @property
     def name(self) -> str:
         """
-        Returns full creator name, or email prefix if profile name is blank,
-        falling back cleanly to 'Creator'.
+        Returns full creator name (first_name + last_name).
         """
-        full_name = f"{self.first_name or ''} {self.last_name or ''}".strip()
-        if full_name:
-            return full_name
-        if self.email and "@" in self.email:
-            return self.email.split("@")[0].replace(".", " ").replace("_", " ").title()
-        return "Creator"
+        return f"{self.first_name or ''} {self.last_name or ''}".strip()
 
     @property
     def display_name(self) -> str:
         """
-        Returns official studio branding name if set, otherwise creator name,
-        falling back cleanly to 'Creator'.
+        Returns official studio branding name if set, otherwise creator name.
         """
         try:
             from app.models.branding import Branding

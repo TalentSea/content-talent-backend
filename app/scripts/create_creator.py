@@ -5,6 +5,7 @@ import sys
 
 from peewee import fn
 
+from app.config import get_settings
 from app.database import db_proxy, init_db
 from app.models.admin import Admin
 from app.models.branding import Branding
@@ -22,9 +23,9 @@ def validate_email_format(email: str) -> bool:
 def provision_creator(
     email: str,
     password: str,
-    first_name: str | None = None,
-    last_name: str | None = None,
-    studio_name: str | None = None,
+    first_name: str,
+    last_name: str,
+    studio_name: str,
 ) -> dict:
     """
     Atomically provisions a new Creator Admin, Studio Branding identity, and two default subscription plans.
@@ -37,13 +38,17 @@ def provision_creator(
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters long")
 
-    # Determine default studio name if omitted
-    name_parts = [p for p in (first_name, last_name) if p]
-    if not studio_name:
-        if name_parts:
-            studio_name = f"{' '.join(name_parts)} Studio"
-        else:
-            studio_name = "Creator Studio"
+    clean_first_name = (first_name or "").strip()
+    if not clean_first_name:
+        raise ValueError("Creator first name is required and cannot be empty")
+
+    clean_last_name = (last_name or "").strip()
+    if not clean_last_name:
+        raise ValueError("Creator last name is required and cannot be empty")
+
+    clean_studio_name = (studio_name or "").strip()
+    if not clean_studio_name:
+        raise ValueError("Studio name is required and cannot be empty")
 
     # Ensure database is initialized and connected
     init_db()
@@ -65,14 +70,14 @@ def provision_creator(
         admin = Admin.create(
             email=clean_email,
             password_hash=password_hash,
-            first_name=first_name.strip() if first_name else None,
-            last_name=last_name.strip() if last_name else None,
+            first_name=clean_first_name,
+            last_name=clean_last_name,
         )
 
         # 2. Create 1:1 Branding
         branding = Branding.create(
             user=admin.id,
-            studio_name=studio_name.strip(),
+            studio_name=clean_studio_name,
         )
 
         # 3. Create 2 Fixed Subscription Plans
@@ -84,7 +89,7 @@ def provision_creator(
             base_price=99.0,
             discount_percentage=0.0,
             final_price=99.0,
-            currency="INR",
+            currency=get_settings().DEFAULT_CURRENCY,
             billing_period_value=1,
             billing_period_unit="months",
             badge_text="Popular",
@@ -99,7 +104,7 @@ def provision_creator(
             base_price=199.0,
             discount_percentage=0.0,
             final_price=199.0,
-            currency="INR",
+            currency=get_settings().DEFAULT_CURRENCY,
             billing_period_value=1,
             billing_period_unit="months",
             badge_text="Best Value",
@@ -142,16 +147,15 @@ def main():
         help="Initial account password (min 8 chars)",
     )
     parser.add_argument(
-        "--first-name", required=False, default=None, help="Creator first name"
+        "--first-name", required=True, help="Creator first name (required)"
     )
     parser.add_argument(
-        "--last-name", required=False, default=None, help="Creator last name"
+        "--last-name", required=True, help="Creator last name (required)"
     )
     parser.add_argument(
         "--studio-name",
-        required=False,
-        default=None,
-        help="Studio / channel brand name",
+        required=True,
+        help="Studio / channel brand name (required)",
     )
 
     args = parser.parse_args()

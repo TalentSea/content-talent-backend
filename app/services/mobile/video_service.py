@@ -118,53 +118,76 @@ class MobileVideoService:
         pull_zone_url = settings.BUNNY_PULL_ZONE_URL
         token_key = settings.BUNNY_STREAM_TOKEN_KEY
 
-        # 1. Generate Presigned HLS Playback URL (playlist.m3u8?token=...&expires=...)
-        hls_stream_url = None
-        if video.bunny_video_id and pull_zone_url:
-            hls_stream_url = generate_signed_playback_url(
-                bunny_pull_zone_url=pull_zone_url,
-                bunny_video_id=video.bunny_video_id,
-                token_security_key=token_key,
+        # 1. Evaluate Active Subscription Entitlement for this Creator Studio
+        active_sub = None
+        if subscriber_id:
+            active_sub = self.sub_repo.get_active_subscription(
+                user_id=subscriber_id, creator_id=video.user_id
             )
 
-        # 2. Dynamically Generate Presigned MP4 Download URLs for available resolutions
-        download_urls: list[MobileVideoDownloadUrlResponse] = []
-        if video.bunny_video_id and pull_zone_url:
-            avail_res = (
-                video.available_resolutions
-                if isinstance(video.available_resolutions, list)
-                else []
-            )
-            for res in avail_res:
-                mp4_url = generate_signed_mp4_url(
+        hls_stream_url: str | None = None
+        download_urls: list[MobileVideoDownloadUrlResponse] | None = None
+        captions: list[MobileVideoCaptionResponse] | None = None
+        ad_tag_url: str | None = None
+
+        if active_sub:
+            # 2. Grant Presigned HLS Stream URL to active subscribers
+            if video.bunny_video_id and pull_zone_url:
+                hls_stream_url = generate_signed_playback_url(
                     bunny_pull_zone_url=pull_zone_url,
                     bunny_video_id=video.bunny_video_id,
-                    resolution=res,
                     token_security_key=token_key,
                 )
-                download_urls.append(
-                    MobileVideoDownloadUrlResponse(resolution=res, url=mp4_url)
-                )
 
-        # 3. Generate Closed Captions VTT tracks
-        captions: list[MobileVideoCaptionResponse] = []
-        if video.bunny_video_id and pull_zone_url and video.captions_data:
-            base_cdn = pull_zone_url.rstrip("/")
-            for cap in video.captions_data:
-                if isinstance(cap, dict) and cap.get("srclang"):
-                    srclang = str(cap.get("srclang")).strip()
-                    lang_name = str(cap.get("label") or srclang.capitalize()).strip()
-                    vtt_url = (
-                        cap.get("url")
-                        or f"{base_cdn}/{video.bunny_video_id}/captions/{srclang}.vtt"
+                # Dynamically Generate Presigned MP4 Download URLs for available resolutions
+                download_urls = []
+                avail_res = (
+                    video.available_resolutions
+                    if isinstance(video.available_resolutions, list)
+                    else []
+                )
+                for res in avail_res:
+                    mp4_url = generate_signed_mp4_url(
+                        bunny_pull_zone_url=pull_zone_url,
+                        bunny_video_id=video.bunny_video_id,
+                        resolution=res,
+                        token_security_key=token_key,
                     )
-                    captions.append(
-                        MobileVideoCaptionResponse(
-                            language=lang_name,
-                            srclang=srclang,
-                            url=vtt_url,
-                        )
+                    download_urls.append(
+                        MobileVideoDownloadUrlResponse(resolution=res, url=mp4_url)
                     )
+
+                # Generate Closed Captions VTT tracks
+                captions = []
+                if video.captions_data:
+                    base_cdn = pull_zone_url.rstrip("/")
+                    for cap in video.captions_data:
+                        if isinstance(cap, dict) and cap.get("srclang"):
+                            srclang = str(cap.get("srclang")).strip()
+                            lang_name = str(cap.get("label") or srclang.capitalize()).strip()
+                            vtt_url = (
+                                cap.get("url")
+                                or f"{base_cdn}/{video.bunny_video_id}/captions/{srclang}.vtt"
+                            )
+                            captions.append(
+                                MobileVideoCaptionResponse(
+                                    language=lang_name,
+                                    srclang=srclang,
+                                    url=vtt_url,
+                                )
+                            )
+
+            # 3. Evaluate Ad Tag URL based on subscriber's plan type
+            plan_type = getattr(active_sub.plan, "plan_type", "with_ads")
+            if plan_type == "with_ads":
+                vast_tag = (
+                    settings.GOOGLE_IMA_VAST_TAG_URL.strip()
+                    if settings.GOOGLE_IMA_VAST_TAG_URL
+                    else None
+                )
+                if vast_tag:
+                    ad_tag_url = vast_tag
+            # If plan_type == "no_ads", ad_tag_url remains None (100% ad-free)
 
         tags_list = (
             list(video.tags or [])
@@ -186,25 +209,6 @@ class MobileVideoService:
             last_pos, progress_pct = self.repo.get_subscriber_video_watch_progress(
                 video.id, subscriber_id
             )
-
-        # 5. Evaluate In-Stream Video Ad Entitlement
-        ad_tag_url = None
-        vast_tag = (
-            settings.GOOGLE_IMA_VAST_TAG_URL.strip()
-            if settings.GOOGLE_IMA_VAST_TAG_URL
-            else None
-        )
-        if vast_tag:
-            is_premium_ad_free = False
-            if subscriber_id:
-                active_sub = self.sub_repo.get_active_subscription(
-                    user_id=subscriber_id, creator_id=video.user_id
-                )
-                if active_sub and getattr(active_sub.plan, "plan_type", None) == "no_ads":
-                    is_premium_ad_free = True
-
-            if not is_premium_ad_free:
-                ad_tag_url = vast_tag
 
         return MobileVideoDetailResponse(
             id=video.id,

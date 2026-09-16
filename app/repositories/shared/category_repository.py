@@ -120,13 +120,16 @@ class CategoryRepository:
             )
             new_order = max_order + 1
 
+            from app.config import get_settings
+
+            settings = get_settings()
             return Category.create(
                 user=user_id,
                 name=name,
                 slug=slug,
                 description=data.get("description"),
-                icon=data.get("icon") or "📁",
-                color=data.get("color") or "#3b82f6",
+                icon=data.get("icon") or settings.DEFAULT_CATEGORY_ICON,
+                color=data.get("color") or settings.DEFAULT_CATEGORY_COLOR,
                 display_order=new_order,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
