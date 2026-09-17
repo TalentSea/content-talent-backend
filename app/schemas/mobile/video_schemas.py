@@ -107,3 +107,20 @@ class WatchProgressResponse(BaseModel):
 
     last_position_seconds: int = 0
     completion_percentage: float = 0.0
+
+
+class MobileAdImpressionRequest(BaseModel):
+    """
+    Request payload for in-stream ad impression telemetry beacon.
+    """
+
+    event_type: str = Field(
+        default="impression",
+        pattern=r"^(impression|midpoint|complete)$",
+        description="IMA Ad event milestone: 'impression', 'midpoint', or 'complete'",
+    )
+    ad_duration_seconds: int = Field(
+        default=0,
+        ge=0,
+        description="Creative duration in seconds",
+    )

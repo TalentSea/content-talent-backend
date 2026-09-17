@@ -14,7 +14,7 @@ content-talent-backend/
 ├── docs/                         # Architecture & API Specifications
 │   ├── mobile/                   # Mobile Application API Specifications
 │   ├── admin/                    # Admin Portal API Specifications
-│   ├── database_architecture_specification.md # Complete 18-Table Database Schema Specification
+│   ├── database_architecture_specification.md # Complete 22-Table Database Schema Specification
 ├── app/
 │   ├── config.py                 # Pydantic environment configuration and settings
 │   ├── database.py               # Peewee database proxy and table initialization
@@ -37,7 +37,7 @@ content-talent-backend/
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave, WatchHistory, and VideoViewEvent entities
 │   │   ├── playlist.py           # Playlist and junction entities
 │   │   ├── comment.py            # Comment, thread replies, and junction entities
-│   │   └── ad_monetization.py    # AdImpressionEvent, AdMonthlySettlement, and CreatorPayoutProfile entities
+│   │   └── ad_monetization.py    # AdImpressionEvent, AdPlatformMonthlyReconciliation, AdMonthlySettlement, and CreatorPayoutProfile entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
 │   │   ├── admin/                # Creator Admin Repositories
 │   │   │   ├── auth_repository.py
@@ -73,7 +73,7 @@ content-talent-backend/
 │   │   │   ├── subscription_routes.py # Mobile Active Entitlements Status (/api/v1/mobile/subscriptions)
 │   │   │   ├── playlist_routes.py# Mobile Public Playlists (/api/v1/mobile/playlists)
 │   │   │   ├── subscription_plan_routes.py # Mobile Subscription Plans (/api/v1/mobile/plans)
-│   │   │   └── video_routes.py   # Mobile Video Catalog & HLS Player (/api/v1/mobile/videos)
+│   │   │   └── video_routes.py   # Mobile Video Catalog, HLS Player & Ad Impression Telemetry (/api/v1/mobile/videos)
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── auth_routes.py    # Admin Authentication & Token Lifecycle (/api/v1/admin/auth)
 │   │       ├── dashboard_routes.py# Admin Studio Dashboard & Analytics (/api/v1/admin/dashboard)
@@ -84,6 +84,7 @@ content-talent-backend/
 │   │       ├── playlist_routes.py# Admin Playlist Management (/api/v1/admin/playlists)
 │   │       ├── profile_routes.py # Admin Account Profile & Social Links (/api/v1/admin/profile)
 │   │       ├── subscription_plan_routes.py # Admin Subscription Plans Management (/api/v1/admin/plans)
+│   │       ├── monetization_routes.py # Admin Ad Monetization, Analytics & Payout Settings (/api/v1/admin/monetization)
 │   │       └── video_routes.py   # Admin Video Management & Scheduling (/api/v1/admin/videos)
 │   ├── schemas/                  # Pydantic Request/Response DTOs
 │   │   ├── admin/                # Creator Admin DTO Schemas
@@ -95,7 +96,8 @@ content-talent-backend/
 │   │   │   ├── comment_schemas.py
 │   │   │   ├── profile_schemas.py
 │   │   │   ├── featured_video_schemas.py
-│   │   │   └── subscription_plan_schemas.py
+│   │   │   ├── subscription_plan_schemas.py
+│   │   │   └── monetization_schemas.py
 │   │   ├── mobile/               # Mobile Subscriber DTO Schemas
 │   │   │   ├── auth_schemas.py
 │   │   │   ├── video_schemas.py
@@ -110,7 +112,9 @@ content-talent-backend/
 │   │       ├── branding_schemas.py
 │   │       └── category_schemas.py
 │   ├── scripts/                  # Administrative Automation & CLI Utilities
-│   │   └── create_creator.py     # Atomic Creator Admin, Studio Branding & Plans Onboarding CLI
+│   │   ├── create_creator.py     # Atomic Creator Admin, Studio Branding & Plans Onboarding CLI
+│   │   ├── manage_creator_status.py # Creator Account Status & Suspension Management CLI
+│   │   └── reconcile_monthly_ads.py # Platform Ad Revenue Settlement & Monthly Payouts Reconciliation CLI
 │   ├── services/                 # Business Logic & Cloud Orchestration
 │   │   ├── admin/                # Creator Admin Services
 │   │   │   ├── auth_service.py
@@ -120,7 +124,8 @@ content-talent-backend/
 │   │   │   ├── comment_service.py
 │   │   │   ├── profile_service.py
 │   │   │   ├── featured_video_service.py
-│   │   │   └── subscription_plan_service.py
+│   │   │   ├── subscription_plan_service.py
+│   │   │   └── monetization_service.py
 │   │   ├── mobile/               # Mobile Subscriber Services
 │   │   │   ├── auth_service.py
 │   │   │   ├── video_service.py
@@ -134,6 +139,7 @@ content-talent-backend/
 │   │       └── category_service.py
 │   └── utils/                    # Cloud Helper Utilities & Cryptography
 │       ├── auth.py               # PBKDF2 password hashing & JWT token encoding/decoding
+│       ├── date_utils.py         # Centralized platform timezone resolution (APP_TIMEZONE) & UTC standard
 │       ├── idp_verifiers.py      # Google OIDC RSA and Facebook Graph API verifiers
 │       ├── bunny_client.py       # Bunny REST API HTTP wrappers
 │       ├── bunny_signature.py    # TUS and HLS presigned token signature helpers
@@ -184,15 +190,15 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 - **Dedicated 0-Indexed Thumbnail Management**: Implements dedicated sub-resource upload paths (`slot: 0, 1, 2`) supporting primary cover swaps without accidental asset deletion.
 - **Playlist Curation and Deterministic Cover Overrides**: Multi-video collection management with deterministic cloud banner overrides and custom video ordering.
 - **Comments and On-Demand Thread Replies**: High-performance top-level comment listing with `reply_count`, search, video/category filtering, and on-demand paginated reply thread fetching (`GET /comments/{id}/replies?sort=oldest`).
-- **Presigned HLS Stream Security**: Generates time-bound tokenized streaming URLs (`playlist.m3u8?token=...&expires=...`) to prevent unauthorized hotlinking and stream piracy.
+- **Creator Ad Monetization, Settlements Engine & Dynamic eCPM Architecture**: Comprehensive advertising telemetry and monthly revenue settlement engine. Dispatches Google IMA VAST beacons (`POST /api/v1/mobile/videos/{id}/ad-impression`) with configurable rapid-fire anti-spam debouncing and rolling session caps. Implements a 30% white-label platform technology commission deducted strictly at the eCPM layer ($\text{Creator eCPM} = \text{Raw eCPM} \times 0.70$) without exposing internal margins on creator APIs. Features dynamic historical eCPM baselines (zero hardcoded rates), ₹500 minimum payout threshold rollovers, bank payout profiles with masked account numbers and auto-resolved IFSC codes, and a dedicated back-office reconciliation CLI (`reconcile_monthly_ads.py`).
 - **Standardized Pagination Envelopes**: Wraps list queries inside a generic `PaginatedResponse[T]` structure (`total`, `page`, `limit`, `total_pages`, `items`).
 - **Insecure Direct Object Reference (IDOR) Protection**: User identity is strictly derived from validated JWT Bearer tokens.
 
 ---
 
-## API Summary Breakdown (90 Total Endpoints)
+## API Summary Breakdown (94 Total Endpoints)
 
-- **Admin Endpoints (55)**:
+- **Admin Endpoints (58)**:
   - Creator Authentication & Session Lifecycle: 4 endpoints
   - Studio Dashboard & Analytics: 4 endpoints
   - Video Management & Scheduling: 11 endpoints
@@ -203,9 +209,9 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Account Profile & Social Links: 3 endpoints
   - Featured Videos Curation: 3 endpoints
   - Subscription Plans Management: 2 endpoints
-  - In-Stream Ad Monetization & VAST Settings: 2 endpoints
-- **Mobile Endpoints (33)**:
-  - Video Catalog, Player, History, Likes & Saves: 12 endpoints
+  - Ad Monetization, Analytics, Payout Settings & Statements: 5 endpoints
+- **Mobile Endpoints (34)**:
+  - Video Catalog, Player, History, Likes, Saves & Ad Telemetry: 13 endpoints
   - Comments & Replies: 6 endpoints
   - Authentication, Guest & Profiles: 6 endpoints
   - Razorpay Orders & Verification: 2 endpoints
@@ -269,6 +275,7 @@ BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS=7200
 AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS=60
 STALE_GUEST_CLEANUP_DAYS=90
 SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS=3600
+MAX_FEATURED_VIDEOS_PER_CREATOR=10
 
 # Razorpay Payment Gateway Credentials & Webhooks
 RAZORPAY_KEY_ID=rzp_test_your_key_id
@@ -297,8 +304,20 @@ VIDEO_COMPLETION_THRESHOLD_PERCENT=95.0
 CONTINUE_WATCHING_MIN_SECONDS=10
 POPULARITY_SCORE_LIKE_WEIGHT=3
 
-# Video Ad Monetization (Google IMA / VAST)
+# Video Ad Monetization (Google IMA / VAST & Monthly Settlements)
 GOOGLE_IMA_VAST_TAG_URL=https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator=
+PLATFORM_AD_COMMISSION_PERCENT=30.0
+PAYOUT_DAY_OF_MONTH=28
+MIN_PAYOUT_THRESHOLD=500.0
+AD_IMPRESSION_DEBOUNCE_SECONDS=10
+AD_IMPRESSION_SESSION_WINDOW_MINUTES=30
+AD_IMPRESSION_MAX_PER_SESSION=10
+
+# Platform & Content Defaults
+APP_TIMEZONE=Asia/Kolkata
+DEFAULT_CURRENCY=INR
+DEFAULT_CATEGORY_ICON=📁
+DEFAULT_CATEGORY_COLOR=#3b82f6
 ```
 
 ---
@@ -343,6 +362,70 @@ Every onboarding execution runs inside a single database transaction (`with db_p
 3. **Two Fixed Subscription Tiers (`SubscriptionPlan`)**:
    - **Plan 1 (`Standard with Ads`)**: ₹99/month (`base_price=99.0`, `features=["Full video catalog access", "Standard definition streaming", "Occasional short advertisements"]`).
    - **Plan 2 (`Premium Ad-Free`)**: ₹199/month (`base_price=199.0`, `features=["100% Ad-free streaming", "Ultra HD resolution", "Offline mobile downloads", "Early access to original releases"]`).
+
+---
+
+## 💰 Ad Revenue Monthly Settlement & Reconciliation CLI
+
+Platform administrators execute monthly advertising revenue settlements and bank wire disbursements using the dedicated back-office reconciliation CLI (`app.scripts.reconcile_monthly_ads`).
+
+### 1. Execute Monthly Reconciliation (By Gross Revenue or Fixed eCPM)
+```bash
+# Reconcile month by entering total gross revenue from Google Ad Manager:
+python -m app.scripts.reconcile_monthly_ads --month 2026-09 --revenue 75000.0
+
+# Or reconcile month by entering a fixed gross eCPM rate:
+python -m app.scripts.reconcile_monthly_ads --month 2026-09 --ecpm 180.0
+
+# Bypass interactive confirmation prompt (for automation scripts):
+python -m app.scripts.reconcile_monthly_ads --month 2026-09 --revenue 75000.0 --yes
+```
+
+### 2. Confirm Bank Wire Transfer (Mark Paid with Bank UTR)
+Once wire transfers are dispatched on the 28th, confirm the disbursement by linking the official bank UTR code to the creator's itemized statement:
+```bash
+python -m app.scripts.reconcile_monthly_ads --mark-paid STMT-202609-ADM42-8F9B --utr HDFC20261028994820
+```
+
+> **How Creator Identification Works (`1 Transaction ➔ 1 Creator`):**  
+> Every statement ID follows the deterministic pattern: `STMT-{YYYYMM}-ADM{creator_id}-{hash}` (e.g. `ADM42` = Creator Admin ID `42`). In the database, each statement record is uniquely bound to one specific creator via `creator_id`. Marking a statement as paid directly attributes the bank UTR to that exact creator's settlement statement.
+
+### 3. Review Master Platform Audit Ledger
+```bash
+python -m app.scripts.reconcile_monthly_ads --history
+```
+
+---
+
+## 🛡️ Creator Account Status & Suspension Management CLI
+
+Platform administrators can list, deactivate, reactivate, or inspect creator accounts using `app.scripts.manage_creator_status`:
+
+### 1. List All Creator Accounts
+```bash
+python -m app.scripts.manage_creator_status list
+```
+
+### 2. Deactivate a Creator Account
+Suspends the creator, sets `is_active = False`, invalidates active web/mobile refresh sessions immediately, and disables ad monetization telemetry:
+```bash
+# Deactivate by email:
+python -m app.scripts.manage_creator_status deactivate --email creator@example.com --reason "Terms violation"
+
+# Or deactivate by numeric ID:
+python -m app.scripts.manage_creator_status deactivate --id 3 --reason "Contract termination"
+```
+
+### 3. Reactivate a Creator Account
+Restores login access and ad impression accumulation:
+```bash
+python -m app.scripts.manage_creator_status activate --email creator@example.com
+```
+
+### 4. Inspect Detailed Creator Account Status
+```bash
+python -m app.scripts.manage_creator_status status --id 3
+```
 
 ---
 
@@ -396,7 +479,7 @@ Technical specifications and architecture documentation:
 
 ### 🏛️ Database Architecture
 
-- [Complete 17-Table Database Schema Specification](docs/database_architecture_specification.md)
+- [Complete 22-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
 
@@ -410,6 +493,7 @@ Technical specifications and architecture documentation:
 - [Settings Profile API Specification](docs/admin/settings_profile_api_specification.md)
 - [Comments Management API Specification](docs/admin/comments_management_api_specification.md)
 - [Subscription Plans Management API Specification](docs/admin/subscription_plans_management_api_specification.md)
+- [Creator Ad Monetization, Settlements & Bank Payout Settings API Specification](docs/admin/ad_monetization_management_api_specification.md)
 
 ### 📱 Mobile Application API Specifications
 

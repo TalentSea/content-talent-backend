@@ -60,7 +60,7 @@ class MobileFeaturedVideoRepository:
                     (FeaturedVideo.creator == creator_id)
                     & (
                         (fn.LOWER(Video.status).in_(["published", "ready"]))
-                        | (Video.is_playable == True)
+                        & (Video.is_playable == True)
                     )
                 )
                 .order_by(FeaturedVideo.position.asc(), FeaturedVideo.created_at.asc())

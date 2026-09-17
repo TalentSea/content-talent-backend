@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from peewee import PeeweeException, fn
 
 from app.config import get_settings
+from app.models.admin import Admin
 from app.models.video import Video, VideoLike, VideoSave, VideoViewEvent, WatchHistory
 from app.utils.formatters import parse_duration_seconds
 
@@ -30,9 +31,11 @@ class MobileVideoRepository:
         Supports Option 1 Popularity Score (views + 3*likes) and Option 2 (most_liked).
         """
         try:
+            active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
             query = Video.select().where(
                 (fn.LOWER(Video.status).in_(["published", "ready"]))
                 & (Video.is_playable == True)
+                & (Video.user.in_(active_creators))
             )
 
             if creator_id is not None:
@@ -124,10 +127,12 @@ class MobileVideoRepository:
         Fetches a single published & ready video by primary key ID, optionally filtered by creator_id for tenant isolation.
         """
         try:
+            active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
             query = Video.select().where(
                 (Video.id == video_id)
                 & (fn.LOWER(Video.status).in_(["published", "ready"]))
                 & (Video.is_playable == True)
+                & (Video.user.in_(active_creators))
             )
 
             if creator_id is not None:

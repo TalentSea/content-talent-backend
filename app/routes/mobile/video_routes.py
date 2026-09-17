@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.dependencies import CurrentSubscriber
 from app.schemas.mobile.video_schemas import (
+    MobileAdImpressionRequest,
     MobileVideoDetailResponse,
     MobileVideoLikeResponse,
     MobileVideoListItemResponse,
@@ -10,10 +11,12 @@ from app.schemas.mobile.video_schemas import (
     MobileWatchProgressRequest,
 )
 from app.schemas.shared.common_schemas import PaginatedResponse
+from app.services.admin.monetization_service import MonetizationService
 from app.services.mobile.video_service import MobileVideoService
 
 router = APIRouter(prefix="/api/v1/mobile/videos", tags=["Mobile Videos"])
 mobile_video_service = MobileVideoService()
+monetization_service = MonetizationService()
 
 
 @router.get(
@@ -248,4 +251,34 @@ def toggle_video_save(video_id: int, current_subscriber: CurrentSubscriber):
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
         creator_id=current_subscriber.get("creator_id"),
+    )
+
+
+@router.post(
+    "/{video_id}/ad-impression",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Record Video Ad Impression Beacon",
+    description="Registers an in-stream ad impression or milestone beacon rendered by Google IMA SDK.",
+)
+def record_ad_impression(
+    video_id: int,
+    payload: MobileAdImpressionRequest,
+    current_subscriber: CurrentSubscriber,
+):
+    if current_subscriber.get("role") != "subscriber":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subscriber access required to log ad telemetry",
+        )
+    user_id = current_subscriber.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found in session",
+        )
+    monetization_service.record_ad_impression(
+        video_id=video_id,
+        subscriber_id=user_id,
+        event_type=payload.event_type,
+        ad_duration_seconds=payload.ad_duration_seconds,
     )

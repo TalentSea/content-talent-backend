@@ -1,10 +1,13 @@
 import logging
+from datetime import date as date_cls
+from datetime import datetime, timezone
 
 from peewee import PeeweeException, fn
 
 from app.models.admin import Admin
 from app.models.comment import Comment
 from app.models.video import Video
+from app.utils.date_utils import get_app_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +44,33 @@ class CommentRepository:
                 query = query.where(Comment.video == video_id)
 
             if category:
-                query = query.where(Video.category == category)
+                query = query.where(fn.LOWER(Video.category) == category.lower())
 
             if date:
-                query = query.where(fn.date(Comment.created_at) == date)
+                try:
+                    target_d = date_cls.fromisoformat(date.strip())
+                    tz = get_app_timezone()
+                    start_local = datetime(
+                        target_d.year, target_d.month, target_d.day, 0, 0, 0, tzinfo=tz
+                    )
+                    end_local = datetime(
+                        target_d.year,
+                        target_d.month,
+                        target_d.day,
+                        23,
+                        59,
+                        59,
+                        999999,
+                        tzinfo=tz,
+                    )
+                    start_utc = start_local.astimezone(timezone.utc)
+                    end_utc = end_local.astimezone(timezone.utc)
+                    query = query.where(
+                        (Comment.created_at >= start_utc)
+                        & (Comment.created_at <= end_utc)
+                    )
+                except (ValueError, TypeError):
+                    query = query.where(fn.date(Comment.created_at) == date)
 
             if search:
                 query = query.where(Comment.text.contains(search))
@@ -83,16 +109,6 @@ class CommentRepository:
         except PeeweeException as e:
             logger.error("Error fetching comment %s: %s", comment_id, e)
             return None
-
-    def get_reply_count_for_comment(self, comment_id: int) -> int:
-        """
-        Counts total replies nested under a parent comment.
-        """
-        try:
-            return Comment.select().where(Comment.parent == comment_id).count()
-        except PeeweeException as e:
-            logger.error("Error counting replies for comment %s: %s", comment_id, e)
-            return 0
 
     def get_batch_reply_counts(self, comment_ids: list[int]) -> dict[int, int]:
         """

@@ -71,44 +71,80 @@ In this enterprise white-labeled OTT model, all white-labeled mobile application
      - The creator sees zero platform cuts, fees, or deductions, believing they received 100% of their ad earnings.
 3. **Monthly Settlement Lifecycle & Payout Date Resolution (Net-30 Schedule):**
 
-   ### Why This Month's Payout Reflects Previous Month's Ad Views:
+   ### Why This Month's Payout Reflects Previous Month's Ad Views (Timeline Breakdown):
 
-   In digital ad networks (Google Ad Manager, AdSense, programmatic VAST exchanges), ad revenue cannot be paid instantly on the day ads are viewed. The industry standard **Net-30 settlement cycle** operates as follows:
-   - **Auditing & Fraud Scrubbing:** Google runs automated fraud detection throughout the month to identify and eliminate accidental clicks, spam bots, and invalid traffic (IVT) before finalizing gross billings.
-   - **Advertiser Remittance:** Brand advertisers pay Google on 30-day corporate terms. Google then consolidates and disburses net publisher revenues between the **21st and 25th of the following month**.
-   - **Platform Verification & Creator Transfer:** TalentSea verifies incoming funds and initiates creator bank disbursements on the **28th of the following month**.
+   In digital ad networks (Google Ad Manager, AdSense, programmatic VAST exchanges), ad revenue cannot be paid instantly on the day ads are viewed. The industry standard **Net-30 settlement cycle** operates with exact timeline stages:
 
-   Therefore, **any payout received in October pays for ad views served between September 1st and September 30th**.
+   | Date Window | What Happens with Google & TalentSea | System Status |
+   | :--- | :--- | :--- |
+   | **Sept 1 – Sept 30** | Viewers watch video ads on mobile apps. Verified impressions stream live into `ad_impression_events`. | Status: `"accruing"` |
+   | **Oct 1 – Oct 3** | **Google Finalizes Reporting Statement**: Audits invalid clicks, bot traffic, and programmatic clearing prices. Issues audited monthly revenue report. | Statement generated in Google |
+   | **Oct 1 – Oct 20** | Platform runs monthly reconciliation script to calculate platform profit (30%) and creator net allocations (70%). Statements locked. | Status: `"reconciled"` |
+   | **Oct 21 – Oct 25** | **Google Wire Transfer Remittance**: Google sends cleared wire transfer cash directly into TalentSea's master corporate bank account. | Funds cleared in bank |
+   | **Oct 28** | **Creator Bank Disbursement**: TalentSea executes batch bank transfers (NEFT/RTGS/IMPS) to creators' registered bank profiles. | Status: `"paid"` + UTR |
 
    ```
-   [ Month 1: September 1 - 30 ]           [ Month 2: October 1 - 20 ]         [ Month 2: October 21 - 25 ]      [ Month 2: October 28 ]
+   [ Month 1: September 1 - 30 ]           [ Month 2: October 1 - 3 ]          [ Month 2: October 21 - 25 ]      [ Month 2: October 28 ]
    ┌───────────────────────────┐           ┌─────────────────────────┐         ┌──────────────────────────┐      ┌──────────────────────────┐
-   │ Viewers stream videos.    │           │ September month closes. │         │ Google Ad Manager audits │      │ TalentSea initiates bank │
-   │ Ad impressions log live.  │ ────────> │ Impressions locked.     │ ──────> │ & disburses net funds to │ ───> │ transfers (NEFT/RTGS) to │
-   │ Est. earnings accumulate. │           │ Settlement generated:   │         │ platform master account. │      │ creator bank accounts.   │
-   │ Status: "accruing"        │           │ Status: "reconciled"    │         │                          │      │ Status: "paid" + UTR     │
+   │ Viewers stream videos.    │           │ September month closes. │         │ Google Ad Manager wire   │      │ TalentSea initiates bank │
+   │ Ad impressions log live.  │ ────────> │ Google finalizes report.│ ──────> │ remittance lands in      │ ───> │ transfers to creator     │
+   │ Raw impressions accrue.   │           │ Reconcile script runs:  │         │ company bank account.    │      │ bank accounts.           │
+   │ Status: "accruing"        │           │ Status: "reconciled"    │         │ Funds verified.          │      │ Status: "paid" + UTR     │
    └───────────────────────────┘           └─────────────────────────┘         └──────────────────────────┘      └──────────────────────────┘
    ```
 
-   ### The Four Lifecycle Stages:
-   - **Stage 1 — Accrual Window (1st – End of Month):**
-     - Active month (`current_period`).
-     - Real-time counter of verified ad impressions and estimated earnings.
-     - `"expected_payout_date"` projects when this running month will be paid (e.g. `2026-11-28` for October).
-   - **Stage 2 — Reconciliation Window (1st – 20th of Following Month):**
-     - When the month closes, it transitions to `pending_payout`.
-     - Impressions and gross revenues are locked and cross-checked against Google publisher telemetry.
-     - State is marked `"reconciled"`.
-   - **Stage 3 — Settlement Window (21st – 25th of Following Month):**
-     - Google Ad Manager remits cleared funds to the platform bank account.
-     - Platform prepares batch bank disbursement files (Razorpay Payouts / ICICI / HDFC Corporate Banking).
-   - **Stage 4 — Creator Disbursement Window (26th – 28th of Following Month):**
-     - Automated payouts execute on the configured **`PAYOUT_DAY_OF_MONTH`** (28th).
-     - Bank returns a unique transaction reference (**UTR**).
-     - The record is marked `"paid"` and moves to `last_payout`. `pending_payout` resets to `null` until the next cycle closes.
+4. **Dynamic eCPM & Zero-Hardcoding Policy (Zero False Expectations):**
+   - **Why Static Default eCPM (e.g. ₹180) is Strictly Rejected:**
+     - In programmatic ad tech, ad rates fluctuate continuously due to auction dynamics, seasonal demand (Q4 Diwali/Christmas peaks at ₹250–₹400 vs Q1 January dips to ₹50–₹80), and geographic variance (metro viewers vs rural viewers).
+     - Displaying a hardcoded default rate creates false expectations. If a dashboard shows an estimated ₹18,000 all month based on a hardcoded ₹180 rate, and Google only pays ₹6,500 at month-end, the creator loses trust and raises legal/financial disputes.
+   - **The Professional Resolution Engine:**
+     - **For Brand-New Creators (Month 1, 0 Past Settlements):**
+       - `impressions`: Live, factual counter of verified ad impressions (e.g. `24,500`).
+       - `ecpm`: `null`
+       - `estimated_earnings`: `null`
+       - `status`: `"accruing"`
+       - The UI displays: *"Earnings are accruing. Final earnings will be calculated at monthly settlement on the 28th based on Google Ad Manager auction rates."*
+     - **For Established Creators (Month 2+, 1+ Past Settlements):**
+       - The system automatically uses their **most recent finalized settlement net eCPM** as an honest baseline to project live ongoing month estimates:
+         $$\text{estimated\_earnings} = \frac{\text{current\_month\_impressions} \times \text{last\_month\_settled\_ecpm}}{1000}$$
+       - Clearly labeled on the UI as *"Estimate based on previous month's rate"*.
+     - **Final Payout (Month-End Reconciliation):**
+       - Calculated **100% from Google's audited statement** with zero default or guesswork.
 
-   ### Centralized Configuration (Zero Hardcoding):
-   - The payout day is defined in `.env` and `app/config.py` (`PAYOUT_DAY_OF_MONTH=28`).
+5. **Master Platform Ledger & Monthly Reconciliation Engine:**
+   - **Master-Detail Database Architecture:**
+     - **Master Table (`ad_platform_monthly_reconciliations`):** Stores company-wide monthly revenue from Google, total platform impressions, platform 30% profit, and total creator pool.
+     - **Detail Table (`ad_monthly_settlements`):** Stores individual creator statements linked to the master reconciliation via `reconciliation_id` (FK). Composite unique constraint `UNIQUE(creator_id, month)` strictly isolates every creator's statements by calendar month.
+   - **Why This Calculation is Fair (Pro-Rata Revenue Pool Model):**
+     - Mirrors the standard streaming pool model used by Spotify, YouTube Music, and OTT networks.
+     - Strictly proportional: A creator with 100,000 views earns 10x more than a creator with 10,000 views.
+     - Future-proof: `ecpm` is stored on every individual creator row in `ad_monthly_settlements`. While currently applying the blended network rate, the database already supports custom creator rates or category-specific rates in the future with zero schema changes.
+   - **CLI Monthly Reconciliation & Disbursement Tool (`app/scripts/reconcile_monthly_ads.py`):**
+     - Instead of building an unneeded, complex separate Super Admin web portal, monthly settlement reconciliation and bank transfer confirmations are executed via a clean, secure terminal CLI script:
+       ```bash
+       # 1. Monthly Reconciliation Run (Generates statements for all creators)
+       python -m app.scripts.reconcile_monthly_ads --month 2026-09 --revenue 50000
+       # (Or specify gross eCPM directly: --ecpm 100.0)
+
+       # 2. Record Bank Transfer & Mark Paid with Official UTR (On Payout Day 28th)
+       python -m app.scripts.reconcile_monthly_ads --mark-paid STMT-202609-ADM42-8F9B --utr HDFC987654321
+
+       # 3. Company Financial Audit Balance Sheet
+       python -m app.scripts.reconcile_monthly_ads --history
+       ```
+     - **Why a CLI Script is the Optimal Choice:**
+       1. **Zero Frontend Overhead:** No extra web pages, routes, or roles required.
+       2. **High Security:** Financial reconciliation and payout authorizations can only be triggered by an authorized administrator with server/SSH access.
+       3. **Interactive Verification:** Outputs a complete dry-run breakdown table in the terminal and prompts for confirmation (`Confirm statement generation? [y/N]`) before modifying the database.
+       4. **Complete Audit Trail:** Recording the official Bank UTR immediately transitions statement status from `"reconciled"` to `"paid"`, records `settled_at`, and populates `last_payout` across the creator's dashboard.
+       5. **Company Financial Audit (`--history`):** Prints a complete chronological balance sheet showing monthly Google revenue, platform profit (30%), and creator disbursements for company tax/CA accounting.
+
+   ### Centralized Configuration:
+   - Defined in `.env` and `app/config.py`:
+     ```env
+     PLATFORM_AD_COMMISSION_PERCENT=30.0
+     PAYOUT_DAY_OF_MONTH=28
+     ```
    - **Why Day 28?**
      1. It provides a reliable 2–3 business day clearance window following Google's deposit (21st–25th).
      2. Day 28 is universally present across all 12 calendar months (including February in standard 28-day years), preventing date overflow errors.
@@ -146,6 +182,7 @@ Authorization: Bearer <creator_access_token>
 ```json
 {
   "currency": "INR",
+  "payout_profile_configured": true,
   "current_period": {
     "period": "2026-10",
     "estimated_earnings": 1420.5,
@@ -169,8 +206,14 @@ Authorization: Bearer <creator_access_token>
 }
 ```
 
-> **Lifecycle Note on Payouts & Month Offset:**
+> **Lifecycle Note on Payouts, Thresholds & Bank Details:**
 >
+> - **Minimum Payout Threshold (`MIN_PAYOUT_THRESHOLD = 500.0`):**
+>   - Monthly earnings $\ge ₹500$ are locked for payout on the 28th.
+>   - Earnings $< ₹500$ automatically roll over to the next billing cycle until the threshold is reached.
+> - **Missing Bank Profile Hold (`"pending_bank_details"`):**
+>   - If `payout_profile_configured` is `false`, the frontend displays an actionable warning banner: *"Please add your bank account in Settings to receive this payout."*
+>   - `pending_payout.status` is set to `"pending_bank_details"` until bank details are registered, whereupon it transitions to `"reconciled"`.
 > - In this model, **payouts disbursed in month $M$ always pay for month $M-1$'s verified ad views** (Net-30 cycle).
 > - **Concrete October 2026 Example:**
 >   - `"current_period"`: Shows **October 1–31** ad impressions accumulating in real time. Its `"expected_payout_date"` is **`2026-11-28`**.
@@ -183,10 +226,11 @@ Authorization: Bearer <creator_access_token>
 | Field                                 |       Type       | Description                                                                                                |
 | :------------------------------------ | :--------------: | :--------------------------------------------------------------------------------------------------------- |
 | `currency`                            |     `string`     | Top-level 3-letter currency code (e.g. `"INR"`).                                                           |
+| `payout_profile_configured`           |    `boolean`     | `true` if creator has registered valid bank payout details; `false` if details are missing.                 |
 | `current_period.period`               |     `string`     | Active live calendar month formatted as `YYYY-MM`.                                                         |
-| `current_period.estimated_earnings`   |     `float`      | Estimated net take-home earnings accrued so far in the active month.                                       |
-| `current_period.impressions`          |    `integer`     | Total verified video ad impressions served in the active month.                                            |
-| `current_period.ecpm`                 |     `float`      | Effective Cost Per Mille (net earnings per 1,000 ad impressions).                                          |
+| `current_period.estimated_earnings`   |  `float \| null` | Estimated net earnings accrued so far in the active month (`null` for new creators).                      |
+| `current_period.impressions`          |    `integer`     | Total verified video ad impressions served in the active month (ground truth counter).                     |
+| `current_period.ecpm`                 |  `float \| null` | Effective CPM rate applied (`null` for new creators until first settlement; historical rate thereafter).   |
 | `current_period.expected_payout_date` |     `string`     | Projected date when this active month's balance will be disbursed (`YYYY-MM-DD`, e.g. 28th of next month). |
 | `pending_payout`                      | `object \| null` | Previous closed month's finalized earnings awaiting bank transfer (or `null` if none pending).             |
 | `pending_payout.period`               |     `string`     | Closed month cycle awaiting payout (`YYYY-MM`).                                                            |
@@ -270,9 +314,9 @@ Authorization: Bearer <creator_access_token>
 | `currency`                         | `string`  | Three-letter currency code (e.g. `"INR"`).                                        |
 | `data_points`                      |  `array`  | Ordered chronological array of bucketed time points.                              |
 | `data_points[].date`               | `string`  | ISO boundary date (`YYYY-MM-DD`) for machine sorting, chart x-axis, and tooltips. |
-| `data_points[].impressions`        | `integer` | Total verified video ad impressions served in the interval bucket.                |
-| `data_points[].ecpm`               |  `float`  | Effective CPM (revenue per 1,000 impressions) for the interval bucket.            |
-| `data_points[].estimated_earnings` |  `float`  | Creator's net 70% take-home earnings accrued in the interval bucket.              |
+| `data_points[].impressions`        | `integer`        | Total verified video ad impressions served in the interval bucket.                |
+| `data_points[].ecpm`               | `float \| null`  | Effective CPM for the interval bucket (`null` for new creators).                  |
+| `data_points[].estimated_earnings` | `float \| null`  | Creator's net take-home earnings accrued in the interval bucket (`null` for new). |
 
 ---
 
@@ -351,8 +395,9 @@ Authorization: Bearer <creator_access_token>
 
 #### Settlement Status Lifecycle:
 
-- `accruing`: Current month in progress. Numbers represent dynamic real-time estimates.
-- `reconciled`: Billing period closed and verified against Google Ad Manager master report. Awaiting bank transfer batch.
+- `accruing`: Current month in progress. Numbers represent dynamic real-time estimates (or rolled-over balances below threshold).
+- `pending_bank_details`: Statement is finalized and ready for payout, but on hold because the creator has not registered their bank account profile.
+- `reconciled`: Billing period closed and verified against Google Ad Manager master report, bank details verified, awaiting scheduled bank transfer on the 28th.
 - `paid`: Payment successfully executed via bank transfer. `transaction_reference` (UTR) and downloadable PDF statement are attached.
 
 ---

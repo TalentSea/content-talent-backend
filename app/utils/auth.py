@@ -118,3 +118,45 @@ def verify_password(plain_password: str, password_hash: str | None) -> bool:
     ).hex()
 
     return secrets.compare_digest(computed_hash, expected_hash)
+
+
+def is_creator_active(creator_or_id: object) -> bool:
+    """
+    Checks if a creator studio exists and is currently active.
+    Returns boolean True/False without raising an exception.
+    Accepts either an integer creator_id or an existing Admin Peewee model instance.
+    """
+    from app.models.admin import Admin
+
+    if isinstance(creator_or_id, Admin):
+        return bool(getattr(creator_or_id, "is_active", True))
+    if not creator_or_id:
+        return False
+    admin = Admin.get_or_none(Admin.id == creator_or_id)
+    return bool(admin and getattr(admin, "is_active", True))
+
+
+def verify_creator_active(creator_or_id: object) -> object:
+    """
+    Verifies that a creator studio exists and is currently active.
+    Raises HTTPException(403) if deactivated, suspended, or not found.
+    Accepts either an integer creator_id or an existing Admin Peewee model instance.
+    """
+    from app.models.admin import Admin
+
+    if isinstance(creator_or_id, Admin):
+        admin = creator_or_id
+    elif creator_or_id:
+        admin = Admin.get_or_none(Admin.id == creator_or_id)
+    else:
+        admin = None
+
+    if not admin or not getattr(admin, "is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Creator studio is currently deactivated or suspended.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return admin
+
+

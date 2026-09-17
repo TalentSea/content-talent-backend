@@ -70,13 +70,20 @@ All business thresholds, timeouts, intervals, and weights MUST be declared in `a
 
 ---
 
-## 4. Indian Standard Time (IST) Guidelines
-- Video scheduling and user-facing release timers use **Indian Standard Time (`Asia/Kolkata`, UTC+05:30)**:
+## 4. Platform Operating Timezone Guidelines (Dynamic White-Label Standard)
+- All internal database timestamps (`created_at`, `updated_at`, events) MUST be saved in **UTC** (`datetime.now(timezone.utc)`).
+- Local business day boundaries, analytics rollups, and scheduled publishing use the centralized helper `get_app_timezone()` from `app.utils.date_utils`:
   ```python
-  from zoneinfo import ZoneInfo
-  scheduled_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+  from app.utils.date_utils import get_app_timezone
+
+  tz = get_app_timezone()  # Resolves from APP_TIMEZONE in .env (defaults to "Asia/Kolkata")
+  scheduled_dt = (
+      datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+      .replace(tzinfo=tz)
+      .astimezone(timezone.utc)
+  )
   ```
-- Internal audit timestamps (`created_at`, `updated_at`) are saved in UTC.
+- White-label tenants can reconfigure the backend's local operating timezone via `.env` (`APP_TIMEZONE=...`) with zero code modifications.
 
 ---
 
@@ -100,3 +107,23 @@ async def lifespan(app: FastAPI):
     task2.cancel()
 ```
 * **Error Isolation**: Each worker loop MUST wrap its iteration body in `try...except Exception as e:` so that a single failure or transient network glitch does not kill the long-running worker task.
+
+---
+
+## 7. Command-Query Separation (CQS) for Telemetry & Write Operations
+
+Write operations and beacon ingestion methods MUST strictly follow Command-Query Separation:
+* **Command Methods**: Methods that perform a write side-effect (e.g., `update_watch_progress()`, `record_ad_impression()`) MUST return `None` (Void Command pattern).
+* **Never Return Ambiguous Booleans**: Avoid `return True` / `return False` for fire-and-forget commands. It causes "Boolean Blindness" (callers cannot discern if `True` meant written to DB vs. debounced) and creates dead code when HTTP 204 handlers ignore the return value.
+* **Flow Control**: Use early `return` statements for gracefully handled no-ops (e.g. debounced or rate-capped pings), and raise explicit `HTTPException` for unrecoverable errors (e.g. `404 Not Found`).
+
+---
+
+## 8. 22-Table Database Architecture Invariant
+
+All 22 domain entities across the OTT backend MUST be imported inside `init_db()` in `app/database.py` and exported in `app/models/__init__.__all__`:
+1. Core Admin & Identity: `Admin`, `Branding`, `Category`
+2. Media & Video Catalog: `Video`, `VideoLike`, `VideoSave`, `WatchHistory`, `VideoViewEvent`
+3. Curation & Interaction: `Playlist`, `PlaylistVideo`, `Comment`, `CommentLike`, `FeaturedVideo`
+4. Subscribers & Membership: `Subscriber`, `SubscriptionPlan`, `UserSubscription`, `Payment`, `RefreshToken`
+5. Ad Monetization & Settlements: `AdImpressionEvent`, `AdPlatformMonthlyReconciliation`, `AdMonthlySettlement`, `CreatorPayoutProfile`

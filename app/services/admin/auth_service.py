@@ -102,6 +102,12 @@ class AuthService:
                 detail="Invalid email or password",
             )
 
+        if not getattr(admin, "is_active", True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Creator account has been deactivated. Please contact platform administration.",
+            )
+
         settings = get_settings()
 
         # Eagerly provisioned studio branding
@@ -149,6 +155,12 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session expired or active on another device; please re-login",
+            )
+
+        if not getattr(admin, "is_active", True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Creator account has been deactivated. Please contact platform administration.",
             )
 
         settings = get_settings()

@@ -121,7 +121,24 @@ $$\text{popularity\_score} = \text{views} + (\text{POPULARITY\_SCORE\_LIKE\_WEIG
 
 ---
 
-## 5. Environment Settings Reference
+## 5. In-Stream Ad Impression Telemetry Gatekeeper (`POST /{id}/ad-impression`)
+
+On the Standard tier (`with_ads`), the mobile player renders Google IMA ads. Viewability beacons are received via `POST /api/v1/mobile/videos/{video_id}/ad-impression`:
+
+### 1. Payload Contract (`MobileAdImpressionRequest`)
+* `event_type`: Regex pattern `^(impression|midpoint|complete)$` (defaults to `"impression"`).
+* `ad_duration_seconds`: Positive integer creative duration.
+
+### 2. Zero-Trust Telemetry Rules
+* **Subscriber Role Required**: Anonymous guests (`role == 'guest'`) are rejected with `HTTP 403 Forbidden`.
+* **Only Billable Milestone (`impression`) Increments Ledger**: Fired at the 2-second IAB viewability mark. Other events (`midpoint`, `complete`) return `204 No Content` without double-counting.
+* **10-Second Debounce (`AD_IMPRESSION_DEBOUNCE_SECONDS = 10`)**: Accommodates legitimate back-to-back podded ads (15–30s apart) while dropping script spam and network loops.
+* **Session Rate Cap (`AD_IMPRESSION_MAX_PER_SESSION = 10` per 30m)**: Protects against automated script farms and looping bots.
+* **Void Command (`-> None`)**: Ingestion method returns `None` with early returns for debounced/capped pings, matching CQS.
+
+---
+
+## 6. Environment Settings Reference
 
 All decision parameters MUST be loaded from `app.config.get_settings()` and NEVER hardcoded:
 
@@ -134,3 +151,6 @@ All decision parameters MUST be loaded from `app.config.get_settings()` and NEVE
 | `VIDEO_COMPLETION_THRESHOLD_PERCENT` | `float` | `95.0` | Threshold % marking video fully watched (`completed = True`). |
 | `CONTINUE_WATCHING_MIN_SECONDS` | `int` | `10` | Minimum seconds watched before appearing in Continue Watching. |
 | `POPULARITY_SCORE_LIKE_WEIGHT` | `int` | `3` | Multiplier weight for likes in popularity calculation. |
+| `AD_IMPRESSION_DEBOUNCE_SECONDS` | `int` | `10` | Minimum seconds between consecutive ad beacons on same video. |
+| `AD_IMPRESSION_SESSION_WINDOW_MINUTES` | `int` | `30` | Rolling session window duration for client frequency capping. |
+| `AD_IMPRESSION_MAX_PER_SESSION` | `int` | `10` | Maximum ad impressions permitted per subscriber per session. |

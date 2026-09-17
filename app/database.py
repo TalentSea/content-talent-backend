@@ -24,6 +24,12 @@ def init_db():
     db_proxy.initialize(db)
 
     # Import models here to prevent circular dependency
+    from app.models.ad_monetization import (
+        AdImpressionEvent,
+        AdMonthlySettlement,
+        AdPlatformMonthlyReconciliation,
+        CreatorPayoutProfile,
+    )
     from app.models.admin import Admin
     from app.models.branding import Branding
     from app.models.category import Category
@@ -66,6 +72,10 @@ def init_db():
             SubscriptionPlan,
             Payment,
             UserSubscription,
+            AdImpressionEvent,
+            AdPlatformMonthlyReconciliation,
+            AdMonthlySettlement,
+            CreatorPayoutProfile,
         ],
         safe=True,
     )

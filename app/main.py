@@ -21,6 +21,7 @@ from app.routes.admin import (
     admin_comment_router,
     admin_dashboard_router,
     admin_featured_video_router,
+    admin_monetization_router,
     admin_playlist_router,
     admin_profile_router,
     admin_subscription_plan_router,
@@ -140,6 +141,7 @@ app.include_router(admin_comment_router)
 app.include_router(admin_category_router)
 app.include_router(admin_featured_video_router)
 app.include_router(admin_subscription_plan_router)
+app.include_router(admin_monetization_router)
 
 
 @app.get("/docs", include_in_schema=False)

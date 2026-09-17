@@ -6,6 +6,9 @@ from app.routes.admin.dashboard_routes import router as admin_dashboard_router
 from app.routes.admin.featured_video_routes import (
     router as admin_featured_video_router,
 )
+from app.routes.admin.monetization_routes import (
+    router as admin_monetization_router,
+)
 from app.routes.admin.playlist_routes import router as admin_playlist_router
 from app.routes.admin.profile_routes import router as admin_profile_router
 from app.routes.admin.subscription_plan_routes import (
@@ -20,6 +23,7 @@ __all__ = [
     "admin_comment_router",
     "admin_dashboard_router",
     "admin_featured_video_router",
+    "admin_monetization_router",
     "admin_playlist_router",
     "admin_profile_router",
     "admin_subscription_plan_router",

@@ -58,10 +58,17 @@ class Settings(BaseSettings):
     CONTINUE_WATCHING_MIN_SECONDS: int
     POPULARITY_SCORE_LIKE_WEIGHT: int
 
-    # Video Ad Monetization (Google IMA / VAST)
+    # Video Ad Monetization (Google IMA / VAST & Settlements)
     GOOGLE_IMA_VAST_TAG_URL: str = ""
+    PLATFORM_AD_COMMISSION_PERCENT: float = 30.0
+    PAYOUT_DAY_OF_MONTH: int = 28
+    MIN_PAYOUT_THRESHOLD: float = 500.0
+    AD_IMPRESSION_DEBOUNCE_SECONDS: int = 10
+    AD_IMPRESSION_SESSION_WINDOW_MINUTES: int = 30
+    AD_IMPRESSION_MAX_PER_SESSION: int = 10
 
     # Platform & Content Defaults
+    APP_TIMEZONE: str = "Asia/Kolkata"
     DEFAULT_CURRENCY: str = "INR"
     DEFAULT_CATEGORY_ICON: str = "📁"
     DEFAULT_CATEGORY_COLOR: str = "#3b82f6"

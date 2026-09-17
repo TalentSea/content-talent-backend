@@ -15,7 +15,7 @@ from app.schemas.mobile.auth_schemas import (
     UserProfileResponse,
 )
 from app.schemas.shared.common_schemas import ActionSuccessResponse
-from app.utils.auth import create_access_token
+from app.utils.auth import create_access_token, verify_creator_active
 from app.utils.idp_verifiers import (
     verify_facebook_access_token,
     verify_google_id_token,
@@ -69,6 +69,8 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Social provider {provider} did not return a valid user identity ID",
             )
+
+        verify_creator_active(creator_id)
 
         # 1. If active guest_subscriber_id is provided, upgrade the existing Guest account in-place!
         subscriber = None
@@ -136,6 +138,8 @@ class AuthService:
         """
         Handles Anonymous Guest Session ("Skip Signup") authentication bound to creator_id.
         """
+        verify_creator_active(payload.creator_id)
+
         subscriber = self.repo.get_or_create_guest_subscriber(
             creator_id=payload.creator_id, device_id=payload.device_id
         )
@@ -214,6 +218,8 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Subscriber account is disabled",
             )
+
+        verify_creator_active(subscriber.creator)
 
         # Revoke old refresh token (Token Rotation)
         self.repo.revoke_refresh_token(payload.refresh_token)

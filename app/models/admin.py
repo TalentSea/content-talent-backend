@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from peewee import CharField, DateTimeField, PeeweeException, TextField
+from peewee import BooleanField, CharField, DateTimeField, PeeweeException, TextField
 
 from app.models.base import BaseModel
 
@@ -23,6 +23,9 @@ class Admin(BaseModel):
     youtube_url = CharField(max_length=255, null=True)
     instagram_url = CharField(max_length=255, null=True)
     refresh_token = TextField(null=True)
+    is_active = BooleanField(default=True, index=True)
+    deactivation_reason = TextField(null=True)
+    deactivated_at = DateTimeField(null=True)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 

@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 
 from app.models.admin import Admin
 from app.models.subscriber import Subscriber
-from app.utils.auth import decode_access_token
+from app.utils.auth import decode_access_token, verify_creator_active
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(
@@ -44,6 +44,8 @@ def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Subscriber account is disabled",
         )
+
+    verify_creator_active(sub.creator)
 
     return {
         "user_id": sub.id,
@@ -92,6 +94,13 @@ def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if not admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Creator account has been deactivated. Please contact platform administration.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return {
         "user_id": admin.id,
         "name": admin.name,
@@ -104,16 +113,3 @@ CurrentAdmin = Annotated[dict[str, Any], Depends(get_current_admin)]
 CurrentSubscriber = Annotated[dict[str, Any], Depends(get_current_subscriber)]
 OptionalSubscriber = Annotated[dict[str, Any] | None, Depends(get_optional_subscriber)]
 FormFile = Annotated[UploadFile, File(...)]
-
-
-def validate_image_file(file: FormFile) -> UploadFile:
-    """
-    Validates uploaded image MIME types (JPG, PNG, WEBP) and size limits.
-    """
-    allowed_types = ["image/jpeg", "image/png", "image/webp"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type {file.content_type}. Only JPG, PNG, and WEBP are allowed.",
-        )
-    return file

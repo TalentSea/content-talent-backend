@@ -110,27 +110,6 @@ class MobileCommentRepository:
             logger.error("Error batch fetching reply counts: %s", e)
             return {}
 
-    def is_comment_liked_by_subscriber(
-        self, comment_id: int, subscriber_id: int
-    ) -> bool:
-        """
-        Checks if a subscriber has a row in comment_likes table.
-        """
-        if not subscriber_id:
-            return False
-        try:
-            return (
-                CommentLike.select()
-                .where(
-                    (CommentLike.comment == comment_id)
-                    & (CommentLike.user == subscriber_id)
-                )
-                .exists()
-            )
-        except PeeweeException as e:
-            logger.error("Error checking like state for comment %s: %s", comment_id, e)
-            return False
-
     def get_subscriber_liked_comment_ids(
         self, comment_ids: list[int], subscriber_id: int | None
     ) -> set[int]:

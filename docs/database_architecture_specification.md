@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **21 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **22 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -21,6 +21,8 @@ erDiagram
     ADMIN ||--o{ VIDEO_VIEW_EVENT : "aggregates telemetry (1:N)"
     ADMIN ||--o{ AD_IMPRESSION_EVENT : "earns from (1:N)"
     ADMIN ||--o{ AD_MONTHLY_SETTLEMENT : "receives settlements (1:N)"
+
+    AD_PLATFORM_MONTHLY_RECONCILIATION ||--o{ AD_MONTHLY_SETTLEMENT : "reconciles & dispatches (1:N)"
 
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
     SUBSCRIBER ||--o{ VIDEO_LIKE : "likes (1:N)"
@@ -455,38 +457,67 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 20. `ad_monthly_settlements` Table (Monthly Financial Payout Statements & UTR Ledger)
+### 20. `ad_platform_monthly_reconciliations` Table (Master Platform Revenue & Commission Ledger)
+* **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
+* **Table Name**: `ad_platform_monthly_reconciliations`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of master reconciliation run |
+| `month` | `VARCHAR(7)` | **UNIQUE (INDEX)** | NO | None | Billing cycle formatted as `YYYY-MM` (e.g. `2026-09`) |
+| `total_google_revenue` | `DECIMAL(12,2)`| Standard | NO | `0.00` | Audited gross ad earnings received from Google Ad Manager |
+| `total_impressions` | `BIGINT` | Standard | NO | `0` | Sum of all verified impressions across all creators for the month |
+| `gross_ecpm` | `DECIMAL(10,4)`| Standard | NO | `0.0000` | Realized gross platform eCPM $(\text{revenue} / \text{impressions} \times 1000)$ |
+| `platform_commission_pct`| `DECIMAL(5,2)` | Standard | NO | `30.00` | Platform commission rate applied (from configuration) |
+| `platform_profit` | `DECIMAL(12,2)`| Standard | NO | `0.00` | Platform retained profit cut $(30\%)$ |
+| `creator_pool_amount` | `DECIMAL(12,2)`| Standard | NO | `0.00` | Total net creator payout pool distributed to creators $(70\%)$ |
+| `creator_net_ecpm` | `DECIMAL(10,4)`| Standard | NO | `0.0000` | Effective creator eCPM $(\text{gross\_ecpm} \times (1 - \text{commission}/100))$ |
+| `creators_count` | `INTEGER` | Standard | NO | `0` | Count of creators who earned ad revenue this month |
+| `currency` | `VARCHAR(10)` | Standard | NO | `"INR"` | 3-letter currency code |
+| `status` | `VARCHAR(20)` | Standard (INDEX) | NO | `"reconciled"`| Master ledger state: `"draft"`, `"reconciled"`, `"disbursed"` |
+| `reconciled_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Timestamp when the reconciliation script was executed |
+| `notes` | `TEXT` | Standard | YES | `NULL` | Optional audit notes (e.g. Google GAM invoice reference) |
+
+#### Constraints & Indexes
+* **Unique Constraint `month`**: Enforces strictly one master reconciliation ledger per billing cycle month.
+* **Index `status`**: Allows quick filtering of reconciled vs disbursed payment cycles.
+
+---
+
+### 21. `ad_monthly_settlements` Table (Creator Monthly Payout Statements & UTR Ledger)
 * **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
 * **Table Name**: `ad_monthly_settlements`
 
 | Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID of settlement record |
+| `reconciliation_id` | `INTEGER` | **FK ➔ `ad_platform_monthly_reconciliations.id` (CASCADE)** | YES | `NULL` | 1-to-Many parent link to the platform monthly reconciliation |
 | `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio receiving the monthly payout |
-| `statement_id` | `VARCHAR(50)` | **UNIQUE (INDEX)** | NO | None | Official business statement ID (e.g. `STMT-2026-08-101`) |
-| `month` | `VARCHAR(7)` | Standard (INDEX) | NO | None | Billing cycle cycle formatted as `YYYY-MM` (e.g. `2026-08`) |
-| `impressions_count` | `INTEGER` | Standard | NO | `0` | Verified billable ad impressions served during the month |
-| `ecpm` | `FLOAT` | Standard | NO | `0.0` | Effective creator take-home CPM rate |
-| `amount` | `FLOAT` | Standard | NO | `0.0` | Final net payout amount transferred to creator's bank |
-| `currency` | `VARCHAR(10)` | Standard | NO | `DEFAULT_CURRENCY` | 3-letter currency code (e.g. `"INR"`) |
+| `statement_id` | `VARCHAR(50)` | **UNIQUE (INDEX)** | NO | None | Official business statement ID (e.g. `STMT-202609-ADM42-8F9B`) |
+| `month` | `VARCHAR(7)` | Standard (INDEX) | NO | None | Billing cycle formatted as `YYYY-MM` (e.g. `2026-09`) |
+| `impressions_count` | `BIGINT` | Standard | NO | `0` | Verified billable ad impressions served during the month |
+| `ecpm` | `DECIMAL(10,4)`| Standard | NO | `0.0000` | Effective creator take-home CPM rate |
+| `amount` | `DECIMAL(12,2)`| Standard | NO | `0.00` | Final net payout amount transferred to creator's bank |
+| `currency` | `VARCHAR(10)` | Standard | NO | `"INR"` | 3-letter currency code (e.g. `"INR"`) |
 | `status` | `VARCHAR(20)` | Standard (INDEX) | NO | `"accruing"` | Settlement state: `"accruing"`, `"reconciled"`, `"paid"` |
-| `scheduled_payout_date` | `DATE` | Standard | YES | `NULL` | Scheduled disbursement transfer date (e.g. `2026-09-28`) |
+| `scheduled_payout_date` | `DATE` | Standard | YES | `NULL` | Scheduled disbursement transfer date (e.g. `2026-10-28`) |
 | `settled_at` | `DATETIME` | Standard | YES | `NULL` | Exact timestamp when bank disbursement completed |
 | `transaction_reference` | `VARCHAR(100)` | Standard | YES | `NULL` | Official Bank UTR reference number |
 | `invoice_url` | `VARCHAR(500)` | Standard | YES | `NULL` | Secure CDN link to downloadable PDF statement |
-| `gross_revenue` | `FLOAT` | Standard | NO | `0.0` | *Internal audit:* Gross amount from Google (hidden from creator API) |
-| `platform_commission_pct`| `FLOAT` | Standard | NO | `30.0` | *Internal audit:* Commission % applied (hidden from creator API) |
-| `platform_fee` | `FLOAT` | Standard | NO | `0.0` | *Internal audit:* Platform cut retained (hidden from creator API) |
+| `gross_revenue` | `DECIMAL(12,2)`| Standard | NO | `0.00` | *Internal audit:* Gross amount from Google (hidden from creator API) |
+| `platform_commission_pct`| `DECIMAL(5,2)` | Standard | NO | `30.00` | *Internal audit:* Commission % applied (hidden from creator API) |
+| `platform_fee` | `DECIMAL(12,2)`| Standard | NO | `0.00` | *Internal audit:* Platform cut retained (hidden from creator API) |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Record creation timestamp |
 | `updated_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Last modification timestamp |
 
 #### Constraints & Indexes
 * **Unique Composite Constraint `(creator_id, month)`**: Guarantees strictly one monthly settlement record per creator per calendar month.
 * **Composite Index `(creator_id, status)`**: Accelerates dashboard retrieval of pending payout (`"reconciled"`) and last completed payout (`"paid"`).
+* **Index `reconciliation_id`**: Powers instantaneous retrieval of all creator settlements under a master reconciliation run.
 
 ---
 
-### 21. `creator_payout_profiles` Table (Creator Bank Payout Profile)
+### 22. `creator_payout_profiles` Table (Creator Bank Payout Profile)
 * **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
 * **Table Name**: `creator_payout_profiles`
 

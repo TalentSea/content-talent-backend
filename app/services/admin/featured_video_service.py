@@ -128,6 +128,17 @@ class FeaturedVideoService:
             limit=limit,
         )
 
+        video_ids = [v.id for v in videos]
+        likes_map: dict[int, int] = {}
+        if video_ids:
+            counts = (
+                VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id))
+                .where(VideoLike.video.in_(video_ids))
+                .group_by(VideoLike.video)
+                .tuples()
+            )
+            likes_map = {vid: cnt for vid, cnt in counts}
+
         items = [
             FeaturedAvailableVideoResponse(
                 id=v.id,
@@ -136,7 +147,7 @@ class FeaturedVideoService:
                 duration=v.duration,
                 main_thumbnail_url=v.main_thumbnail_url,
                 views=v.views or 0,
-                likes=v.likes.count() if hasattr(v.likes, "count") else 0,
+                likes=likes_map.get(v.id, 0),
                 created_at=v.created_at,
             )
             for v in videos

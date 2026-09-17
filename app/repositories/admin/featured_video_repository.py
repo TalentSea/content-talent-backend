@@ -33,22 +33,6 @@ class FeaturedVideoRepository:
             )
             return []
 
-    def get_featured_count(self, creator_id: int) -> int:
-        """
-        Returns total count of featured videos for creator_id.
-        """
-        try:
-            return (
-                FeaturedVideo.select()
-                .where(FeaturedVideo.creator == creator_id)
-                .count()
-            )
-        except PeeweeException as e:
-            logger.error(
-                "Error counting featured videos for creator %s: %s", creator_id, e
-            )
-            return 0
-
     def sync_featured_videos(
         self, creator_id: int, video_ids: list[int]
     ) -> list[tuple[FeaturedVideo, Video]]:
@@ -74,7 +58,7 @@ class FeaturedVideoRepository:
                             & (Video.id.in_(unique_ids))
                             & (
                                 (fn.LOWER(Video.status).in_(["published", "ready"]))
-                                | (Video.is_playable == True)
+                                & (Video.is_playable == True)
                             )
                         )
                     }
@@ -130,7 +114,7 @@ class FeaturedVideoRepository:
                 (Video.user == creator_id)
                 & (
                     (fn.LOWER(Video.status).in_(["published", "ready"]))
-                    | (Video.is_playable == True)
+                    & (Video.is_playable == True)
                 )
                 & (Video.id.not_in(featured_subquery))
             )

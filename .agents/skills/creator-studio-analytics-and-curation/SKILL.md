@@ -38,13 +38,19 @@ Creators can schedule future video releases by providing an IST release timestam
 * **Atomic Publication Logic**:
   ```python
   now = datetime.now(timezone.utc)
-  due_videos = Video.update(status="published").where(
+  active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
+  due_videos = Video.update(
+      status="published",
+      published_at=Video.scheduled_at,
+      scheduled_at=None,
+  ).where(
       (Video.status == "scheduled")
+      & (Video.scheduled_at.is_null(False))
       & (Video.scheduled_at <= now)
-      & (Video.is_playable == True)
+      & (Video.user.in_(active_creators))
   ).execute()
   ```
-* **Guardrail**: A video is only published if `is_playable == True` (transcoding is completed and ready on Bunny Stream).
+* **Guardrail**: Only scheduled videos of active (`Admin.is_active == True`) creators are published. If a creator account is deactivated or suspended by platform administrators, their scheduled releases remain dormant.
 
 ---
 
@@ -53,11 +59,10 @@ Creators can schedule future video releases by providing an IST release timestam
 Creators curate home carousel featured items via `/api/v1/admin/featured-videos`:
 
 1. **Capacity Limit**: Enforce `MAX_FEATURED_VIDEOS_PER_CREATOR` (default: `10`). If a creator attempts to feature more than this limit, reject with `HTTP 400 Bad Request`.
-2. **Display Order**: Store `display_order` (1-indexed integer) to maintain deterministic ordering in mobile hero banners.
-3. **Automated Order Sorting**:
-   - `popular`: Order by B-tree indexed `Video.popularity_score.desc()`.
-   - `recent`: Order by `Video.created_at.desc()`.
-   - `custom`: Order by `FeaturedVideo.display_order.asc()`.
+2. **Display Order**: Store `position` (1-indexed integer) to maintain deterministic ordering in mobile hero banners.
+3. **Status Guardrail**: Both published/ready status and playback readiness MUST be combined with logical AND (`&`):
+   `(fn.LOWER(Video.status).in_(["published", "ready"])) & (Video.is_playable == True)`
+   Never use bitwise OR (`|`), which would prematurely leak draft or scheduled videos into featured slots before release.
 
 ---
 
@@ -86,7 +91,18 @@ Studio visual identity is managed via `/api/v1/admin/branding`:
 
 ---
 
-## 7. Environment Configuration Reference
+## 7. Creator Ad Monetization, Settlements & Bank Settings
+
+Creator advertising revenue telemetry, monthly payouts, and bank profiles are managed via `/api/v1/admin/monetization`:
+* **Earnings & KPI Summary (`GET /summary`)**: Active month impressions, dynamic historical eCPM rate, expected payout schedule (28th of next month), and pending/last payout cards.
+* **Interactive Time-Series Charts (`GET /analytics`)**: Granular daily, weekly, and monthly data points for impressions and net earnings.
+* **Historical Settlement Ledger (`GET /settlements`)**: Paginated statement history with bank wire UTR references and invoice URLs.
+* **Bank Payout Profile (`GET / PUT /settings`)**: Masked account numbers (`••••••••4589`), IFSC code validation, and bank institution auto-resolution on write.
+* **Detailed Playbook**: For complete reconciliation, anti-spam telemetry, and commission architecture, reference the dedicated `ad-monetization-and-settlements` skill.
+
+---
+
+## 8. Environment Configuration Reference
 
 | Environment Variable | Type | Default | Purpose |
 | :--- | :---: | :---: | :--- |
@@ -94,3 +110,6 @@ Studio visual identity is managed via `/api/v1/admin/branding`:
 | `MAX_FEATURED_VIDEOS_PER_CREATOR` | `int` | `10` | Maximum featured videos a single creator can curate. |
 | `MAX_LOGO_SIZE_MB` | `int` | `5` | Maximum upload size for studio branding logos. |
 | `MAX_BANNER_SIZE_MB` | `int` | `10` | Maximum upload size for studio hero banners. |
+| `PLATFORM_AD_COMMISSION_PERCENT` | `float` | `30.0` | Platform retained technology commission on ad revenue. |
+| `PAYOUT_DAY_OF_MONTH` | `int` | `28` | Day of following month when creator wire disbursements occur. |
+| `MIN_PAYOUT_THRESHOLD` | `float` | `500.0` | Minimum net earnings (₹) required to trigger a disbursement. |

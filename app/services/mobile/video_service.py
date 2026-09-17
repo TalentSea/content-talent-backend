@@ -186,7 +186,9 @@ class MobileVideoService:
                     else None
                 )
                 if vast_tag:
-                    ad_tag_url = vast_tag
+                    delimiter = "&" if ("?" in vast_tag) else "?"
+                    cust_params = f"cust_params=creator_id%3D{video.user_id}%26video_id%3D{video.id}"
+                    ad_tag_url = f"{vast_tag}{delimiter}{cust_params}"
             # If plan_type == "no_ads", ad_tag_url remains None (100% ad-free)
 
         tags_list = (

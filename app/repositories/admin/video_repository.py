@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from peewee import PeeweeException, fn
 
+from app.models.admin import Admin
 from app.models.video import Video
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,7 @@ class VideoRepository:
         """
         try:
             now = datetime.now(timezone.utc)
+            active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
             count = (
                 Video.update(
                     status="published",
@@ -168,6 +170,7 @@ class VideoRepository:
                     (Video.status == "scheduled")
                     & (Video.scheduled_at.is_null(False))
                     & (Video.scheduled_at <= now)
+                    & (Video.user.in_(active_creators))
                 )
                 .execute()
             )

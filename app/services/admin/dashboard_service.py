@@ -1,5 +1,4 @@
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 
@@ -16,9 +15,7 @@ from app.schemas.admin.dashboard_schemas import (
     SubscriptionTierItem,
 )
 from app.schemas.shared.common_schemas import PaginatedResponse
-
-# Standard IST timezone for business metrics
-IST = ZoneInfo("Asia/Kolkata")
+from app.utils.date_utils import get_app_timezone
 
 
 def compute_growth_percentage(current_val: float, previous_val: float) -> float:
@@ -58,7 +55,8 @@ class DashboardService:
         Resolves ISO date boundaries for current and symmetric prior comparison windows.
         Returns (curr_start_dt, curr_end_dt, prev_start_dt, prev_end_dt, start_date, end_date).
         """
-        now_ist = datetime.now(IST)
+        tz = get_app_timezone()
+        now_local = datetime.now(tz)
 
         if start_date_str and end_date_str:
             try:
@@ -76,7 +74,7 @@ class DashboardService:
                 )
         else:
             preset = (range_preset or default_preset).lower()
-            end_d = now_ist.date()
+            end_d = now_local.date()
             if preset == "7d":
                 start_d = end_d - timedelta(days=6)
             elif preset == "30d":
@@ -92,17 +90,30 @@ class DashboardService:
                 start_d = end_d - timedelta(days=29)
 
         curr_start_dt = datetime(
-            start_d.year, start_d.month, start_d.day, 0, 0, 0, tzinfo=IST
+            start_d.year, start_d.month, start_d.day, 0, 0, 0, tzinfo=tz
         )
         curr_end_dt = datetime(
-            end_d.year, end_d.month, end_d.day, 23, 59, 59, 999999, tzinfo=IST
+            end_d.year, end_d.month, end_d.day, 23, 59, 59, 999999, tzinfo=tz
         )
 
         duration = curr_end_dt - curr_start_dt
         prev_end_dt = curr_start_dt - timedelta(microseconds=1)
         prev_start_dt = curr_start_dt - duration
 
-        return curr_start_dt, curr_end_dt, prev_start_dt, prev_end_dt, start_d, end_d
+        # Convert to UTC for exact database timestamp queries
+        curr_start_utc = curr_start_dt.astimezone(timezone.utc)
+        curr_end_utc = curr_end_dt.astimezone(timezone.utc)
+        prev_start_utc = prev_start_dt.astimezone(timezone.utc)
+        prev_end_utc = prev_end_dt.astimezone(timezone.utc)
+
+        return (
+            curr_start_utc,
+            curr_end_utc,
+            prev_start_utc,
+            prev_end_utc,
+            start_d,
+            end_d,
+        )
 
     def get_dashboard_stats(
         self,
@@ -193,14 +204,7 @@ class DashboardService:
         """
         GET /api/v1/admin/dashboard/analytics — Chronological time-series chart points.
         """
-        (
-            curr_start,
-            curr_end,
-            _,
-            _,
-            start_d,
-            end_d,
-        ) = self._resolve_date_boundaries(
+        *_, start_d, end_d = self._resolve_date_boundaries(
             range_preset, start_date_str, end_date_str, default_preset="6m"
         )
 
@@ -222,51 +226,102 @@ class DashboardService:
                     detail="Invalid interval. Supported intervals are: 'day', 'week', 'month'.",
                 )
 
-        # Generate chronological bucket time slices
+        # Generate chronological bucket time slices using local dates and UTC query bounds
+        tz = get_app_timezone()
         buckets: list[tuple[datetime, datetime, str, str]] = []
-        cursor = curr_start
+        cursor_d = start_d
 
         if resolved_interval == "day":
-            while cursor <= curr_end:
-                b_start = cursor
-                b_end = datetime(
-                    cursor.year,
-                    cursor.month,
-                    cursor.day,
+            while cursor_d <= end_d:
+                b_start_local = datetime(
+                    cursor_d.year, cursor_d.month, cursor_d.day, 0, 0, 0, tzinfo=tz
+                )
+                b_end_local = datetime(
+                    cursor_d.year,
+                    cursor_d.month,
+                    cursor_d.day,
                     23,
                     59,
                     59,
                     999999,
-                    tzinfo=IST,
+                    tzinfo=tz,
                 )
-                date_str = b_start.strftime("%Y-%m-%d")
-                label_str = b_start.strftime("%d %b")
-                buckets.append((b_start, b_end, date_str, label_str))
-                cursor += timedelta(days=1)
+                date_str = cursor_d.strftime("%Y-%m-%d")
+                label_str = cursor_d.strftime("%d %b")
+                buckets.append(
+                    (
+                        b_start_local.astimezone(timezone.utc),
+                        b_end_local.astimezone(timezone.utc),
+                        date_str,
+                        label_str,
+                    )
+                )
+                cursor_d += timedelta(days=1)
 
         elif resolved_interval == "week":
-            while cursor <= curr_end:
-                b_start = cursor
-                next_week = cursor + timedelta(days=7)
-                b_end = min(next_week - timedelta(microseconds=1), curr_end)
-                date_str = b_start.strftime("%Y-%m-%d")
-                label_str = f"{b_start.strftime('%d %b')}"
-                buckets.append((b_start, b_end, date_str, label_str))
-                cursor = next_week
+            while cursor_d <= end_d:
+                next_week_d = min(cursor_d + timedelta(days=6), end_d)
+                b_start_local = datetime(
+                    cursor_d.year, cursor_d.month, cursor_d.day, 0, 0, 0, tzinfo=tz
+                )
+                b_end_local = datetime(
+                    next_week_d.year,
+                    next_week_d.month,
+                    next_week_d.day,
+                    23,
+                    59,
+                    59,
+                    999999,
+                    tzinfo=tz,
+                )
+                date_str = cursor_d.strftime("%Y-%m-%d")
+                label_str = f"{cursor_d.strftime('%d %b')}"
+                buckets.append(
+                    (
+                        b_start_local.astimezone(timezone.utc),
+                        b_end_local.astimezone(timezone.utc),
+                        date_str,
+                        label_str,
+                    )
+                )
+                cursor_d = next_week_d + timedelta(days=1)
 
         else:  # "month"
-            while cursor <= curr_end:
-                b_start = cursor
-                # Advance to next month
-                if cursor.month == 12:
-                    next_month = datetime(cursor.year + 1, 1, 1, tzinfo=IST)
+            while cursor_d <= end_d:
+                if cursor_d.month == 12:
+                    month_end_d = date(cursor_d.year, 12, 31)
+                    next_month_start_d = date(cursor_d.year + 1, 1, 1)
                 else:
-                    next_month = datetime(cursor.year, cursor.month + 1, 1, tzinfo=IST)
-                b_end = min(next_month - timedelta(microseconds=1), curr_end)
-                date_str = b_start.strftime("%Y-%m-%d")
-                label_str = b_start.strftime("%b")
-                buckets.append((b_start, b_end, date_str, label_str))
-                cursor = next_month
+                    month_end_d = date(
+                        cursor_d.year, cursor_d.month + 1, 1
+                    ) - timedelta(days=1)
+                    next_month_start_d = date(cursor_d.year, cursor_d.month + 1, 1)
+                bucket_end_d = min(month_end_d, end_d)
+
+                b_start_local = datetime(
+                    cursor_d.year, cursor_d.month, cursor_d.day, 0, 0, 0, tzinfo=tz
+                )
+                b_end_local = datetime(
+                    bucket_end_d.year,
+                    bucket_end_d.month,
+                    bucket_end_d.day,
+                    23,
+                    59,
+                    59,
+                    999999,
+                    tzinfo=tz,
+                )
+                date_str = cursor_d.strftime("%Y-%m-%d")
+                label_str = cursor_d.strftime("%b")
+                buckets.append(
+                    (
+                        b_start_local.astimezone(timezone.utc),
+                        b_end_local.astimezone(timezone.utc),
+                        date_str,
+                        label_str,
+                    )
+                )
+                cursor_d = next_month_start_d
 
         data_points: list[AnalyticsDataPoint] = []
         for b_start, b_end, d_str, l_str in buckets:

@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, UploadFile, status
 from peewee import fn
@@ -36,6 +35,7 @@ from app.utils.bunny_signature import (
     generate_signed_playback_url,
     generate_tus_signature,
 )
+from app.utils.date_utils import get_app_timezone
 from app.utils.image_uploader import validate_and_upload_image
 
 logger = logging.getLogger("uvicorn.error")
@@ -440,7 +440,6 @@ class VideoService:
             items=items, total=total, page=page, limit=limit
         )
 
-
     def get_video_details(self, user_id: int, video_id: int) -> VideoResponse:
         """
         Retrieves detailed metadata for a single video. Syncs live encoding status from Bunny Stream if ENCODING.
@@ -701,7 +700,7 @@ class VideoService:
             scheduled_dt_str = f"{payload.date} {payload.time}"
             scheduled_dt = (
                 datetime.strptime(scheduled_dt_str, "%Y-%m-%d %H:%M")
-                .replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+                .replace(tzinfo=get_app_timezone())
                 .astimezone(timezone.utc)
             )
         except ValueError as e:

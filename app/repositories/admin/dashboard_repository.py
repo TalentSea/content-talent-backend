@@ -49,15 +49,6 @@ class DashboardRepository:
         )
         return int(views or 0)
 
-    def get_lifetime_views(self, creator_id: int) -> int:
-        """Sums lifetime playback views across all creator videos."""
-        res = (
-            Video.select(fn.COALESCE(fn.SUM(Video.views), 0))
-            .where(Video.user == creator_id)
-            .scalar()
-        )
-        return int(res or 0)
-
     def get_user_registrations_in_window(
         self, creator_id: int, start_dt: datetime, end_dt: datetime
     ) -> int:

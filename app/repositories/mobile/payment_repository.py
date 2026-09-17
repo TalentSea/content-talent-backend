@@ -55,21 +55,6 @@ class PaymentRepository:
             logger.error("Error fetching payment by order_id %s: %s", order_id, err)
             return None
 
-    def get_payment_by_payment_id(self, payment_id: str) -> Payment | None:
-        """
-        Retrieves a payment record by its unique Razorpay Payment ID, eager loading SubscriptionPlan.
-        """
-        try:
-            return (
-                Payment.select(Payment, SubscriptionPlan)
-                .join(SubscriptionPlan)
-                .where(Payment.razorpay_payment_id == payment_id)
-                .first()
-            )
-        except PeeweeException as err:
-            logger.error("Error fetching payment by payment_id %s: %s", payment_id, err)
-            return None
-
     def mark_captured(
         self,
         order_id: str,
