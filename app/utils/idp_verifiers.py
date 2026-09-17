@@ -21,17 +21,6 @@ def verify_google_id_token(id_token_str: str) -> dict[str, Any]:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google id_token must be provided",
         )
-
-    # Mock testing token for local offline development
-    if id_token_str.startswith("mock_google_"):
-        mock_id = id_token_str.replace("mock_google_", "")
-        return {
-            "sub": f"google_user_{mock_id}",
-            "email": f"google.user{mock_id}@gmail.com",
-            "name": f"Google User {mock_id}",
-            "picture": "https://lh3.googleusercontent.com/a/default_avatar",
-        }
-
     settings = get_settings()
     client_id = settings.GOOGLE_CLIENT_ID or None
 
@@ -69,17 +58,6 @@ def verify_facebook_access_token(access_token_str: str) -> dict[str, Any]:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Facebook access_token must be provided",
         )
-
-    # Mock testing token for local offline development
-    if access_token_str.startswith("mock_facebook_"):
-        mock_id = access_token_str.replace("mock_facebook_", "")
-        return {
-            "sub": f"facebook_user_{mock_id}",
-            "email": f"facebook.user{mock_id}@example.com",
-            "name": f"Facebook User {mock_id}",
-            "picture": "https://platform-lookaside.fbsbx.com/platform/profilepic/default",
-        }
-
     try:
         url = "https://graph.facebook.com/v20.0/me"
         params = {
