@@ -1,4 +1,6 @@
+import base64
 import hashlib
+import hmac
 import time
 
 from app.config import get_settings
@@ -23,6 +25,24 @@ def generate_tus_signature(
     return signature, expiration_timestamp
 
 
+def _generate_bunny_token(security_key: str, path: str, expires_timestamp: int) -> str:
+    """
+    Generates Bunny CDN Advanced Token Authentication (HMAC-SHA256 Base64URL with HS256- prefix).
+    """
+    message = f"{path}{expires_timestamp}"
+    raw_hmac = hmac.new(
+        security_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).digest()
+    b64_token = (
+        base64.b64encode(raw_hmac)
+        .decode("utf-8")
+        .replace("+", "-")
+        .replace("/", "_")
+        .rstrip("=")
+    )
+    return f"HS256-{b64_token}"
+
+
 def generate_signed_playback_url(
     bunny_pull_zone_url: str,
     bunny_video_id: str,
@@ -31,18 +51,16 @@ def generate_signed_playback_url(
 ) -> str:
     """
     Generates a time-bound, presigned HLS playback URL (playlist.m3u8?token=...&expires=...).
-    Prevents unauthorized hotlinking, stream piracy, and permanent URL sharing.
+    Uses Bunny CDN Advanced Token Authentication (HMAC-SHA256).
     """
     if expires_in_seconds is None:
         expires_in_seconds = get_settings().BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS
     expires_timestamp = int(time.time()) + expires_in_seconds
     path = f"/{bunny_video_id}/playlist.m3u8"
 
-    to_hash = f"{token_security_key}{bunny_video_id}{expires_timestamp}"
-    token_hash = hashlib.sha256(to_hash.encode("utf-8")).hexdigest()
-
+    token = _generate_bunny_token(token_security_key, path, expires_timestamp)
     base_url = bunny_pull_zone_url.rstrip("/")
-    return f"{base_url}{path}?token={token_hash}&expires={expires_timestamp}"
+    return f"{base_url}{path}?token={token}&expires={expires_timestamp}"
 
 
 def generate_signed_mp4_url(
@@ -54,7 +72,7 @@ def generate_signed_mp4_url(
 ) -> str:
     """
     Generates a time-bound presigned MP4 download URL (play_<resolution>.mp4?token=...&expires=...).
-    Example: play_720p.mp4
+    Uses Bunny CDN Advanced Token Authentication (HMAC-SHA256).
     """
     if expires_in_seconds is None:
         expires_in_seconds = get_settings().BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS
@@ -64,8 +82,6 @@ def generate_signed_mp4_url(
         clean_res = f"{clean_res}p"
     path = f"/{bunny_video_id}/play_{clean_res}.mp4"
 
-    to_hash = f"{token_security_key}{path}{expires_timestamp}"
-    token_hash = hashlib.md5(to_hash.encode("utf-8")).hexdigest()
-
+    token = _generate_bunny_token(token_security_key, path, expires_timestamp)
     base_url = bunny_pull_zone_url.rstrip("/")
-    return f"{base_url}{path}?token={token_hash}&expires={expires_timestamp}"
+    return f"{base_url}{path}?token={token}&expires={expires_timestamp}"
