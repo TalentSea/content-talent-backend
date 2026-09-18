@@ -76,6 +76,7 @@ class MobileCategoryResponse(BaseModel):
     id: int
     name: str
     slug: str
+    description: str | None = None
     icon: str = Field(
         default_factory=lambda: get_settings().DEFAULT_CATEGORY_ICON
     )

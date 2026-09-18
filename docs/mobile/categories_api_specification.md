@@ -38,16 +38,17 @@ None.
 1. Extracts `creator_id` from `current_subscriber` JWT session token context.
 2. Queries `Category` table filtering by `Category.user == creator_id`.
 3. Orders items by `Category.display_order.asc()`.
-4. Maps lightweight DTO response (`id`, `name`, `slug`, `icon`, `color`).
+4. Maps lightweight DTO response (`id`, `name`, `slug`, `description`, `icon`, `color`).
 
 #### Response Specification (`200 OK`)
 ```json
 {
-  "items": [
+  "data": [
     {
       "id": 1,
       "name": "Tutorials",
       "slug": "tutorials",
+      "description": "Comprehensive development walkthroughs and programming guides.",
       "icon": "📚",
       "color": "#3b82f6"
     },
@@ -55,6 +56,7 @@ None.
       "id": 2,
       "name": "Design",
       "slug": "design",
+      "description": "Creative design systems, UI/UX paradigms, and digital illustrations.",
       "icon": "🎨",
       "color": "#ec4899"
     }

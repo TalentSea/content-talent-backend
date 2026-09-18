@@ -52,6 +52,7 @@ class CategoryService:
                 id=c.id,
                 name=c.name,
                 slug=c.slug,
+                description=c.description,
                 icon=c.icon or settings.DEFAULT_CATEGORY_ICON,
                 color=c.color or settings.DEFAULT_CATEGORY_COLOR,
             )
