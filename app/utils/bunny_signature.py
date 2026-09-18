@@ -50,17 +50,18 @@ def generate_signed_playback_url(
     expires_in_seconds: int | None = None,
 ) -> str:
     """
-    Generates a time-bound, presigned HLS playback URL (playlist.m3u8?token=...&expires=...).
-    Uses Bunny CDN Advanced Token Authentication (HMAC-SHA256).
+    Generates a time-bound, presigned HLS playback URL using Bunny CDN Path-Based Token Authentication.
+    Embeds the token into the URL path prefix so that both Web browsers and Mobile players
+    automatically authorize all sub-resolution playlists and .ts video chunks without 403 errors.
     """
     if expires_in_seconds is None:
         expires_in_seconds = get_settings().BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS
     expires_timestamp = int(time.time()) + expires_in_seconds
-    path = f"/{bunny_video_id}/playlist.m3u8"
-
-    token = _generate_bunny_token(token_security_key, path, expires_timestamp)
+    
+    dir_path = f"/{bunny_video_id}/"
+    token = _generate_bunny_token(token_security_key, dir_path, expires_timestamp)
     base_url = bunny_pull_zone_url.rstrip("/")
-    return f"{base_url}{path}?token={token}&expires={expires_timestamp}"
+    return f"{base_url}/bcdn_token={token}&expires={expires_timestamp}/{bunny_video_id}/playlist.m3u8"
 
 
 def generate_signed_mp4_url(
