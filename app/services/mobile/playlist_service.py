@@ -7,8 +7,11 @@ from app.schemas.mobile.playlist_schemas import (
     MobilePlaylistDetailsResponse,
     MobilePlaylistListItemResponse,
     MobilePlaylistListResponse,
+    MobilePlaylistSaveResponse,
     MobilePlaylistVideoItemResponse,
     MobilePlaylistVideosResponse,
+    MobileSavedPlaylistListItemResponse,
+    MobileSavedPlaylistListResponse,
 )
 from app.schemas.mobile.video_schemas import WatchProgressResponse
 
@@ -26,16 +29,22 @@ class MobilePlaylistService:
     def list_public_playlists(
         self,
         creator_id: int | None = None,
+        subscriber_id: int | None = None,
         search: str | None = None,
         sort: str = "newest",
         page: int = 1,
         limit: int = 20,
     ) -> MobilePlaylistListResponse:
         """
-        Retrieves paginated public creator playlists feed matching spec API 1.
+        Retrieves paginated public creator playlists feed with personalized is_saved bookmark state matching spec API 1.
         """
         results, total = self.repo.list_public_playlists(
-            creator_id=creator_id, search=search, sort=sort, page=page, limit=limit
+            creator_id=creator_id,
+            subscriber_id=subscriber_id,
+            search=search,
+            sort=sort,
+            page=page,
+            limit=limit,
         )
 
         items = [
@@ -44,9 +53,10 @@ class MobilePlaylistService:
                 name=playlist.name,
                 thumbnail_url=playlist.thumbnail_url,
                 video_count=video_count,
+                is_saved=is_saved,
                 created_at=playlist.created_at,
             )
-            for playlist, video_count in results
+            for playlist, video_count, is_saved in results
         ]
 
         return MobilePlaylistListResponse.create(
@@ -111,11 +121,82 @@ class MobilePlaylistService:
             items=formatted_video_items, total=total, page=page, limit=limit
         )
 
+        is_saved = False
+        if subscriber_id:
+            is_saved = self.repo.is_playlist_saved(playlist.id, subscriber_id)
+
         return MobilePlaylistDetailsResponse(
             id=playlist.id,
             name=playlist.name,
             description=playlist.description,
             thumbnail_url=playlist.thumbnail_url,
             video_count=total,
+            is_saved=is_saved,
             videos=videos_envelope,
         )
+
+    def toggle_playlist_save(
+        self,
+        playlist_id: int,
+        subscriber_id: int | None,
+        creator_id: int | None = None,
+    ) -> MobilePlaylistSaveResponse:
+        """
+        Toggles save/bookmark state on a public playlist for the authenticated subscriber.
+        """
+        if not subscriber_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Subscriber authentication required to save playlist",
+            )
+
+        playlist = self.repo.get_public_playlist_by_id(
+            playlist_id, creator_id=creator_id
+        )
+        if not playlist:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Playlist {playlist_id} not found",
+            )
+
+        is_saved = self.repo.toggle_playlist_save(playlist_id, subscriber_id)
+        return MobilePlaylistSaveResponse(is_saved=is_saved)
+
+    def list_subscriber_saved_playlists(
+        self,
+        subscriber_id: int | None,
+        creator_id: int | None = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> MobileSavedPlaylistListResponse:
+        """
+        Retrieves paginated public playlists saved by subscriber matching spec.
+        """
+        if not subscriber_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Subscriber authentication required to view saved playlists",
+            )
+
+        results, total = self.repo.list_subscriber_saved_playlists(
+            subscriber_id=subscriber_id,
+            creator_id=creator_id,
+            page=page,
+            limit=limit,
+        )
+
+        items = [
+            MobileSavedPlaylistListItemResponse(
+                id=playlist.id,
+                name=playlist.name,
+                thumbnail_url=playlist.thumbnail_url,
+                video_count=video_count,
+                created_at=playlist.created_at,
+            )
+            for playlist, video_count in results
+        ]
+
+        return MobileSavedPlaylistListResponse.create(
+            items=items, total=total, page=page, limit=limit
+        )
+

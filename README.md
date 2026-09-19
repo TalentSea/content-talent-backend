@@ -1,6 +1,6 @@
 # Creator OTT & Video Streaming Backend API
 
-A production-grade RESTful API built with **FastAPI**, **Peewee ORM**, **SQLite/PostgreSQL**, and **Bunny.net Cloud Infrastructure** (Bunny Stream, Bunny Storage, and Bunny CDN). Designed following clean architecture principles for video asset management, resumable TUS uploads, webhook state processing, playlist curation, categories organization and reordering, creator branding and studio identity, profile management, comment moderation, mobile social authentication, guest account upgrades, and real-time watch history playback synchronization.
+A production-grade RESTful API built with **FastAPI**, **Peewee ORM**, **PostgreSQL**, and **Bunny.net Cloud Infrastructure** (Bunny Stream, Bunny Storage, and Bunny CDN). Designed following clean architecture principles for video asset management, resumable TUS uploads, webhook state processing, playlist curation, categories organization and reordering, creator branding and studio identity, profile management, comment moderation, mobile social authentication, guest account upgrades, and real-time watch history playback synchronization.
 
 ---
 
@@ -14,7 +14,7 @@ content-talent-backend/
 ├── docs/                         # Architecture & API Specifications
 │   ├── mobile/                   # Mobile Application API Specifications
 │   ├── admin/                    # Admin Portal API Specifications
-│   ├── database_architecture_specification.md # Complete 22-Table Database Schema Specification
+│   ├── database_architecture_specification.md # Complete 23-Table Database Schema Specification
 ├── app/
 │   ├── config.py                 # Pydantic environment configuration and settings
 │   ├── database.py               # Peewee database proxy and table initialization
@@ -35,7 +35,7 @@ content-talent-backend/
 │   │   ├── payment.py            # Razorpay orders and payment transactions ledger entity
 │   │   ├── refresh_token.py      # Hashed session refresh tokens entity
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave, WatchHistory, and VideoViewEvent entities
-│   │   ├── playlist.py           # Playlist and junction entities
+│   │   ├── playlist.py           # Playlist, PlaylistVideo, and PlaylistSave entities
 │   │   ├── comment.py            # Comment, thread replies, and junction entities
 │   │   └── ad_monetization.py    # AdImpressionEvent, AdPlatformMonthlyReconciliation, AdMonthlySettlement, and CreatorPayoutProfile entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
@@ -210,13 +210,13 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Featured Videos Curation: 3 endpoints
   - Subscription Plans Management: 2 endpoints
   - Ad Monetization, Analytics, Payout Settings & Statements: 5 endpoints
-- **Mobile Endpoints (34)**:
+- **Mobile Endpoints (36)**:
   - Video Catalog, Player, History, Likes, Saves & Ad Telemetry: 13 endpoints
   - Comments & Replies: 6 endpoints
   - Authentication, Guest & Profiles: 6 endpoints
   - Razorpay Orders & Verification: 2 endpoints
   - Subscription Entitlement Status: 1 endpoint
-  - Playlists Catalog: 2 endpoints
+  - Playlists Catalog & Bookmarks: 4 endpoints
   - Category Catalog: 1 endpoint
   - Studio Branding Identity: 1 endpoint
   - Featured Videos Feed: 1 endpoint
@@ -245,7 +245,7 @@ Configure your environment settings:
 
 ```env
 # Database Settings
-SQLITE_DB_PATH=content-talent.db
+DATABASE_URL=postgresql://user:password@localhost:5432/content_talent_db
 
 # Bunny Stream API Credentials
 BUNNY_STREAM_API_KEY=your_bunny_stream_api_key_here

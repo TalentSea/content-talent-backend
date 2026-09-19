@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     Application configuration settings loaded automatically from environment variables (.env).
     """
 
-    SQLITE_DB_PATH: str
+    DATABASE_URL: str
 
     BUNNY_STREAM_API_KEY: str
     BUNNY_STREAM_LIBRARY_ID: str

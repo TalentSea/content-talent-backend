@@ -74,10 +74,11 @@ class PlaylistService:
                 description=p.description,
                 thumbnail_url=p.thumbnail_url,
                 video_count=v_count,
+                saves_count=s_count,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
-            for p, v_count in playlists_with_counts
+            for p, v_count, s_count in playlists_with_counts
         ]
 
         return PaginatedResponse.create(

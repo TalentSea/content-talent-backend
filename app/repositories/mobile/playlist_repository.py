@@ -2,7 +2,7 @@ import logging
 
 from peewee import PeeweeException, fn
 
-from app.models.playlist import Playlist, PlaylistVideo
+from app.models.playlist import Playlist, PlaylistSave, PlaylistVideo
 from app.models.video import Video, VideoLike, VideoSave, WatchHistory
 
 logger = logging.getLogger(__name__)
@@ -17,13 +17,15 @@ class MobilePlaylistRepository:
     def list_public_playlists(
         self,
         creator_id: int | None = None,
+        subscriber_id: int | None = None,
         search: str | None = None,
         sort: str = "newest",
         page: int = 1,
         limit: int = 20,
-    ) -> tuple[list[tuple[Playlist, int]], int]:
+    ) -> tuple[list[tuple[Playlist, int, bool]], int]:
         """
-        Retrieves paginated public creator playlists with batched count of published & ready videos.
+        Retrieves paginated public creator playlists with batched count of published & ready videos
+        and subscriber bookmark status (is_saved).
         Optionally filters by creator_id for tenant isolation.
         """
         try:
@@ -64,7 +66,16 @@ class MobilePlaylistRepository:
             )
             counts_map = {row.playlist_id: row.v_count for row in counts_query}
 
-            results = [(p, counts_map.get(p.id, 0)) for p in playlists]
+            # Batch check subscriber saved state
+            saved_set = set()
+            if subscriber_id:
+                saved_query = PlaylistSave.select(PlaylistSave.playlist).where(
+                    (PlaylistSave.subscriber == subscriber_id)
+                    & (PlaylistSave.playlist.in_(pl_ids))
+                )
+                saved_set = {row.playlist_id for row in saved_query}
+
+            results = [(p, counts_map.get(p.id, 0), p.id in saved_set) for p in playlists]
             return results, total
         except PeeweeException as e:
             logger.error("Error querying mobile public playlists: %s", e)
@@ -176,3 +187,97 @@ class MobilePlaylistRepository:
                 f"Error fetching mobile playlist videos for playlist {playlist.id}: {e!s}"
             )
             raise
+
+    def is_playlist_saved(self, playlist_id: int, subscriber_id: int) -> bool:
+        """
+        Checks whether an authenticated subscriber has bookmarked/saved a playlist.
+        """
+        try:
+            return (
+                PlaylistSave.select()
+                .where(
+                    (PlaylistSave.playlist == playlist_id)
+                    & (PlaylistSave.subscriber == subscriber_id)
+                )
+                .exists()
+            )
+        except PeeweeException as e:
+            logger.error(
+                f"Error checking playlist save state for playlist {playlist_id}, subscriber {subscriber_id}: {e!s}"
+            )
+            raise
+
+    def toggle_playlist_save(self, playlist_id: int, subscriber_id: int) -> bool:
+        """
+        Toggles save/bookmark state for subscriber on a playlist.
+        Returns True if saved, False if unsaved.
+        """
+        try:
+            existing_save = PlaylistSave.get_or_none(
+                (PlaylistSave.playlist == playlist_id)
+                & (PlaylistSave.subscriber == subscriber_id)
+            )
+            if existing_save:
+                existing_save.delete_instance()
+                return False
+            else:
+                PlaylistSave.create(playlist=playlist_id, subscriber=subscriber_id)
+                return True
+        except PeeweeException as e:
+            logger.error(
+                f"Error toggling playlist save for playlist {playlist_id}, subscriber {subscriber_id}: {e!s}"
+            )
+            raise
+
+    def list_subscriber_saved_playlists(
+        self,
+        subscriber_id: int,
+        creator_id: int | None = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[tuple[Playlist, int]], int]:
+        """
+        Retrieves paginated playlists saved by a specific subscriber.
+        Optionally filters by creator_id for tenant isolation.
+        """
+        try:
+            query = (
+                Playlist.select()
+                .join(PlaylistSave, on=(Playlist.id == PlaylistSave.playlist))
+                .where(PlaylistSave.subscriber == subscriber_id)
+            )
+            if creator_id is not None:
+                query = query.where(Playlist.user == creator_id)
+
+            query = query.order_by(PlaylistSave.created_at.desc())
+
+            total = query.count()
+            playlists = list(query.paginate(page, limit))
+            if not playlists:
+                return [], total
+
+            # Batch count only published & ready videos for each playlist
+            pl_ids = [p.id for p in playlists]
+            counts_query = (
+                PlaylistVideo.select(
+                    PlaylistVideo.playlist,
+                    fn.COUNT(PlaylistVideo.video).alias("v_count"),
+                )
+                .join(Video, on=(PlaylistVideo.video == Video.id))
+                .where(
+                    (PlaylistVideo.playlist.in_(pl_ids))
+                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (Video.is_playable == True)
+                )
+                .group_by(PlaylistVideo.playlist)
+            )
+            counts_map = {row.playlist_id: row.v_count for row in counts_query}
+
+            results = [(p, counts_map.get(p.id, 0)) for p in playlists]
+            return results, total
+        except PeeweeException as e:
+            logger.error(
+                f"Error querying subscriber saved playlists for subscriber {subscriber_id}: {e!s}"
+            )
+            raise
+

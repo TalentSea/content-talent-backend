@@ -13,11 +13,28 @@ class MobilePlaylistListItemResponse(BaseModel):
     name: str
     thumbnail_url: str | None = None
     video_count: int = 0
+    is_saved: bool = False
     created_at: datetime | None = None
 
 
 class MobilePlaylistListResponse(PaginatedResponse[MobilePlaylistListItemResponse]):
     """Paginated list envelope for public mobile playlists matching spec API 1."""
+
+
+class MobileSavedPlaylistListItemResponse(BaseModel):
+    """Canonical DTO for saved playlist cards matching spec API 4 (omits redundant is_saved)."""
+
+    id: int
+    name: str
+    thumbnail_url: str | None = None
+    video_count: int = 0
+    created_at: datetime | None = None
+
+
+class MobileSavedPlaylistListResponse(
+    PaginatedResponse[MobileSavedPlaylistListItemResponse]
+):
+    """Paginated list envelope for saved mobile playlists matching spec API 4."""
 
 
 class MobilePlaylistVideoItemResponse(BaseModel):
@@ -49,4 +66,11 @@ class MobilePlaylistDetailsResponse(BaseModel):
     description: str | None = None
     thumbnail_url: str | None = None
     video_count: int = 0
+    is_saved: bool = False
     videos: MobilePlaylistVideosResponse
+
+
+class MobilePlaylistSaveResponse(BaseModel):
+    """Canonical DTO for playlist save/bookmark toggle matching spec API 3."""
+
+    is_saved: bool

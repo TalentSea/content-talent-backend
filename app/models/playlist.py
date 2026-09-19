@@ -11,6 +11,7 @@ from peewee import (
 
 from app.models.admin import Admin
 from app.models.base import BaseModel
+from app.models.subscriber import Subscriber
 from app.models.video import Video
 
 
@@ -61,3 +62,29 @@ class PlaylistVideo(BaseModel):
     class Meta:
         table_name = "playlist_videos"
         primary_key = CompositeKey("playlist", "video")
+
+
+class PlaylistSave(BaseModel):
+    """
+    Stores playlist bookmark/save relationships between Subscriber and Playlist entities.
+    """
+
+    playlist = ForeignKeyField(
+        model=Playlist,
+        field=Playlist.id,
+        column_name="playlist_id",
+        backref="saves",
+        on_delete="CASCADE",
+    )
+    subscriber = ForeignKeyField(
+        model=Subscriber,
+        field=Subscriber.id,
+        column_name="subscriber_id",
+        backref="playlist_saves",
+        on_delete="CASCADE",
+    )
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+    class Meta:
+        table_name = "playlist_saves"
+        indexes = ((("playlist", "subscriber"), True),)

@@ -8,7 +8,7 @@ from peewee import (
     IntegerField,
     TextField,
 )
-from playhouse.sqlite_ext import JSONField
+from playhouse.postgres_ext import JSONField
 
 from app.models.admin import Admin
 from app.models.base import BaseModel

@@ -46,10 +46,10 @@ The platform operates as a specialized **White-Labeled Creator OTT Platform**. U
 
 To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system enforces an industry-standard **Dual HttpOnly Cookie Architecture** coupled with a **Dual-Extraction Strategy** for API tooling:
 
-| Token Type | Lifespan | Primary Transport (Browser) | Fallback Transport (Tooling) | Security & Theft Protection |
-| :--- | :--- | :--- | :--- | :--- |
-| **Access Token** | **30 Minutes** | **`HttpOnly; Secure; SameSite=Lax` Cookie** (`admin_access_token`) on path `/api/v1/admin` | HTTP `Authorization: Bearer <token>` | **100% immune to JavaScript XSS exfiltration**. Never written to `localStorage`. Short lifespan limits stolen token window. Cryptographically signed JWT (`HS256`). |
-| **Refresh Token** | **60 Days** | **`HttpOnly; Secure; SameSite=Strict` Cookie** (`admin_refresh_token`) on path `/api/v1/admin/auth` | *None* (Cookie only) | **Completely inaccessible to JavaScript / XSS**. Stored in DB strictly as a **SHA-256 one-way hash**. Scoped strictly to auth routes. |
+| Token Type        | Lifespan       | Primary Transport (Browser)                                                                         | Fallback Transport (Tooling)         | Security & Theft Protection                                                                                                                                         |
+| :---------------- | :------------- | :-------------------------------------------------------------------------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Access Token**  | **30 Minutes** | **`HttpOnly; Secure; SameSite=Lax` Cookie** (`admin_access_token`) on path `/api/v1/admin`          | HTTP `Authorization: Bearer <token>` | **100% immune to JavaScript XSS exfiltration**. Never written to `localStorage`. Short lifespan limits stolen token window. Cryptographically signed JWT (`HS256`). |
+| **Refresh Token** | **60 Days**    | **`HttpOnly; Secure; SameSite=Strict` Cookie** (`admin_refresh_token`) on path `/api/v1/admin/auth` | _None_ (Cookie only)                 | **Completely inaccessible to JavaScript / XSS**. Stored in DB strictly as a **SHA-256 one-way hash**. Scoped strictly to auth routes.                               |
 
 #### How We Prevent & Handle Token Compromise:
 
@@ -59,6 +59,7 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
 
 2. **Dual-Extraction Strategy in `get_current_admin` (`app/dependencies.py`)**:
    Admin route protection utilizes a layered token extraction pattern:
+
    ```python
    def get_current_admin(
        cookie_token: str | None = Cookie(default=None, alias="admin_access_token"),
@@ -74,6 +75,7 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
        payload = decode_access_token(token)
        ...
    ```
+
    - **Why Cookie First?** In production web browser sessions, the browser automatically attaches the `admin_access_token` cookie. The client JavaScript never needs to store, read, or manually inject the JWT into headers.
    - **Why Retain Header Fallback (`oauth2_scheme_optional`)?**
      1. **Swagger UI / OpenAPI (`/docs`)**: The interactive FastAPI Swagger documentation relies on the OAuth2 "Authorize" modal, which injects tokens via `Authorization: Bearer <token>`. Retaining the fallback allows developers to test admin endpoints directly in `/docs`.
@@ -262,6 +264,7 @@ Content-Type: application/json
 - `password`: String, required, minimum 8 characters.
 
 #### Response Headers
+
 ```http
 Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=1800
 Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abcdef0123456789abc; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=5184000
@@ -298,7 +301,7 @@ Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abc
   - `studio_name` (string): Public channel / OTT studio brand name.
   - `avatar_url` (string | null): CDN URL to profile photo asset.
 
-*(Note: Both the 30-minute `access_token` and 60-day `refresh_token` are transmitted strictly via secure `Set-Cookie` response headers with `HttpOnly`, ensuring zero vulnerability to JavaScript-based XSS attacks).*
+_(Note: Both the 30-minute `access_token` and 60-day `refresh_token` are transmitted strictly via secure `Set-Cookie` response headers with `HttpOnly`, ensuring zero vulnerability to JavaScript-based XSS attacks)._
 
 ---
 
@@ -311,7 +314,8 @@ Exchanges a valid 60-day refresh token for a newly minted 30-minute access token
 ```http
 Cookie: admin_refresh_token=<token_from_httponly_cookie>
 ```
-*(No request body is needed; the browser automatically transmits the HttpOnly cookie with `withCredentials: true`).*
+
+_(No request body is needed; the browser automatically transmits the HttpOnly cookie with `withCredentials: true`)._
 
 #### Processing Logic & Multi-Device Handling:
 
@@ -327,6 +331,7 @@ Cookie: admin_refresh_token=<token_from_httponly_cookie>
 5. **Cookie Update**: Emits fresh `Set-Cookie` headers for both the rotated refresh token (`Max-Age=5184000`) and the fresh access token (`Max-Age=1800`).
 
 #### Response Headers
+
 ```http
 Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=1800
 Set-Cookie: admin_refresh_token=b5e9013d4f562c78e90123456789abcdef0123456789abcdef0123456789def; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=5184000
@@ -353,7 +358,8 @@ Retrieves the current authenticated creator's core session identity and studio b
 ```http
 Cookie: admin_access_token=<jwt_cookie>
 ```
-*(Alternatively supported via header fallback: `Authorization: Bearer <admin_access_token>` for Swagger / Postman tooling).*
+
+_(Alternatively supported via header fallback: `Authorization: Bearer <admin_access_token>` for Swagger / Postman tooling)._
 
 #### Processing Logic:
 
@@ -384,7 +390,7 @@ Cookie: admin_access_token=<jwt_cookie>
 - `studio_name` (string | null): Public channel / OTT studio brand name.
 - `avatar_url` (string | null): CDN URL to profile photo asset.
 
-*(Note: Heavy form-editing fields such as `bio`, `website`, `phone`, `location`, and `social_links` are decoupled from global session rehydration and served strictly by `GET /api/v1/admin/profile` when loading the Settings ➔ Profile edit screen).*
+_(Note: Heavy form-editing fields such as `bio`, `website`, `phone`, `location`, and `social_links` are decoupled from global session rehydration and served strictly by `GET /api/v1/admin/profile` when loading the Settings ➔ Profile edit screen)._
 
 #### Why `/api/v1/admin/auth/me` is Essential:
 
@@ -403,7 +409,8 @@ Invalidates the active session on the backend by erasing the stored refresh toke
 ```http
 Cookie: admin_access_token=<jwt_cookie>; admin_refresh_token=<refresh_cookie>
 ```
-*(Alternatively supported via header fallback: `Authorization: Bearer <admin_access_token>` for tooling clients).*
+
+_(Alternatively supported via header fallback: `Authorization: Bearer <admin_access_token>` for tooling clients)._
 
 #### Processing Logic:
 
@@ -413,6 +420,7 @@ Cookie: admin_access_token=<jwt_cookie>; admin_refresh_token=<refresh_cookie>
 4. Any subsequent calls to `POST /api/v1/admin/auth/refresh` or protected admin routes will immediately fail.
 
 #### Response Headers
+
 ```http
 Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=0
 Set-Cookie: admin_refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=0
@@ -453,13 +461,13 @@ python -m app.scripts.create_creator --email creator@example.com --studio-name "
 
 #### CLI Options Reference
 
-| Argument | Type | Required | Default | Description |
-| :--- | :--- | :---: | :--- | :--- |
-| `--email` | String | **YES** | None | Creator's primary login email. Case-insensitive, automatically trimmed. |
-| `--password` | String | **YES** | Interactive Prompt | Initial login password (minimum 8 characters). If omitted from the command line, prompts interactively using `getpass` to avoid logging secrets in terminal history. |
-| `--first-name` | String | NO | `None` | Creator's first name. |
-| `--last-name` | String | NO | `None` | Creator's last name. |
-| `--studio-name` | String | NO | `f"{first_name} {last_name} Studio"` or `"Creator Studio"` | Public channel / OTT studio brand name. |
+| Argument        | Type   | Required | Default                                                    | Description                                                                                                                                                          |
+| :-------------- | :----- | :------: | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--email`       | String | **YES**  | None                                                       | Creator's primary login email. Case-insensitive, automatically trimmed.                                                                                              |
+| `--password`    | String | **YES**  | Interactive Prompt                                         | Initial login password (minimum 8 characters). If omitted from the command line, prompts interactively using `getpass` to avoid logging secrets in terminal history. |
+| `--first-name`  | String |    NO    | `None`                                                     | Creator's first name.                                                                                                                                                |
+| `--last-name`   | String |    NO    | `None`                                                     | Creator's last name.                                                                                                                                                 |
+| `--studio-name` | String |    NO    | `f"{first_name} {last_name} Studio"` or `"Creator Studio"` | Public channel / OTT studio brand name.                                                                                                                              |
 
 ---
 
@@ -500,9 +508,10 @@ To maintain strict tenant data consistency in a B2B SaaS environment, every newl
      - `billing_period_unit`: `"months"`
 
 #### Why Eager Provisioning is the Professional Standard for this Platform:
-* **Guaranteed 1:1 Relationship**: An Admin *is* a Creator Studio. A creator never exists in a "half-born" or orphaned state.
-* **Immediate Mobile App Readiness**: When a mobile subscriber app connects using this `creator_id`, `GET /api/v1/branding` immediately returns the valid studio name instead of `null` or a 404 error.
-* **Query Performance & Cleanliness**: All internal services, analytics pipelines, and reporting scripts can reliably `INNER JOIN` `admins` and `branding` without defensive `LEFT JOIN`s or null-coalescing workarounds.
+
+- **Guaranteed 1:1 Relationship**: An Admin _is_ a Creator Studio. A creator never exists in a "half-born" or orphaned state.
+- **Immediate Mobile App Readiness**: When a mobile subscriber app connects using this `creator_id`, `GET /api/v1/branding` immediately returns the valid studio name instead of `null` or a 404 error.
+- **Query Performance & Cleanliness**: All internal services, analytics pipelines, and reporting scripts can reliably `INNER JOIN` `admins` and `branding` without defensive `LEFT JOIN`s or null-coalescing workarounds.
 
 Once completed, the operator delivers the login credentials to the creator, and the creator logs into the Admin Studio.
 
@@ -571,7 +580,7 @@ api.interceptors.response.use(
         await axios.post(
           "/api/v1/admin/auth/refresh",
           {},
-          { withCredentials: true }
+          { withCredentials: true },
         );
 
         // Replay original request (browser automatically transmits the newly set access cookie)
@@ -582,7 +591,7 @@ api.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

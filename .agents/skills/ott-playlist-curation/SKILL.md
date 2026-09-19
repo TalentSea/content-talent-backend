@@ -81,3 +81,27 @@ Playlist covers MUST use the centralized `image_uploader` utility:
 * **Cloud Path**: `assets/playlists/pl_{playlist_id}_{int(time.time())}.webp`
 * **Size Enforcement**: `settings.MAX_PLAYLIST_COVER_SIZE_MB` (default: `5 MB`).
 * **Auto-Cleanup**: Pass `old_file_url=playlist.cover_url` to purge the replaced asset on Bunny Storage.
+
+---
+
+## 5. Subscriber Playlist Bookmarking & Saves Telemetry
+
+### Data Model & Anti-Duplicate Index
+Subscribers can bookmark/save playlists into their personal library:
+* **Model**: `PlaylistSave` (`playlist_saves` table).
+* **Composite Unique Index**: `(("playlist", "subscriber"), True)` to strictly prevent duplicate bookmarks.
+* **Cascade Delete**: Deleting a playlist or subscriber automatically cascades to clean up save records.
+
+### Zero N+1 Batch Telemetry
+When listing creator playlists in the Admin Studio, `saves_count` is batched in a single SQL query:
+```python
+saves_query = (
+    PlaylistSave.select(
+        PlaylistSave.playlist, fn.COUNT(PlaylistSave.id).alias("s_count")
+    )
+    .where(PlaylistSave.playlist.in_(pl_ids))
+    .group_by(PlaylistSave.playlist)
+)
+saves_map = {row.playlist_id: row.s_count for row in saves_query}
+```
+

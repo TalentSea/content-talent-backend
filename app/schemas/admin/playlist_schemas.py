@@ -29,6 +29,7 @@ class PlaylistListItemResponse(BaseModel):
     description: str | None = None
     thumbnail_url: str | None = None
     video_count: int = 0
+    saves_count: int = 0
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

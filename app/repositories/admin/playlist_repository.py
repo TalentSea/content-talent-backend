@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from peewee import fn
 
-from app.models.playlist import Playlist, PlaylistVideo
+from app.models.playlist import Playlist, PlaylistSave, PlaylistVideo
 from app.models.video import Video, VideoLike
 
 
@@ -89,9 +89,9 @@ class PlaylistRepository:
         sort: str | None = "newest",
         page: int = 1,
         limit: int = 20,
-    ) -> tuple[list[tuple[Playlist, int]], int]:
+    ) -> tuple[list[tuple[Playlist, int, int]], int]:
         """
-        Fetches a paginated, filtered, and sorted list of creator playlists along with total count.
+        Fetches a paginated, filtered, and sorted list of creator playlists along with total count, video count, and saves count.
         """
         query = Playlist.select().where(Playlist.user == user_id)
 
@@ -121,7 +121,19 @@ class PlaylistRepository:
         )
         counts_map = {row.playlist_id: row.v_count for row in counts_query}
 
-        results = [(p, counts_map.get(p.id, 0)) for p in playlists]
+        # Batch count saves for all returned playlists in a single SQL query
+        saves_query = (
+            PlaylistSave.select(
+                PlaylistSave.playlist, fn.COUNT(PlaylistSave.id).alias("s_count")
+            )
+            .where(PlaylistSave.playlist.in_(pl_ids))
+            .group_by(PlaylistSave.playlist)
+        )
+        saves_map = {row.playlist_id: row.s_count for row in saves_query}
+
+        results = [
+            (p, counts_map.get(p.id, 0), saves_map.get(p.id, 0)) for p in playlists
+        ]
         return results, total
 
     def update_playlist(

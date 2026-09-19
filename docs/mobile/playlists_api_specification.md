@@ -20,9 +20,9 @@ Retrieves a paginated list of public creator playlists for the mobile home scree
 
 #### Request Headers
 ```http
-Authorization: Bearer <optional_subscriber_access_token>
+Authorization: Bearer <access_token>
 ```
-*(Optional: Guest users omit the `Authorization` header)*
+*(Required: Accepts Guest token for browsing, Subscriber token for personalized bookmark state)*
 
 #### Query Parameters
 | Parameter | Type | Required | Default | Description |
@@ -45,6 +45,7 @@ Authorization: Bearer <optional_subscriber_access_token>
       "name": "Trending Sci-Fi Series",
       "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/playlist_104.jpg",
       "video_count": 12,
+      "is_saved": false,
       "created_at": "2024-05-01T00:00:00Z"
     },
     {
@@ -52,6 +53,7 @@ Authorization: Bearer <optional_subscriber_access_token>
       "name": "FastAPI Masterclass 2026",
       "thumbnail_url": null,
       "video_count": 8,
+      "is_saved": true,
       "created_at": "2024-04-15T00:00:00Z"
     }
   ]
@@ -66,9 +68,9 @@ Retrieves playlist header details alongside the ordered list of published videos
 
 #### Request Headers
 ```http
-Authorization: Bearer <optional_subscriber_access_token>
+Authorization: Bearer <access_token>
 ```
-*(Optional: Guest users omit the `Authorization` header)*
+*(Required: Accepts Guest token for browsing, Subscriber token for personalized watch progress & bookmark state)*
 
 #### Path Parameters
 - `playlist_id` (integer, required): Database primary key ID of the target playlist.
@@ -87,6 +89,7 @@ Authorization: Bearer <optional_subscriber_access_token>
   "description": "The highest rated sci-fi series and updates on our app.",
   "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/playlist_104.jpg",
   "video_count": 12,
+  "is_saved": false,
   "videos": {
     "total": 12,
     "page": 1,
@@ -139,19 +142,97 @@ Authorization: Bearer <optional_subscriber_access_token>
 
 ---
 
-## 3. Data Integration Architecture
+### 3. `POST /api/v1/mobile/playlists/{playlist_id}/save` — Toggle Playlist Bookmark
+
+Toggles bookmark/save state (`save` / `unsave`) for an authenticated subscriber on a public creator playlist.
+
+#### Request Headers
+```http
+Authorization: Bearer <subscriber_access_token>
+```
+*(Requires authenticated subscriber session)*
+
+#### Path Parameters
+- `playlist_id` (integer, required): Database primary key ID of the target playlist.
+
+#### Response Specification (`200 OK`)
+```json
+{
+  "is_saved": true
+}
+```
+*(Subsequent call toggles to `{"is_saved": false}`)*
+
+#### Error Responses
+- `401 Unauthorized`: Missing or invalid Bearer token.
+- `404 Not Found`: Playlist does not exist.
+
+---
+
+### 4. `GET /api/v1/mobile/playlists/saved` — List Subscriber Saved Playlists
+
+Retrieves a paginated list of creator playlists bookmarked/saved by the authenticated subscriber.
+
+#### Request Headers
+```http
+Authorization: Bearer <subscriber_access_token>
+```
+*(Requires authenticated subscriber session)*
+
+#### Query Parameters
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `page` | integer | No | `1` | Page index requested (minimum `1`) |
+| `limit` | integer | No | `20` | Items per page (minimum `1`, maximum `100`) |
+
+#### Response Specification (`200 OK`)
+```json
+{
+  "total": 5,
+  "page": 1,
+  "limit": 20,
+  "total_pages": 1,
+  "items": [
+    {
+      "id": 104,
+      "name": "Trending Sci-Fi Series",
+      "thumbnail_url": "https://your-pull-zone.b-cdn.net/assets/playlists/playlist_104.jpg",
+      "video_count": 12,
+      "created_at": "2024-05-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 5. Data Integration Architecture
 
 ```
-+--------------------------+          +--------------------------------------+
-|   Mobile Client (App)    | -------> |  GET /api/v1/mobile/playlists       |
-|  (iOS / Android Subscriber) |       |  (Public Playlists Catalog Feed)     |
-+--------------------------+          +--------------------------------------+
-             |
-             | Taps Playlist Card (#104)
-             v
-+----------------------------------------------------------------------------+
-|  GET /api/v1/mobile/playlists/104?page=1&limit=20                           |
-|  -> Returns Header Metadata (Name, Banner, Video Count)                   |
-|  -> Returns Ordered Video Items with Watch Progress & Subscriber Overlay   |
-+----------------------------------------------------------------------------+
++-----------------------------------+          +--------------------------------------+
+|       Mobile Client (App)         | -------> |  GET /api/v1/mobile/playlists       |
+|    (iOS / Android Subscriber)     |          |  (Public Playlists Catalog Feed)     |
++-----------------------------------+          +--------------------------------------+
+                 |
+                 | Taps Playlist Card (#104)
+                 v
++-------------------------------------------------------------------------------------+
+|  GET /api/v1/mobile/playlists/104?page=1&limit=20                                    |
+|  -> Returns Header Metadata (Name, Banner, Video Count, is_saved state)             |
+|  -> Returns Ordered Video Items with Watch Progress & Subscriber Overlay            |
++-------------------------------------------------------------------------------------+
+                 |
+                 | Taps "Save / Bookmark Playlist" Icon
+                 v
++-------------------------------------------------------------------------------------+
+|  POST /api/v1/mobile/playlists/104/save                                             |
+|  -> Toggles bookmark record in `playlist_saves` (is_saved: true/false)              |
++-------------------------------------------------------------------------------------+
+                 |
+                 | Views "My Saved Playlists" Tab
+                 v
++-------------------------------------------------------------------------------------+
+|  GET /api/v1/mobile/playlists/saved?page=1&limit=20                                 |
+|  -> Returns Paginated list of all playlists bookmarked by the subscriber            |
++-------------------------------------------------------------------------------------+
 ```

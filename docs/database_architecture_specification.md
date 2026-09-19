@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **22 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **23 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -27,6 +27,7 @@ erDiagram
     SUBSCRIBER ||--o{ REFRESH_TOKEN : "owns active sessions (1:N)"
     SUBSCRIBER ||--o{ VIDEO_LIKE : "likes (1:N)"
     SUBSCRIBER ||--o{ VIDEO_SAVE : "saves to watchlist (1:N)"
+    SUBSCRIBER ||--o{ PLAYLIST_SAVE : "bookmarks playlist (1:N)"
     SUBSCRIBER ||--o{ WATCH_HISTORY : "tracks watch progress (1:N)"
     SUBSCRIBER ||--o{ COMMENT : "authors subscriber comments (1:N)"
     SUBSCRIBER ||--o{ COMMENT_LIKE : "likes comment (1:N)"
@@ -50,6 +51,7 @@ erDiagram
     VIDEO ||--o{ AD_IMPRESSION_EVENT : "serves video ads (1:N)"
 
     PLAYLIST ||--o{ PLAYLIST_VIDEO : "contains ordered videos (1:N)"
+    PLAYLIST ||--o{ PLAYLIST_SAVE : "saved by subscribers (1:N)"
     COMMENT ||--o{ COMMENT : "parent/child reply thread (1:N)"
     COMMENT ||--o{ COMMENT_LIKE : "has likes (1:N)"
 ```
@@ -262,7 +264,22 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 9. `video_likes` Table (Subscriber Video Likes)
+### 9. `playlist_saves` Table (Subscriber Playlist Bookmarks)
+* **Model File**: [`app/models/playlist.py`](../app/models/playlist.py)
+* **Table Name**: `playlist_saves`
+
+| Column Name | Data Type | Key / Constraint | Nullable | Default Value | Description |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID |
+| `playlist_id` | `INTEGER` | **FK ➔ `playlists.id` (CASCADE)** | NO | None | Playlist bookmarked by subscriber |
+| `subscriber_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Subscriber who bookmarked the playlist |
+| `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Bookmark timestamp |
+
+* **Indexes**: Composite unique index on `("playlist_id", "subscriber_id")` to prevent duplicate bookmarks.
+
+---
+
+### 10. `video_likes` Table (Subscriber Video Likes)
 * **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `video_likes`
 
@@ -275,7 +292,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 10. `video_saves` Table (Subscriber Watchlist Bookmarks)
+### 11. `video_saves` Table (Subscriber Watchlist Bookmarks)
 * **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `video_saves`
 
@@ -288,7 +305,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 11. `watch_histories` Table (Playback Progress & Continue Watching)
+### 12. `watch_histories` Table (Playback Progress & Continue Watching)
 * **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `watch_histories`
 
@@ -304,7 +321,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 12. `comments` Table (Video Comments & Thread Replies)
+### 13. `comments` Table (Video Comments & Thread Replies)
 * **Model File**: [`app/models/comment.py`](../app/models/comment.py)
 * **Table Name**: `comments`
 
@@ -321,7 +338,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 13. `comment_likes` Table (Subscriber Comment Hearts / Likes)
+### 14. `comment_likes` Table (Subscriber Comment Hearts / Likes)
 * **Model File**: [`app/models/comment.py`](../app/models/comment.py)
 * **Table Name**: `comment_likes`
 
@@ -334,7 +351,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 14. `featured_videos` Table (Admin Home Screen Carousel Curation)
+### 15. `featured_videos` Table (Admin Home Screen Carousel Curation)
 * **Model File**: [`app/models/featured_video.py`](../app/models/featured_video.py)
 * **Table Name**: `featured_videos`
 
@@ -350,7 +367,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 15. `subscription_plans` Table (Creator Subscription Tiers & Pricing)
+### 16. `subscription_plans` Table (Creator Subscription Tiers & Pricing)
 * **Model File**: [`app/models/subscription_plan.py`](../app/models/subscription_plan.py)
 * **Table Name**: `subscription_plans`
 
@@ -378,7 +395,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 16. `payments` Table (Financial Transaction History)
+### 17. `payments` Table (Financial Transaction History)
 * **Model File**: [`app/models/payment.py`](../app/models/payment.py)
 * **Table Name**: `payments`
 
@@ -401,7 +418,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 17. `user_subscriptions` Table (Active Member Entitlements & Access Grants)
+### 18. `user_subscriptions` Table (Active Member Entitlements & Access Grants)
 * **Model File**: [`app/models/user_subscription.py`](../app/models/user_subscription.py)
 * **Table Name**: `user_subscriptions`
 
@@ -420,7 +437,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 18. `video_view_events` Table (Immutable Telemetry & Analytics Event Ledger)
+### 19. `video_view_events` Table (Immutable Telemetry & Analytics Event Ledger)
 * **Model File**: [`app/models/video.py`](../app/models/video.py)
 * **Table Name**: `video_view_events`
 
@@ -439,7 +456,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 19. `ad_impression_events` Table (Immutable Video Ad Impression Telemetry)
+### 20. `ad_impression_events` Table (Immutable Video Ad Impression Telemetry)
 * **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
 * **Table Name**: `ad_impression_events`
 
@@ -457,7 +474,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 20. `ad_platform_monthly_reconciliations` Table (Master Platform Revenue & Commission Ledger)
+### 21. `ad_platform_monthly_reconciliations` Table (Master Platform Revenue & Commission Ledger)
 * **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
 * **Table Name**: `ad_platform_monthly_reconciliations`
 
@@ -484,7 +501,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 21. `ad_monthly_settlements` Table (Creator Monthly Payout Statements & UTR Ledger)
+### 22. `ad_monthly_settlements` Table (Creator Monthly Payout Statements & UTR Ledger)
 * **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
 * **Table Name**: `ad_monthly_settlements`
 
@@ -517,7 +534,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 
 ---
 
-### 22. `creator_payout_profiles` Table (Creator Bank Payout Profile)
+### 23. `creator_payout_profiles` Table (Creator Bank Payout Profile)
 * **Model File**: [`app/models/ad_monetization.py`](../app/models/ad_monetization.py)
 * **Table Name**: `creator_payout_profiles`
 

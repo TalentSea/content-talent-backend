@@ -1,4 +1,5 @@
-from peewee import DatabaseProxy, SqliteDatabase
+from peewee import DatabaseProxy
+from playhouse.db_url import connect as db_url_connect
 
 from app.config import get_settings
 
@@ -8,18 +9,19 @@ db_proxy = DatabaseProxy()
 
 def init_db():
     """
-    Initializes Peewee SQLite database connection with foreign key enforcement and JSON support.
+    Initializes Peewee PostgreSQL connection using DATABASE_URL.
+    Provisions all 23 database tables with native PostgreSQL constraints and indexes.
     """
     settings = get_settings()
-    db = SqliteDatabase(
-        settings.SQLITE_DB_PATH,
-        timeout=30,
-        pragmas={
-            "foreign_keys": 1,
-            "journal_mode": "wal",
-            "synchronous": "normal",
-            "busy_timeout": 30000,
-        },
+
+    url = settings.DATABASE_URL.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    db = db_url_connect(
+        url,
+        autorollback=True,
+        connect_timeout=15,
     )
     db_proxy.initialize(db)
 
@@ -36,7 +38,7 @@ def init_db():
     from app.models.comment import Comment, CommentLike
     from app.models.featured_video import FeaturedVideo
     from app.models.payment import Payment
-    from app.models.playlist import Playlist, PlaylistVideo
+    from app.models.playlist import Playlist, PlaylistSave, PlaylistVideo
     from app.models.refresh_token import RefreshToken
     from app.models.subscriber import Subscriber
     from app.models.subscription_plan import SubscriptionPlan
@@ -65,6 +67,7 @@ def init_db():
             VideoViewEvent,
             Playlist,
             PlaylistVideo,
+            PlaylistSave,
             Comment,
             CommentLike,
             Category,
