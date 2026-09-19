@@ -11,55 +11,55 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     BUNNY_STREAM_API_KEY: str
-    BUNNY_STREAM_LIBRARY_ID: str
+    BUNNY_STREAM_LIBRARY_ID: str = "757205"
     BUNNY_STREAM_TOKEN_KEY: str
     BUNNY_STORAGE_PASSWORD: str
-    BUNNY_STORAGE_ZONE_NAME: str
-    BUNNY_PULL_ZONE_URL: str
-    BUNNY_STORAGE_PULL_ZONE_URL: str
+    BUNNY_STORAGE_ZONE_NAME: str = "content-talant-storage"
+    BUNNY_PULL_ZONE_URL: str = "https://vz-1294f9c9-1b4.b-cdn.net"
+    BUNNY_STORAGE_PULL_ZONE_URL: str = "https://ctcdnin.b-cdn.net"
 
-    JWT_SECRET_KEY: str
-    JWT_ALGORITHM: str
+    JWT_SECRET_KEY: str = "jwt_secret_key"
+    JWT_ALGORITHM: str = "HS256"
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
-    REFRESH_TOKEN_EXPIRE_DAYS: int
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 60
 
-    BUNNY_TUS_UPLOAD_SIGNATURE_EXPIRE_SECONDS: int
-    BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS: int
-    BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS: int
-    AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS: int
-    STALE_GUEST_CLEANUP_DAYS: int
-    SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS: int
-    MAX_FEATURED_VIDEOS_PER_CREATOR: int
+    BUNNY_TUS_UPLOAD_SIGNATURE_EXPIRE_SECONDS: int = 86400
+    BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS: int = 7200
+    BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS: int = 7200
+    AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS: int = 60
+    STALE_GUEST_CLEANUP_DAYS: int = 90
+    SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS: int = 3600
+    MAX_FEATURED_VIDEOS_PER_CREATOR: int = 10
 
-    GOOGLE_CLIENT_ID: str
-    FACEBOOK_APP_ID: str
-    FACEBOOK_APP_SECRET: str
+    GOOGLE_CLIENT_ID: str = "rzp_test_TZdrjdhyuxCuaR"
+    FACEBOOK_APP_ID: str = "PCl2K30lC250OuKh7R2pxtVA"
+    FACEBOOK_APP_SECRET: str = "talentsea_webhook_secret_2026"
 
     # Razorpay Payment Gateway Configuration
-    RAZORPAY_KEY_ID: str
-    RAZORPAY_KEY_SECRET: str
-    RAZORPAY_WEBHOOK_SECRET: str
+    RAZORPAY_KEY_ID: str = "rzp_test_TZdrjdhyuxCuaR"
+    RAZORPAY_KEY_SECRET: str = "PCl2K30lC250OuKh7R2pxtVA"
+    RAZORPAY_WEBHOOK_SECRET: str = "talentsea_webhook_secret_2026"
 
     # Image Upload Configuration
-    ALLOWED_IMAGE_EXTENSIONS: str
-    MAX_AVATAR_SIZE_MB: int
-    MAX_THUMBNAIL_SIZE_MB: int
-    MAX_PLAYLIST_COVER_SIZE_MB: int
-    MAX_LOGO_SIZE_MB: int
-    MAX_BANNER_SIZE_MB: int
+    ALLOWED_IMAGE_EXTENSIONS: str = "jpg,jpeg,png,webp,svg"
+    MAX_AVATAR_SIZE_MB: int = 2
+    MAX_THUMBNAIL_SIZE_MB: int = 5
+    MAX_PLAYLIST_COVER_SIZE_MB: int = 5
+    MAX_LOGO_SIZE_MB: int = 5
+    MAX_BANNER_SIZE_MB: int = 10
 
     # Video Playback, Anti-Spam Telemetry & Decision Configuration
-    VIDEO_VIEW_WATCH_THRESHOLD_PERCENT: float
-    VIDEO_VIEW_COOLDOWN_MINUTES: int
-    VIDEO_VIEW_MAX_DAILY_PER_USER: int
-    VIDEO_VIEW_DAILY_WINDOW_HOURS: int
-    VIDEO_COMPLETION_THRESHOLD_PERCENT: float
-    CONTINUE_WATCHING_MIN_SECONDS: int
-    POPULARITY_SCORE_LIKE_WEIGHT: int
+    VIDEO_VIEW_WATCH_THRESHOLD_PERCENT: float = 30.0
+    VIDEO_VIEW_COOLDOWN_MINUTES: int = 30
+    VIDEO_VIEW_MAX_DAILY_PER_USER: int = 3
+    VIDEO_VIEW_DAILY_WINDOW_HOURS: int = 24
+    VIDEO_COMPLETION_THRESHOLD_PERCENT: float = 95.0
+    CONTINUE_WATCHING_MIN_SECONDS: int = 10
+    POPULARITY_SCORE_LIKE_WEIGHT: int = 3
 
     # Video Ad Monetization (Google IMA / VAST & Settlements)
-    GOOGLE_IMA_VAST_TAG_URL: str = ""
+    GOOGLE_IMA_VAST_TAG_URL: str = "https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator="
     PLATFORM_AD_COMMISSION_PERCENT: float = 30.0
     PAYOUT_DAY_OF_MONTH: int = 28
     MIN_PAYOUT_THRESHOLD: float = 500.0

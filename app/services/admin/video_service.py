@@ -161,7 +161,7 @@ class VideoService:
                 bunny_pull_zone_url=pull_zone,
                 bunny_video_id=video.bunny_video_id,
                 resolution=clean_res,
-                token_key=token_key,
+                token_security_key=token_key,
                 expires_in_seconds=settings.BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS,
             )
             download_items.append(

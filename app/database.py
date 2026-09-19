@@ -1,4 +1,5 @@
-from peewee import DatabaseProxy, SqliteDatabase
+from peewee import DatabaseProxy
+from playhouse.db_url import connect
 
 from app.config import get_settings
 
@@ -14,21 +15,8 @@ def init_db():
     settings = get_settings()
 
     url = settings.DATABASE_URL.strip()
-    db_file = url.replace("sqlite:///", "").replace("sqlite://", "").strip()
-    if not db_file:
-        db_file = "ott_platform.db"
 
-    db = SqliteDatabase(
-        db_file,
-        pragmas={
-            "journal_mode": "wal",
-            "cache_size": -1 * 64000,
-            "foreign_keys": 1,
-            "ignore_check_constraints": 0,
-            "busy_timeout": 5000,
-            "synchronous": "normal",
-        },
-    )
+    db = connect(url)
     db_proxy.initialize(db)
 
     # Import models here to prevent circular dependency

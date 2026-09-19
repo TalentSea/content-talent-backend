@@ -68,13 +68,17 @@ def generate_signed_mp4_url(
     bunny_pull_zone_url: str,
     bunny_video_id: str,
     resolution: str,
-    token_security_key: str,
+    token_security_key: str | None = None,
     expires_in_seconds: int | None = None,
+    token_key: str | None = None,
 ) -> str:
     """
     Generates a time-bound presigned MP4 download URL (play_<resolution>.mp4?token=...&expires=...).
     Uses Bunny CDN Advanced Token Authentication (HMAC-SHA256).
     """
+    secret = token_security_key or token_key
+    if not secret:
+        raise ValueError("token_security_key or token_key is required")
     if expires_in_seconds is None:
         expires_in_seconds = get_settings().BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS
     expires_timestamp = int(time.time()) + expires_in_seconds
@@ -83,6 +87,6 @@ def generate_signed_mp4_url(
         clean_res = f"{clean_res}p"
     path = f"/{bunny_video_id}/play_{clean_res}.mp4"
 
-    token = _generate_bunny_token(token_security_key, path, expires_timestamp)
+    token = _generate_bunny_token(secret, path, expires_timestamp)
     base_url = bunny_pull_zone_url.rstrip("/")
     return f"{base_url}{path}?token={token}&expires={expires_timestamp}"
