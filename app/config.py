@@ -32,9 +32,11 @@ class Settings(BaseSettings):
     SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS: int = 3600
     MAX_FEATURED_VIDEOS_PER_CREATOR: int = 10
 
-    GOOGLE_CLIENT_ID: str = "rzp_test_TZdrjdhyuxCuaR"
-    FACEBOOK_APP_ID: str = "PCl2K30lC250OuKh7R2pxtVA"
-    FACEBOOK_APP_SECRET: str = "talentsea_webhook_secret_2026"
+    GOOGLE_CLIENT_ID: str = (
+        "166951692335-a6bblebovsn6ftnrs15n9n8bjpo79o5g.apps.googleusercontent.com"
+    )
+    FACEBOOK_APP_ID: str = "3169763853213963"
+    FACEBOOK_APP_SECRET: str = "bd826b0a4867d0c7033c8f40cc5737dc"
 
     # Razorpay Payment Gateway Configuration
     RAZORPAY_KEY_ID: str = "rzp_test_TZdrjdhyuxCuaR"
