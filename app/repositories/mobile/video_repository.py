@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from peewee import PeeweeException, fn
+from peewee import IntegrityError, PeeweeException, fn
 
 from app.config import get_settings
 from app.models.admin import Admin
@@ -257,8 +257,11 @@ class MobileVideoRepository:
                 existing_like.delete_instance()
                 is_liked = False
             else:
-                VideoLike.create(video=video_id, subscriber=subscriber_id)
-                is_liked = True
+                try:
+                    VideoLike.create(video=video_id, subscriber=subscriber_id)
+                    is_liked = True
+                except IntegrityError:
+                    is_liked = True
 
             total_likes = self.get_video_likes_count(video_id)
             settings = get_settings()
@@ -304,8 +307,11 @@ class MobileVideoRepository:
                 existing_save.delete_instance()
                 return False
             else:
-                VideoSave.create(video=video_id, subscriber=subscriber_id)
-                return True
+                try:
+                    VideoSave.create(video=video_id, subscriber=subscriber_id)
+                    return True
+                except IntegrityError:
+                    return True
         except PeeweeException as e:
             logger.error(
                 f"Error toggling video save for video {video_id}, subscriber {subscriber_id}: {e!s}"
@@ -374,24 +380,31 @@ class MobileVideoRepository:
                 if progress_pct >= settings.VIDEO_COMPLETION_THRESHOLD_PERCENT:
                     completed = True
 
-            history_record = WatchHistory.get_or_none(
-                (WatchHistory.video == video_id)
-                & (WatchHistory.subscriber == subscriber_id)
-            )
-
-            if history_record:
-                history_record.last_position_seconds = progress_seconds
-                history_record.completed = completed
-                history_record.last_watched_at = now
-                history_record.save()
-            else:
-                WatchHistory.create(
+            try:
+                WatchHistory.insert(
                     video=video_id,
                     subscriber=subscriber_id,
                     last_position_seconds=progress_seconds,
                     completed=completed,
                     last_watched_at=now,
-                )
+                    created_at=now,
+                ).on_conflict(
+                    conflict_target=(WatchHistory.video, WatchHistory.subscriber),
+                    update={
+                        WatchHistory.last_position_seconds: progress_seconds,
+                        WatchHistory.completed: completed,
+                        WatchHistory.last_watched_at: now,
+                    },
+                ).execute()
+            except IntegrityError:
+                WatchHistory.update(
+                    last_position_seconds=progress_seconds,
+                    completed=completed,
+                    last_watched_at=now,
+                ).where(
+                    (WatchHistory.video == video_id)
+                    & (WatchHistory.subscriber == subscriber_id)
+                ).execute()
 
             return True
         except PeeweeException as e:
