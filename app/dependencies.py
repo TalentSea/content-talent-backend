@@ -1,36 +1,128 @@
-from fastapi import Depends, HTTPException, status
+from typing import Annotated, Any
+
+from fastapi import Cookie, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
-from app.utils.auth import decode_access_token
+
+from app.models.admin import Admin
+from app.models.subscriber import Subscriber
+from app.utils.auth import decode_access_token, verify_creator_active
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl="api/v1/auth/login", auto_error=False
+)
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+
+def get_current_subscriber(token: str = Depends(oauth2_scheme)) -> dict:
     """
-    Validates JWT Bearer access token, extracts user_id payload, and injects authenticated creator context into routes.
-    No user_id parameter is accepted in request bodies or query strings to eliminate IDOR risks.
+    Guards Mobile API routes (/api/v1/mobile/*) to ensure caller is strictly a Mobile Subscriber or Guest.
     """
-    from app.config import get_settings
-    from app.models.user import User
-
-    settings = get_settings()
-    static_key = settings.STATIC_API_KEY or "talentsea_secret_api_key_2026"
-
-    # Static API Key & Dev token override for Frontend testing
-    if token in (static_key, "test_token"):
-        user = User.get_or_none(User.username == "default_creator")
-        if not user:
-            user = User.create(username="default_creator", email="creator@example.com")
-        return {"user_id": user.id, "username": user.username, "email": user.email}
-
     payload = decode_access_token(token)
-    user_id = payload.get("user_id")
 
-    user = User.get_or_none(User.id == user_id)
-    if not user:
+    # Reject non-subscriber tokens (e.g. admin credentials) on mobile routes
+    token_role = payload.get("role")
+    if token_role not in ("subscriber", "guest"):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authenticated user record no longer exists",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Mobile subscriber credentials required",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return {"user_id": user.id, "username": user.username, "email": user.email}
+    user_id = payload["user_id"]
+
+    # Validate strictly against Subscriber table
+    sub = Subscriber.get_or_none(Subscriber.id == user_id)
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated subscriber account no longer exists",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not sub.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subscriber account is disabled",
+        )
+
+    verify_creator_active(sub.creator)
+
+    return {
+        "user_id": sub.id,
+        "creator_id": sub.creator_id,
+        "role": sub.role,
+    }
+
+
+def get_optional_subscriber(
+    token: str | None = Depends(oauth2_scheme_optional),
+) -> dict | None:
+    """
+    Optional authentication for endpoints that allow guest access or guest account upgrade.
+    """
+    if not token:
+        return None
+    try:
+        return get_current_subscriber(token)
+    except HTTPException:
+        return None
+
+
+def get_current_admin(
+    cookie_token: str | None = Cookie(default=None, alias="admin_access_token"),
+    header_token: str | None = Depends(oauth2_scheme_optional),
+) -> dict:
+    """
+    Guards Admin Web Portal routes (/api/v1/admin/*) to ensure the caller is strictly an Admin Creator.
+    Extracts admin user_id directly from token context.
+    Prioritizes HttpOnly cookie; falls back to Bearer header for Swagger/Postman API tooling.
+    Subscriber tokens are rejected.
+    """
+    token = cookie_token or header_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required: No access token provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(token)
+
+    # Reject non-admin tokens (e.g. subscriber or guest credentials) on admin routes
+    if payload.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Admin portal authorization required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload["user_id"]
+
+    # Validate strictly against Admin table
+    admin = Admin.get_or_none(Admin.id == user_id)
+    if not admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin portal authorization required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Creator account has been deactivated. Please contact platform administration.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {
+        "user_id": admin.id,
+        "name": admin.name,
+        "email": admin.email,
+    }
+
+
+# Centralized Modern FastAPI Dependency Aliases (Annotated)
+CurrentAdmin = Annotated[dict[str, Any], Depends(get_current_admin)]
+CurrentSubscriber = Annotated[dict[str, Any], Depends(get_current_subscriber)]
+OptionalSubscriber = Annotated[dict[str, Any] | None, Depends(get_optional_subscriber)]
+FormFile = Annotated[UploadFile, File(...)]

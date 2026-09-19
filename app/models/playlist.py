@@ -1,16 +1,28 @@
-from datetime import datetime
-from peewee import CharField, TextField, IntegerField, DateTimeField, ForeignKeyField, CompositeKey
+from datetime import datetime, timezone
+
+from peewee import (
+    CharField,
+    CompositeKey,
+    DateTimeField,
+    ForeignKeyField,
+    IntegerField,
+    TextField,
+)
+
+from app.models.admin import Admin
 from app.models.base import BaseModel
-from app.models.user import User
+from app.models.subscriber import Subscriber
 from app.models.video import Video
+
 
 class Playlist(BaseModel):
     """
-    Container for custom video collections owned by a User.
+    Container for custom video collections owned by an Admin creator.
     """
+
     user = ForeignKeyField(
-        model=User,
-        field=User.id,
+        model=Admin,
+        field=Admin.id,
         column_name="user_id",
         backref="playlists",
         on_delete="CASCADE",
@@ -18,16 +30,18 @@ class Playlist(BaseModel):
     name = CharField(max_length=255)
     description = TextField(null=True)
     thumbnail_url = CharField(max_length=500, null=True)
-    created_at = DateTimeField(default=datetime.now)
-    updated_at = DateTimeField(default=datetime.now)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "playlists"
+
 
 class PlaylistVideo(BaseModel):
     """
     Junction table linking Playlists and Videos in a Many-to-Many structure.
     """
+
     playlist = ForeignKeyField(
         model=Playlist,
         field=Playlist.id,
@@ -43,8 +57,34 @@ class PlaylistVideo(BaseModel):
         on_delete="CASCADE",
     )
     order = IntegerField(default=0)
-    added_at = DateTimeField(default=datetime.now)
+    added_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     class Meta:
         table_name = "playlist_videos"
         primary_key = CompositeKey("playlist", "video")
+
+
+class PlaylistSave(BaseModel):
+    """
+    Stores playlist bookmark/save relationships between Subscriber and Playlist entities.
+    """
+
+    playlist = ForeignKeyField(
+        model=Playlist,
+        field=Playlist.id,
+        column_name="playlist_id",
+        backref="saves",
+        on_delete="CASCADE",
+    )
+    subscriber = ForeignKeyField(
+        model=Subscriber,
+        field=Subscriber.id,
+        column_name="subscriber_id",
+        backref="playlist_saves",
+        on_delete="CASCADE",
+    )
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+    class Meta:
+        table_name = "playlist_saves"
+        indexes = ((("playlist", "subscriber"), True),)
