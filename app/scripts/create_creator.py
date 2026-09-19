@@ -6,7 +6,7 @@ import sys
 from peewee import fn
 
 from app.config import get_settings
-from app.database import db_proxy, init_db
+from app.database import db_proxy
 from app.models.admin import Admin
 from app.models.branding import Branding
 from app.models.subscription_plan import SubscriptionPlan
@@ -20,7 +20,12 @@ def validate_email_format(email: str) -> bool:
     return bool(EMAIL_REGEX.match(email.strip()))
 
 
-def provision_creator(
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def create_creator(
     email: str,
     password: str,
     first_name: str,
@@ -29,6 +34,7 @@ def provision_creator(
 ) -> dict:
     """
     Atomically provisions a new Creator Admin, Studio Branding identity, and two default subscription plans.
+    If an admin with this email already exists, skips creation safely.
     """
     clean_email = email.strip().lower()
 
@@ -50,89 +56,106 @@ def provision_creator(
     if not clean_studio_name:
         raise ValueError("Studio name is required and cannot be empty")
 
-    # Ensure database is initialized and connected
-    init_db()
+    # Ensure database is connected
     if db_proxy.is_closed():
         db_proxy.connect()
 
-    # Check for existing email conflict
-    existing_admin = Admin.get_or_none(fn.LOWER(Admin.email) == clean_email)
-    if existing_admin:
-        raise ValueError(
-            f"Admin with email '{clean_email}' already exists (ID: {existing_admin.id})"
-        )
+    try:
+        # Check for existing email conflict
+        existing_admin = Admin.get_or_none(fn.LOWER(Admin.email) == clean_email)
+        if existing_admin:
+            logger.info(
+                "Creator admin '%s' already exists (ID: %s). Skipping creation.",
+                clean_email,
+                existing_admin.id,
+            )
+            return {
+                "admin_id": existing_admin.id,
+                "email": existing_admin.email,
+                "first_name": existing_admin.first_name,
+                "last_name": existing_admin.last_name,
+                "studio_name": clean_studio_name,
+                "status": "already_exists",
+            }
 
-    # Hash password using PBKDF2-HMAC-SHA256 (600,000 iterations)
-    password_hash = hash_password(password)
+        # Hash password using PBKDF2-HMAC-SHA256 (600,000 iterations)
+        password_hash = hash_password(password)
 
-    with db_proxy.atomic():
-        # 1. Create Admin
-        admin = Admin.create(
-            email=clean_email,
-            password_hash=password_hash,
-            first_name=clean_first_name,
-            last_name=clean_last_name,
-        )
+        with db_proxy.atomic():
+            # 1. Create Admin
+            admin = Admin.create(
+                email=clean_email,
+                password_hash=password_hash,
+                first_name=clean_first_name,
+                last_name=clean_last_name,
+            )
 
-        # 2. Create 1:1 Branding
-        branding = Branding.create(
-            user=admin.id,
-            studio_name=clean_studio_name,
-        )
+            # 2. Create 1:1 Branding
+            branding = Branding.create(
+                user=admin.id,
+                studio_name=clean_studio_name,
+            )
 
-        # 3. Create 2 Fixed Subscription Plans
-        plan_with_ads = SubscriptionPlan.create(
-            user=admin.id,
-            plan_type="with_ads",
-            name="Standard with Ads",
-            description="Access to our full catalog with occasional commercial breaks.",
-            base_price=99.0,
-            discount_percentage=0.0,
-            final_price=99.0,
-            currency=get_settings().DEFAULT_CURRENCY,
-            billing_period_value=1,
-            billing_period_unit="months",
-            badge_text="Popular",
-            display_order=1,
-        )
+            # 3. Create 2 Fixed Subscription Plans
+            plan_with_ads = SubscriptionPlan.create(
+                user=admin.id,
+                plan_type="with_ads",
+                name="Standard with Ads",
+                description="Access to our full catalog with occasional commercial breaks.",
+                base_price=99.0,
+                discount_percentage=0.0,
+                final_price=99.0,
+                currency=get_settings().DEFAULT_CURRENCY,
+                billing_period_value=1,
+                billing_period_unit="months",
+                badge_text="Popular",
+                display_order=1,
+            )
 
-        plan_no_ads = SubscriptionPlan.create(
-            user=admin.id,
-            plan_type="no_ads",
-            name="Premium Ad-Free",
-            description="Unlimited streaming with zero ads and maximum quality.",
-            base_price=199.0,
-            discount_percentage=0.0,
-            final_price=199.0,
-            currency=get_settings().DEFAULT_CURRENCY,
-            billing_period_value=1,
-            billing_period_unit="months",
-            badge_text="Best Value",
-            display_order=2,
-        )
+            plan_no_ads = SubscriptionPlan.create(
+                user=admin.id,
+                plan_type="no_ads",
+                name="Premium Ad-Free",
+                description="Unlimited streaming with zero ads and maximum quality.",
+                base_price=199.0,
+                discount_percentage=0.0,
+                final_price=199.0,
+                currency=get_settings().DEFAULT_CURRENCY,
+                billing_period_value=1,
+                billing_period_unit="months",
+                badge_text="Best Value",
+                display_order=2,
+            )
 
-    return {
-        "admin_id": admin.id,
-        "email": admin.email,
-        "first_name": admin.first_name,
-        "last_name": admin.last_name,
-        "studio_name": branding.studio_name,
-        "plans": [
-            {
-                "id": plan_with_ads.id,
-                "name": plan_with_ads.name,
-                "price": plan_with_ads.final_price,
-            },
-            {
-                "id": plan_no_ads.id,
-                "name": plan_no_ads.name,
-                "price": plan_no_ads.final_price,
-            },
-        ],
-    }
+        return {
+            "admin_id": admin.id,
+            "email": admin.email,
+            "first_name": admin.first_name,
+            "last_name": admin.last_name,
+            "studio_name": branding.studio_name,
+            "plans": [
+                {
+                    "id": plan_with_ads.id,
+                    "name": plan_with_ads.name,
+                    "price": plan_with_ads.final_price,
+                },
+                {
+                    "id": plan_no_ads.id,
+                    "name": plan_no_ads.name,
+                    "price": plan_no_ads.final_price,
+                },
+            ],
+            "status": "created",
+        }
+    finally:
+        if not db_proxy.is_closed():
+            db_proxy.close()
 
 
-def main():
+provision_creator = create_creator
+
+
+def setup_default_tenent():
     """CLI entrypoint for creator provisioning."""
     parser = argparse.ArgumentParser(
         description="Atomically provision a new Creator Admin, Studio Branding, and Two Subscription Plans."
@@ -178,6 +201,18 @@ def main():
             studio_name=args.studio_name,
         )
 
+        if result.get("status") == "already_exists":
+            print("\n==================================================")
+            print("  CREATOR ADMIN ALREADY EXISTS")
+            print("==================================================")
+            print(f"  Admin ID:      {result['admin_id']}")
+            print(f"  Email:         {result['email']}")
+            print(
+                f"  Creator Name:  {result.get('first_name') or ''} {result.get('last_name') or ''}".strip()
+            )
+            print("==================================================\n")
+            return
+
         print("\n==================================================")
         print("  CREATOR ONBOARDING SUCCESSFUL")
         print("==================================================")
@@ -188,7 +223,7 @@ def main():
             f"  Creator Name:  {result['first_name'] or ''} {result['last_name'] or ''}".strip()
         )
         print("  Subscription Plans Provisioned:")
-        for plan in result["plans"]:
+        for plan in result.get("plans", []):
             print(f"    - [{plan['id']}] {plan['name']} (₹{plan['price']:.0f}/month)")
         print("==================================================\n")
 
@@ -201,4 +236,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    setup_default_tenent()

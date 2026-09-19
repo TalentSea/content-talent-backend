@@ -40,6 +40,7 @@ from app.routes.mobile import (
     mobile_video_router,
 )
 from app.routes.webhook_routes import router as webhook_router
+from app.scripts.create_creator import create_creator
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,13 @@ async def scheduled_subscription_expiration_worker():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    create_creator(
+        email="jakkamadhu046@gmail.com",
+        password="Admin@1234",
+        first_name="Madhu",
+        last_name="Jakka",
+        studio_name="Content Talent",
+    )
     publisher_task = asyncio.create_task(scheduled_video_auto_publisher())
     guest_cleanup_task = asyncio.create_task(scheduled_stale_guest_cleanup())
     subscription_expiration_task = asyncio.create_task(
