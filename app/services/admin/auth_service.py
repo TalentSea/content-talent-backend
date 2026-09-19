@@ -27,11 +27,40 @@ class AuthService:
 
     REFRESH_COOKIE_NAME = "admin_refresh_token"
     REFRESH_COOKIE_PATH = "/api/v1/admin/auth"
+    ACCESS_COOKIE_NAME = "admin_access_token"
+    ACCESS_COOKIE_PATH = "/api/v1/admin"
 
     def __init__(self, repo: AuthRepository | None = None):
         self.repo = repo or AuthRepository()
 
     # --- Private Reusable Helpers ---
+
+    def _set_access_cookie(self, response: Response, raw_token: str) -> None:
+        """
+        Sets a cryptographically secure HttpOnly cookie for the creator admin access token.
+        """
+        settings = get_settings()
+        response.set_cookie(
+            key=self.ACCESS_COOKIE_NAME,
+            value=raw_token,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path=self.ACCESS_COOKIE_PATH,
+        )
+
+    def _clear_access_cookie(self, response: Response) -> None:
+        """
+        Invalidates and erases the HttpOnly access token cookie in the client browser.
+        """
+        response.delete_cookie(
+            key=self.ACCESS_COOKIE_NAME,
+            path=self.ACCESS_COOKIE_PATH,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+        )
 
     def _set_refresh_cookie(self, response: Response, raw_token: str) -> None:
         """
@@ -114,10 +143,11 @@ class AuthService:
         branding = self.repo.get_studio_branding(admin.id)
         studio_name = branding.studio_name if branding else None
 
-        # Issue access token & provision refresh session cookie
+        # Issue access token & provision cookies
         access_token = self._create_admin_access_token(
             admin.id, admin.first_name, admin.last_name
         )
+        self._set_access_cookie(response, access_token)
         self._rotate_refresh_session(admin.id, response)
 
         return AdminLoginResponse(
@@ -170,6 +200,7 @@ class AuthService:
         new_access_token = self._create_admin_access_token(
             admin.id, admin.first_name, admin.last_name
         )
+        self._set_access_cookie(response, new_access_token)
 
         return AdminTokenResponse(
             access_token=new_access_token,
@@ -202,8 +233,9 @@ class AuthService:
 
     def logout(self, admin_id: int, response: Response) -> dict[str, str]:
         """
-        Revokes creator refresh session in database and clears the browser HttpOnly cookie.
+        Revokes creator refresh session in database and clears the browser HttpOnly cookies.
         """
         self.repo.update_refresh_token_hash(admin_id, None)
         self._clear_refresh_cookie(response)
+        self._clear_access_cookie(response)
         return {"message": "Successfully logged out"}

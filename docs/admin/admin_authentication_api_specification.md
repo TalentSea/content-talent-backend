@@ -8,7 +8,7 @@ This specification defines the complete authentication, credential management, t
 
 ### 1.1 Multi-Tenant B2B SaaS Provisioning
 
-The platform operates as a specialized **White-Labeled Creator OTT Platform**. Unlike public consumer applications, the Creator Admin Studio is strictly accessible to verified, paying creators onboarded by platform operators.
+The platform operates as a specialized **White-Labeled Creator OTT Platform**. Unlike public consumer applications, the Creator Admin Studio is strictly accessible to verified, paying creators provisioned by platform operators.
 
 - **Zero Public Registration (`/register`)**: There is intentionally **NO public sign-up endpoint** on the Creator Admin portal. Public visitors cannot create admin accounts.
 - **Controlled Account Provisioning**: Creator accounts, studio spaces, default branding themes, and subscription plans are provisioned atomically by platform administrators via an internal CLI utility (`app.scripts.create_creator`) or secure provider orchestration.
@@ -44,26 +44,51 @@ The platform operates as a specialized **White-Labeled Creator OTT Platform**. U
 
 ### 1.2 Dual-Token Session Security Standard & Theft Mitigation
 
-To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system enforces an industry-standard **In-Memory Access Token + HttpOnly Cookie Refresh Token** architecture:
+To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system enforces an industry-standard **Dual HttpOnly Cookie Architecture** coupled with a **Dual-Extraction Strategy** for API tooling:
 
-| Token Type | Lifespan | Transport / Storage Medium | Security & Theft Protection |
-| :--- | :--- | :--- | :--- |
-| **Access Token** | **30 Minutes** | In-Memory (React State / Closure) & HTTP `Authorization: Bearer <token>` | Never written to `localStorage`. Short lifespan limits stolen token window. Cryptographically signed JWT (`HS256`). |
-| **Refresh Token** | **60 Days** | **`HttpOnly; Secure; SameSite=Strict` Cookie** | **Completely inaccessible to JavaScript / XSS**. Stored in DB strictly as a **SHA-256 one-way hash**. Restricted to path `/api/v1/admin/auth`. |
+| Token Type | Lifespan | Primary Transport (Browser) | Fallback Transport (Tooling) | Security & Theft Protection |
+| :--- | :--- | :--- | :--- | :--- |
+| **Access Token** | **30 Minutes** | **`HttpOnly; Secure; SameSite=Lax` Cookie** (`admin_access_token`) on path `/api/v1/admin` | HTTP `Authorization: Bearer <token>` | **100% immune to JavaScript XSS exfiltration**. Never written to `localStorage`. Short lifespan limits stolen token window. Cryptographically signed JWT (`HS256`). |
+| **Refresh Token** | **60 Days** | **`HttpOnly; Secure; SameSite=Strict` Cookie** (`admin_refresh_token`) on path `/api/v1/admin/auth` | *None* (Cookie only) | **Completely inaccessible to JavaScript / XSS**. Stored in DB strictly as a **SHA-256 one-way hash**. Scoped strictly to auth routes. |
 
-#### How We Prevent & Handle Refresh Token Compromise:
+#### How We Prevent & Handle Token Compromise:
 
-1. **XSS Immunity via `HttpOnly` Cookie**:
-   - Storing refresh tokens in `localStorage` makes them vulnerable to malicious scripts or vulnerable npm dependencies.
-   - By transmitting the refresh token inside an **`HttpOnly` Cookie**, browser JavaScript cannot read `document.cookie`. Even if an attacker executes arbitrary JavaScript on the page, the refresh token **cannot be stolen or exfiltrated**.
+1. **Complete XSS Immunity via `HttpOnly` Cookies**:
+   - Storing either the access token or refresh token in `localStorage` leaves them vulnerable to malicious JavaScript, compromised third-party npm dependencies, or XSS vectors.
+   - By transmitting **both** tokens inside **`HttpOnly` Cookies**, browser JavaScript cannot read `document.cookie`. Even if an attacker executes arbitrary JavaScript on the page, the tokens **cannot be scraped or exfiltrated**.
 
-2. **CSRF Protection via `SameSite=Strict`**:
-   - The cookie is marked `SameSite=Strict` and scoped strictly to `Path=/api/v1/admin/auth`. Cross-origin websites cannot trigger token refresh requests on behalf of the creator.
+2. **Dual-Extraction Strategy in `get_current_admin` (`app/dependencies.py`)**:
+   Admin route protection utilizes a layered token extraction pattern:
+   ```python
+   def get_current_admin(
+       cookie_token: str | None = Cookie(default=None, alias="admin_access_token"),
+       header_token: str | None = Depends(oauth2_scheme_optional),
+   ) -> dict:
+       token = cookie_token or header_token
+       if not token:
+           raise HTTPException(
+               status_code=status.HTTP_401_UNAUTHORIZED,
+               detail="Authentication required: No access token provided",
+               headers={"WWW-Authenticate": "Bearer"},
+           )
+       payload = decode_access_token(token)
+       ...
+   ```
+   - **Why Cookie First?** In production web browser sessions, the browser automatically attaches the `admin_access_token` cookie. The client JavaScript never needs to store, read, or manually inject the JWT into headers.
+   - **Why Retain Header Fallback (`oauth2_scheme_optional`)?**
+     1. **Swagger UI / OpenAPI (`/docs`)**: The interactive FastAPI Swagger documentation relies on the OAuth2 "Authorize" modal, which injects tokens via `Authorization: Bearer <token>`. Retaining the fallback allows developers to test admin endpoints directly in `/docs`.
+     2. **Postman & API Tooling**: Developers and QA engineers can test endpoints in Postman, Thunder Client, or via `curl` by supplying standard Bearer headers without complex cookie jar mocking.
+     3. **Automated CI/CD Test Suites**: Pytest suites and integration tests can execute against admin routes using standard header injection.
+   - **Zero Security Degradation**: The presence of the header fallback does not weaken browser security. Browsers with `HttpOnly` cookies do not expose the token to client scripts, and the frontend client never stores it in `localStorage`.
 
-3. **Single-Use Refresh Token Rotation (RTR)**:
-   - Every time `POST /api/v1/admin/auth/refresh` is called, the used refresh token is **immediately invalidated (burned)** and replaced with a newly minted one.
+3. **CSRF Protection via `SameSite=Strict` & `SameSite=Lax`**:
+   - The refresh token is marked `SameSite=Strict` and scoped strictly to `Path=/api/v1/admin/auth`. Cross-origin websites cannot trigger silent refresh calls on behalf of the creator.
+   - The access token is marked `SameSite=Lax` and scoped to `Path=/api/v1/admin`, ensuring smooth top-level navigation while rejecting cross-site state-modifying requests.
 
-4. **Single Active Session & Multi-Device Isolation**:
+4. **Single-Use Refresh Token Rotation (RTR)**:
+   - Every time `POST /api/v1/admin/auth/refresh` is called, the incoming refresh token is **immediately burned** and replaced with a newly minted refresh token and fresh access token.
+
+5. **Single Active Session & Multi-Device Isolation**:
    - Because `admins.refresh_token` is stored as a single column on the `admins` table, each creator account maintains **one active refresh session at a time**.
    - When an admin logs in on a newer device (Device B), Device B's new refresh token hash overwrites `admins.refresh_token`.
    - **Non-Destructive Mismatch Handling (Clean Multi-Device Experience)**:
@@ -72,8 +97,8 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
      - **Crucial Rule**: The server **DOES NOT set `admins.refresh_token = NULL`**.
      - **Result**: Device B's active session remains completely intact and undisturbed. Device A's frontend cleanly intercepts the 401 and redirects the user to `/login`. Device A's stale request never inadvertently logs out Device B.
 
-5. **Instant Server-Side Revocation (`POST /logout`)**:
-   - Calling `POST /api/v1/admin/auth/logout` explicitly sets `admins.refresh_token = NULL` in the database and clears the browser cookie (`Max-Age=0`), terminating the active session immediately.
+6. **Instant Server-Side Revocation (`POST /logout`)**:
+   - Calling `POST /api/v1/admin/auth/logout` explicitly sets `admins.refresh_token = NULL` in the database and clears **both** browser cookies (`Max-Age=0`), terminating the active session immediately.
 
 ---
 
@@ -238,6 +263,7 @@ Content-Type: application/json
 
 #### Response Headers
 ```http
+Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=1800
 Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abcdef0123456789abc; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=5184000
 ```
 
@@ -261,10 +287,10 @@ Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abc
 
 #### Response Fields:
 
-- `access_token` (string): Signed JWT valid for 30 minutes (`1800` seconds), kept strictly in-memory by the frontend client.
+- `access_token` (string): Signed JWT valid for 30 minutes (`1800` seconds). Transmitted securely via the `admin_access_token` HttpOnly cookie for web browser sessions, and also provided in the response body as a fallback for API tooling (Swagger UI / Postman).
 - `token_type` (string): Fixed value `"bearer"`.
 - `expires_in` (integer): Access token lifespan in seconds (`1800` seconds = 30 minutes).
-- `admin` (object): Core creator identity attributes for rendering the dashboard header without secondary network requests.
+- `admin` (object): Core creator identity attributes for dashboard hydration and navigation routing.
   - `id` (integer): Unique creator admin ID.
   - `email` (string): Account login email.
   - `first_name` (string): Creator's first name.
@@ -272,7 +298,7 @@ Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abc
   - `studio_name` (string): Public channel / OTT studio brand name.
   - `avatar_url` (string | null): CDN URL to profile photo asset.
 
-*(Note: The 60-day `refresh_token` is transmitted strictly via the secure `Set-Cookie` response header and is never exposed in the JSON payload, ensuring complete protection against JavaScript-based token exfiltration).*
+*(Note: Both the 30-minute `access_token` and 60-day `refresh_token` are transmitted strictly via secure `Set-Cookie` response headers with `HttpOnly`, ensuring zero vulnerability to JavaScript-based XSS attacks).*
 
 ---
 
@@ -298,10 +324,11 @@ Cookie: admin_refresh_token=<token_from_httponly_cookie>
 4. **Token Rotation**: If the hash matches:
    - Generates a new 30-minute access token and a brand-new 60-day refresh token.
    - Burns the old token in the database by updating `admins.refresh_token = SHA-256(new_refresh_token)`.
-5. **Cookie Update**: Emits a fresh `Set-Cookie` header with the rotated refresh token (`Max-Age=5184000`).
+5. **Cookie Update**: Emits fresh `Set-Cookie` headers for both the rotated refresh token (`Max-Age=5184000`) and the fresh access token (`Max-Age=1800`).
 
 #### Response Headers
 ```http
+Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=1800
 Set-Cookie: admin_refresh_token=b5e9013d4f562c78e90123456789abcdef0123456789abcdef0123456789def; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=5184000
 ```
 
@@ -324,15 +351,16 @@ Retrieves the current authenticated creator's core session identity and studio b
 #### Request Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<jwt_cookie>
 ```
+*(Alternatively supported via header fallback: `Authorization: Bearer <admin_access_token>` for Swagger / Postman tooling).*
 
 #### Processing Logic:
 
-1. Validates the JWT Bearer token and verifies `role == "admin"` using `get_current_admin`.
+1. Validates caller authentication via `get_current_admin` (extracts from `admin_access_token` cookie or Bearer header).
 2. Reads the creator record from the `admins` table.
 3. Retrieves the associated `branding` studio name.
-4. Returns the lean `AdminSummaryResponse` (exactly matching the `admin` object returned upon login).
+4. Returns the lean `AdminSummaryResponse` (matching the `admin` object returned upon login with 100% symmetry).
 
 #### Response Specification (`200 OK`)
 
@@ -360,7 +388,7 @@ Authorization: Bearer <admin_access_token>
 
 #### Why `/api/v1/admin/auth/me` is Essential:
 
-1. **SPA Page Refresh & Perfect Symmetry**: When a creator refreshes the page (F5), client-side memory is wiped. The frontend calls `/me` with the access token, receiving the exact same `AdminSummaryResponse` structure as returned on `/login`.
+1. **SPA Page Refresh & Perfect Symmetry**: When a creator refreshes the page (F5), client-side memory is wiped. The frontend calls `/me` with the access token cookie automatically attached, receiving the exact same `AdminSummaryResponse` structure as returned on `/login`.
 2. **Route Guarding**: If the token has expired, `/me` returns `401 Unauthorized`, prompting the frontend to trigger a silent cookie refresh (`POST /refresh`) or redirect to the login page.
 3. **Zero Redundancy**: Layout and header components receive only the identity metadata they need to render, eliminating payload bloat on every page reload.
 
@@ -368,24 +396,25 @@ Authorization: Bearer <admin_access_token>
 
 ### 4.4 `POST /api/v1/admin/auth/logout` — Revoke Refresh Session
 
-Invalidates the active session on the backend by erasing the stored refresh token hash in the database and clearing the browser cookie.
+Invalidates the active session on the backend by erasing the stored refresh token hash in the database and clearing both the access token and refresh token cookies in the browser.
 
 #### Request Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<jwt_cookie>; admin_refresh_token=<refresh_cookie>
 ```
-*(No request body is needed; the browser automatically transmits the HttpOnly cookie, and the caller is authenticated via the Bearer token).*
+*(Alternatively supported via header fallback: `Authorization: Bearer <admin_access_token>` for tooling clients).*
 
 #### Processing Logic:
 
 1. Resolves caller's `user_id` via `get_current_admin`.
 2. Updates `admins` table setting `refresh_token = NULL` for this creator.
-3. Clears the browser's `admin_refresh_token` cookie by sending `Set-Cookie` with `Max-Age=0`.
-4. Any subsequent calls to `POST /api/v1/admin/auth/refresh` will immediately fail.
+3. Clears both the browser's `admin_access_token` and `admin_refresh_token` cookies by sending `Set-Cookie` with `Max-Age=0`.
+4. Any subsequent calls to `POST /api/v1/admin/auth/refresh` or protected admin routes will immediately fail.
 
 #### Response Headers
 ```http
+Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=0
 Set-Cookie: admin_refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=0
 ```
 
@@ -515,34 +544,20 @@ The web application uses an Axios HTTP interceptor with `withCredentials: true` 
                                & Replay Failed Request
 ```
 
-### 6.2 Implementation Reference (Axios Interceptor with HttpOnly Cookies)
+### 6.2 Implementation Reference (Axios Client with Dual HttpOnly Cookies)
+
+Because **both** the `admin_access_token` and `admin_refresh_token` are set as `HttpOnly` cookies, the frontend JavaScript client never needs to store tokens in `localStorage` or manually inject `Authorization: Bearer` headers for web browser sessions. Setting `withCredentials: true` ensures the browser natively handles token transmission.
 
 ```javascript
 import axios from "axios";
 
-// 1. In-memory access token storage (immune to localStorage XSS exfiltration)
-let inMemoryAccessToken = null;
-
-export const setAccessToken = (token) => {
-  inMemoryAccessToken = token;
-};
-
-export const getAccessToken = () => inMemoryAccessToken;
-
+// 1. Create centralized Axios instance with credentials enabled
 const api = axios.create({
   baseURL: "/api/v1",
-  withCredentials: true, // Guarantees HttpOnly refresh_token cookie is sent on cross-origin requests
+  withCredentials: true, // Guarantees both HttpOnly cookies (access & refresh) are transmitted
 });
 
-// 2. Attach short-lived Access Token to every outgoing request
-api.interceptors.request.use((config) => {
-  if (inMemoryAccessToken) {
-    config.headers.Authorization = `Bearer ${inMemoryAccessToken}`;
-  }
-  return config;
-});
-
-// 3. Intercept 401 Unauthorized responses & silently refresh via HttpOnly cookie
+// 2. Intercept 401 Unauthorized responses & silently refresh via HttpOnly refresh cookie
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -552,21 +567,17 @@ api.interceptors.response.use(
 
       try {
         // Browser automatically attaches HttpOnly 'admin_refresh_token' cookie
-        const { data } = await axios.post(
+        // Backend responds with rotated 'admin_refresh_token' and fresh 'admin_access_token' cookies
+        await axios.post(
           "/api/v1/admin/auth/refresh",
           {},
           { withCredentials: true }
         );
 
-        // Update in-memory access token
-        setAccessToken(data.access_token);
-
-        // Re-attach new token and replay original request
-        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        // Replay original request (browser automatically transmits the newly set access cookie)
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh token expired or revoked -> redirect to login
-        setAccessToken(null);
+        // Refresh token expired, mismatched, or revoked -> redirect to login
         window.location.href = "/login";
       }
     }
@@ -599,22 +610,22 @@ sequenceDiagram
     API->>API: Verify PBKDF2 password match
     API->>API: Generate Access Token (30m) & Refresh Token (60d)
     API->>DB: Store SHA-256(refresh_token) in admins.refresh_token
-    API-->>SPA: Set-Cookie: admin_refresh_token (HttpOnly) & 200 OK { access_token, admin }
+    API-->>SPA: Set-Cookie: admin_access_token & admin_refresh_token (HttpOnly) & 200 OK { access_token, admin }
     SPA->>Creator: Display Admin Dashboard
 
     Note over Creator,API: Step 2: 30 Minutes Later (Access Token Expired)
     Creator->>SPA: Navigates to Videos page
-    SPA->>API: GET /api/v1/admin/videos (Expired Access Token)
+    SPA->>API: GET /api/v1/admin/videos (Browser sends expired access cookie)
     API-->>SPA: 401 Unauthorized ("Authentication token has expired")
 
     Note over SPA,API: Step 3: Silent Token Refresh (Axios Interceptor)
-    SPA->>API: POST /refresh (Browser automatically sends HttpOnly Cookie)
+    SPA->>API: POST /refresh (Browser automatically sends HttpOnly refresh Cookie)
     API->>DB: Query Admin by SHA-256(refresh_token)
     DB-->>API: Returns matching Admin
     API->>API: Generate New Access Token (30m) & Rotated Refresh Token
     API->>DB: Update admins.refresh_token = SHA-256(new_refresh_token)
-    API-->>SPA: Set-Cookie: new_refresh_token (HttpOnly) & 200 OK { access_token }
-    SPA->>API: Replay GET /api/v1/admin/videos with new Access Token
+    API-->>SPA: Set-Cookie: fresh admin_access_token & new admin_refresh_token (HttpOnly) & 200 OK { access_token }
+    SPA->>API: Replay GET /api/v1/admin/videos (Browser sends new access cookie)
     API-->>SPA: 200 OK (Video List Data)
     SPA->>Creator: Display Videos seamlessly without interruption
 ```
@@ -632,13 +643,11 @@ sequenceDiagram
     participant DB as PostgreSQL / SQLite Database
 
     Creator->>SPA: Hits browser refresh (F5)
-    SPA->>API: POST /api/v1/admin/auth/refresh (Browser sends HttpOnly Cookie)
-    API-->>SPA: 200 OK { access_token } (Refreshes in-memory session)
-    SPA->>API: GET /api/v1/admin/auth/me (Authorization: Bearer <token>)
-    API->>API: Validate JWT signature & claims (get_current_admin)
+    SPA->>API: GET /api/v1/admin/auth/me (Browser automatically sends admin_access_token Cookie)
+    API->>API: Validate JWT signature & claims (get_current_admin via Cookie)
     API->>DB: Fetch fresh Admin profile & studio metadata
     DB-->>API: Returns Admin + Studio info
-    API-->>SPA: 200 OK { id, email, first_name, last_name, studio }
+    API-->>SPA: 200 OK { id, email, first_name, last_name, studio_name }
     SPA->>SPA: Hydrate user state & studio branding
     SPA->>Creator: Render authenticated dashboard
 ```

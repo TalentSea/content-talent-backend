@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import Depends, File, HTTPException, UploadFile, status
+from fastapi import Cookie, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.models.admin import Admin
@@ -68,11 +68,24 @@ def get_optional_subscriber(
         return None
 
 
-def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
+def get_current_admin(
+    cookie_token: str | None = Cookie(default=None, alias="admin_access_token"),
+    header_token: str | None = Depends(oauth2_scheme_optional),
+) -> dict:
     """
     Guards Admin Web Portal routes (/api/v1/admin/*) to ensure the caller is strictly an Admin Creator.
-    Extracts admin user_id directly from token context. Subscriber tokens are rejected.
+    Extracts admin user_id directly from token context.
+    Prioritizes HttpOnly cookie; falls back to Bearer header for Swagger/Postman API tooling.
+    Subscriber tokens are rejected.
     """
+    token = cookie_token or header_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required: No access token provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     payload = decode_access_token(token)
 
     # Reject non-admin tokens (e.g. subscriber or guest credentials) on admin routes
