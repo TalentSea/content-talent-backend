@@ -94,7 +94,7 @@ sequenceDiagram
     autonumber
     actor Admin as Creator Studio UI
     participant Backend as FastAPI Backend
-    participant DB as PostgreSQL DB
+    participant DB as SQLite DB
     participant Bunny as Bunny Cloud Storage
 
     Note over Admin,DB: Phase 1: Textual Container Creation

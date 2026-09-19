@@ -1,6 +1,6 @@
 # Creator OTT & Video Streaming Backend API
 
-A production-grade RESTful API built with **FastAPI**, **Peewee ORM**, **PostgreSQL**, and **Bunny.net Cloud Infrastructure** (Bunny Stream, Bunny Storage, and Bunny CDN). Designed following clean architecture principles for video asset management, resumable TUS uploads, webhook state processing, playlist curation, categories organization and reordering, creator branding and studio identity, profile management, comment moderation, mobile social authentication, guest account upgrades, and real-time watch history playback synchronization.
+A production-grade RESTful API built with **FastAPI**, **Peewee ORM**, **SQLite**, and **Bunny.net Cloud Infrastructure** (Bunny Stream, Bunny Storage, and Bunny CDN). Designed following clean architecture principles for video asset management, resumable TUS uploads, webhook state processing, playlist curation, categories organization and reordering, creator branding and studio identity, profile management, comment moderation, mobile social authentication, guest account upgrades, and real-time watch history playback synchronization.
 
 ---
 
@@ -245,7 +245,7 @@ Configure your environment settings:
 
 ```env
 # Database Settings
-DATABASE_URL=postgresql://user:password@localhost:5432/content_talent_db
+DATABASE_URL=sqlite:///ott_platform.db
 
 # Bunny Stream API Credentials
 BUNNY_STREAM_API_KEY=your_bunny_stream_api_key_here

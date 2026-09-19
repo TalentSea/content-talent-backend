@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from peewee import (
@@ -8,12 +9,32 @@ from peewee import (
     IntegerField,
     TextField,
 )
-from playhouse.postgres_ext import JSONField
 
 from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
 from app.utils.formatters import calculate_completion_percentage
+
+
+class JSONField(TextField):
+    """
+    Stores structured JSON data as TEXT in SQLite, auto-serializing to/from Python list/dict.
+    """
+
+    def db_value(self, value):
+        if value is None:
+            return None
+        if isinstance(value, (dict, list)):
+            return json.dumps(value)
+        return value
+
+    def python_value(self, value):
+        if value is not None and isinstance(value, str):
+            try:
+                return json.loads(value)
+            except (ValueError, TypeError):
+                return value
+        return value if value is not None else []
 
 
 class Video(BaseModel):

@@ -609,7 +609,7 @@ sequenceDiagram
     actor Creator as Creator (Browser)
     participant SPA as Web Admin Portal (React)
     participant API as FastAPI Backend (/api/v1/admin/auth)
-    participant DB as PostgreSQL / SQLite Database
+    participant DB as SQLite Database
 
     Note over Creator,API: Step 1: Creator Login
     Creator->>SPA: Enters email & password
@@ -649,7 +649,7 @@ sequenceDiagram
     actor Creator as Creator (Browser)
     participant SPA as Web Admin Portal (React)
     participant API as FastAPI Backend (/api/v1/admin/auth)
-    participant DB as PostgreSQL / SQLite Database
+    participant DB as SQLite Database
 
     Creator->>SPA: Hits browser refresh (F5)
     SPA->>API: GET /api/v1/admin/auth/me (Browser automatically sends admin_access_token Cookie)
