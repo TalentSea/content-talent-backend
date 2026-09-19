@@ -198,7 +198,7 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `name` | `VARCHAR(100)` | Standard | NO | None | Category display name (e.g. "Tutorials") |
 | `slug` | `VARCHAR(120)` | Standard | NO | None | URL-safe slugified category name |
 | `description` | `TEXT` | Standard | YES | `NULL` | Optional category description |
-| `icon` | `VARCHAR(50)` | Standard | NO | `"📁"` | Category emoji or icon identifier |
+| `thumbnail_url`| `VARCHAR(500)`| Standard | YES | `NULL` | CDN URL to category thumbnail / logo image (uploaded via separate endpoint) |
 | `color` | `VARCHAR(30)` | Standard | NO | `"#3b82f6"` | UI hex color code |
 | `display_order` | `INTEGER` | Standard | NO | `0` | Sequence order for horizontal chip bar |
 | `created_at` | `DATETIME` | Standard | NO | `UTC timestamp` | Creation timestamp |

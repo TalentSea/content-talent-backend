@@ -70,7 +70,6 @@ class Settings(BaseSettings):
     # Platform & Content Defaults
     APP_TIMEZONE: str = "Asia/Kolkata"
     DEFAULT_CURRENCY: str = "INR"
-    DEFAULT_CATEGORY_ICON: str = "📁"
     DEFAULT_CATEGORY_COLOR: str = "#3b82f6"
 
     @property

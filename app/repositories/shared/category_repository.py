@@ -128,7 +128,7 @@ class CategoryRepository:
                 name=name,
                 slug=slug,
                 description=data.get("description"),
-                icon=data.get("icon") or settings.DEFAULT_CATEGORY_ICON,
+                thumbnail_url=data.get("thumbnail_url"),
                 color=data.get("color") or settings.DEFAULT_CATEGORY_COLOR,
                 display_order=new_order,
                 created_at=datetime.now(timezone.utc),
@@ -150,12 +150,19 @@ class CategoryRepository:
                 return None
 
             if update_data.get("name"):
-                cat.name = update_data["name"].strip()
-                cat.slug = slugify(cat.name)
-            if "description" in update_data and update_data["description"] is not None:
+                old_name = cat.name
+                new_name = update_data["name"].strip()
+                if old_name.lower().strip() != new_name.lower():
+                    Video.update(category=new_name).where(
+                        (Video.user == user_id)
+                        & (fn.LOWER(Video.category) == old_name.lower().strip())
+                    ).execute()
+                cat.name = new_name
+                cat.slug = slugify(new_name)
+            if "description" in update_data:
                 cat.description = update_data["description"]
-            if update_data.get("icon"):
-                cat.icon = update_data["icon"]
+            if "thumbnail_url" in update_data:
+                cat.thumbnail_url = update_data["thumbnail_url"]
             if update_data.get("color"):
                 cat.color = update_data["color"]
 

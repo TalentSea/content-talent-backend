@@ -14,9 +14,6 @@ class CategoryCreateRequest(BaseModel):
     description: str | None = Field(
         None, max_length=500, description="Optional description text"
     )
-    icon: str | None = Field(
-        default=None, max_length=50, description="Emoji or icon identifier string"
-    )
     color: str | None = Field(
         default=None, max_length=30, description="Hex accent color string"
     )
@@ -27,7 +24,6 @@ class CategoryUpdateRequest(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = Field(None, max_length=500)
-    icon: str | None = Field(None, max_length=50)
     color: str | None = Field(None, max_length=30)
 
 
@@ -37,6 +33,26 @@ class CategoryReorderRequest(BaseModel):
     ids: list[int] = Field(..., description="Ordered list of category integer IDs")
 
 
+class CategoryThumbnailUploadResponse(BaseModel):
+    """Response DTO returned after uploading a category thumbnail image."""
+
+    thumbnail_url: str
+
+
+class CategoryCreateResponse(BaseModel):
+    """Response payload returned when a category is created matching spec doc API 2 and Playlist pattern."""
+
+    id: int
+    name: str
+    slug: str
+    description: str | None = None
+    color: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
+    )
+    order: int = 0
+    createdAt: datetime | None = None
+
+
 class CategoryResponse(BaseModel):
     """Response payload for category metadata."""
 
@@ -44,9 +60,7 @@ class CategoryResponse(BaseModel):
     name: str
     slug: str
     description: str | None = None
-    icon: str = Field(
-        default_factory=lambda: get_settings().DEFAULT_CATEGORY_ICON
-    )
+    thumbnailUrl: str
     color: str = Field(
         default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
     )
@@ -77,9 +91,7 @@ class MobileCategoryResponse(BaseModel):
     name: str
     slug: str
     description: str | None = None
-    icon: str = Field(
-        default_factory=lambda: get_settings().DEFAULT_CATEGORY_ICON
-    )
+    thumbnailUrl: str
     color: str = Field(
         default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
     )

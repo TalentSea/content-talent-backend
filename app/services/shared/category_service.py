@@ -1,19 +1,24 @@
 import logging
+import time
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
 from app.repositories.shared.category_repository import CategoryRepository
 from app.schemas.shared.category_schemas import (
     CategoryCreateRequest,
+    CategoryCreateResponse,
     CategoryListResponse,
     CategoryOptionListResponse,
     CategoryOptionResponse,
     CategoryReorderRequest,
     CategoryResponse,
+    CategoryThumbnailUploadResponse,
     CategoryUpdateRequest,
     MobileCategoryResponse,
 )
+from app.utils.bunny_client import delete_bunny_storage_file
+from app.utils.image_uploader import validate_and_upload_image
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +38,7 @@ class CategoryService:
             name=cat.name,
             slug=cat.slug,
             description=cat.description,
-            icon=cat.icon or settings.DEFAULT_CATEGORY_ICON,
+            thumbnailUrl=cat.thumbnail_url or "",
             color=cat.color or settings.DEFAULT_CATEGORY_COLOR,
             contentCount=content_count,
             order=cat.display_order,
@@ -53,7 +58,7 @@ class CategoryService:
                 name=c.name,
                 slug=c.slug,
                 description=c.description,
-                icon=c.icon or settings.DEFAULT_CATEGORY_ICON,
+                thumbnailUrl=c.thumbnail_url or "",
                 color=c.color or settings.DEFAULT_CATEGORY_COLOR,
             )
             for c in categories
@@ -77,9 +82,10 @@ class CategoryService:
 
     def create_category(
         self, user_id: int, req: CategoryCreateRequest
-    ) -> CategoryResponse:
+    ) -> CategoryCreateResponse:
         """
-        Creates a new category ensuring unique category name per creator.
+        Creates a new category container ensuring unique category name per creator.
+        Returns CategoryCreateResponse without thumbnailUrl matching Playlist pattern.
         """
         existing = self.repo.get_category_by_name(req.name, user_id)
         if existing:
@@ -89,7 +95,16 @@ class CategoryService:
             )
 
         cat = self.repo.create_category(user_id, req.model_dump())
-        return self._to_category_response(cat, content_count=0)
+        settings = get_settings()
+        return CategoryCreateResponse(
+            id=cat.id,
+            name=cat.name,
+            slug=cat.slug,
+            description=cat.description,
+            color=cat.color or settings.DEFAULT_CATEGORY_COLOR,
+            order=cat.display_order,
+            createdAt=cat.created_at,
+        )
 
     def update_category(
         self, category_id: int, user_id: int, req: CategoryUpdateRequest
@@ -120,9 +135,12 @@ class CategoryService:
         count = next((cnt for c, cnt in pairs if c.id == category_id), 0)
         return self._to_category_response(updated_cat, content_count=count)
 
-    def delete_category(self, category_id: int, user_id: int) -> dict:
+    def upload_category_thumbnail(
+        self, user_id: int, category_id: int, file: UploadFile
+    ) -> CategoryThumbnailUploadResponse:
         """
-        Deletes a category asset.
+        Uploads and validates a category thumbnail image to Bunny Storage.
+        Cleans up previous thumbnail asset from Bunny Storage.
         """
         cat = self.repo.get_category_by_id(category_id, user_id)
         if not cat:
@@ -130,6 +148,46 @@ class CategoryService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Category with ID {category_id} not found",
             )
+
+        settings = get_settings()
+        timestamp = int(time.time())
+
+        thumbnail_url = validate_and_upload_image(
+            file=file,
+            storage_path_without_ext=f"assets/categories/cat_{category_id}_{timestamp}",
+            max_size_mb=settings.MAX_THUMBNAIL_SIZE_MB,
+            old_file_url=cat.thumbnail_url,
+            old_file_storage_folder="assets/categories",
+        )
+
+        self.repo.update_category(
+            category_id, user_id, {"thumbnail_url": thumbnail_url}
+        )
+
+        return CategoryThumbnailUploadResponse(thumbnail_url=thumbnail_url)
+
+    def delete_category(self, category_id: int, user_id: int) -> dict:
+        """
+        Deletes a category asset and cleans up its thumbnail from Bunny Storage.
+        """
+        cat = self.repo.get_category_by_id(category_id, user_id)
+        if not cat:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category with ID {category_id} not found",
+            )
+
+        if cat.thumbnail_url:
+            try:
+                filename = cat.thumbnail_url.split("?")[0].split("/")[-1]
+                storage_path = f"assets/categories/{filename}"
+                delete_bunny_storage_file(storage_path)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to delete Bunny Storage image for category %s: %s",
+                    category_id,
+                    e,
+                )
 
         self.repo.delete_category(category_id, user_id)
         return {"message": "Category deleted successfully"}

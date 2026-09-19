@@ -1,12 +1,14 @@
 from fastapi import APIRouter, status
 
-from app.dependencies import CurrentAdmin
+from app.dependencies import CurrentAdmin, FormFile
 from app.schemas.shared.category_schemas import (
     CategoryCreateRequest,
+    CategoryCreateResponse,
     CategoryListResponse,
     CategoryOptionListResponse,
     CategoryReorderRequest,
     CategoryResponse,
+    CategoryThumbnailUploadResponse,
     CategoryUpdateRequest,
 )
 from app.services.shared.category_service import CategoryService
@@ -30,10 +32,10 @@ def list_categories(current_user: CurrentAdmin, simple: bool = False):
 
 @router.post(
     "",
-    response_model=CategoryResponse,
+    response_model=CategoryCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Category",
-    description="Creates a new content category with title, description, emoji icon, and hex color.",
+    description="Creates a new content category container with title, description, and hex color.",
 )
 def create_category(req: CategoryCreateRequest, current_user: CurrentAdmin):
     return category_service.create_category(user_id=current_user["user_id"], req=req)
@@ -63,6 +65,21 @@ def update_category(
 ):
     return category_service.update_category(
         category_id=category_id, user_id=current_user["user_id"], req=req
+    )
+
+
+@router.post(
+    "/{category_id}/thumbnail/upload",
+    response_model=CategoryThumbnailUploadResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Upload Category Thumbnail",
+    description="Uploads a category logo/thumbnail image to Bunny Storage via server proxy.",
+)
+def upload_category_thumbnail(
+    category_id: int, current_user: CurrentAdmin, file: FormFile
+):
+    return category_service.upload_category_thumbnail(
+        user_id=current_user["user_id"], category_id=category_id, file=file
     )
 
 

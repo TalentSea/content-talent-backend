@@ -22,7 +22,7 @@ class Category(BaseModel):
     name = CharField(max_length=100)
     slug = CharField(max_length=120)
     description = TextField(null=True)
-    icon = CharField(max_length=50, default=lambda: get_settings().DEFAULT_CATEGORY_ICON)
+    thumbnail_url = CharField(max_length=500, null=True)
     color = CharField(max_length=30, default=lambda: get_settings().DEFAULT_CATEGORY_COLOR)
     display_order = IntegerField(default=0)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))

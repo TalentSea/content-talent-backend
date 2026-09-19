@@ -316,7 +316,6 @@ AD_IMPRESSION_MAX_PER_SESSION=10
 # Platform & Content Defaults
 APP_TIMEZONE=Asia/Kolkata
 DEFAULT_CURRENCY=INR
-DEFAULT_CATEGORY_ICON=📁
 DEFAULT_CATEGORY_COLOR=#3b82f6
 ```
 
@@ -479,7 +478,7 @@ Technical specifications and architecture documentation:
 
 ### 🏛️ Database Architecture
 
-- [Complete 22-Table Database Schema Specification](docs/database_architecture_specification.md)
+- [Complete 23-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
 
