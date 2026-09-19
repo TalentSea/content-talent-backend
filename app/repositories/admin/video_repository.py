@@ -50,7 +50,21 @@ class VideoRepository:
         query = Video.select().where(Video.user == user_id)
 
         if status:
-            query = query.where(fn.LOWER(Video.status) == status.lower())
+            clean_status = status.lower().strip()
+            if clean_status == "draft":
+                query = query.where(fn.LOWER(Video.status) == "draft")
+            elif clean_status == "processing":
+                query = query.where(
+                    fn.LOWER(Video.status).in_(
+                        ["processing", "pending", "encoding", "upload_finished"]
+                    )
+                )
+            elif clean_status == "published":
+                query = query.where(fn.LOWER(Video.status) == "published")
+            elif clean_status == "scheduled":
+                query = query.where(fn.LOWER(Video.status) == "scheduled")
+            else:
+                query = query.where(fn.LOWER(Video.status) == clean_status)
 
         if category:
             query = query.where(fn.LOWER(Video.category) == category.lower())
@@ -120,7 +134,7 @@ class VideoRepository:
             video.available_resolutions = available_resolutions
         if duration:
             video.duration = duration
-        if is_playable and not video.published_at:
+        if status == "published" and not video.published_at:
             video.published_at = datetime.now(timezone.utc)
         video.save()
         return video
@@ -133,7 +147,22 @@ class VideoRepository:
         if not video:
             return None
         video.status = "published"
+        video.publish_intent = "publish"
         video.published_at = datetime.now(timezone.utc)
+        video.scheduled_at = None
+        video.save()
+        return video
+
+    def unpublish_video(self, video_id: int, user_id: int) -> Video | None:
+        """
+        Unpublishes a video asset, reverting status = 'draft', publish_intent = 'draft', and clearing published_at.
+        """
+        video = self.get_video_by_id(video_id, user_id)
+        if not video:
+            return None
+        video.status = "draft"
+        video.publish_intent = "draft"
+        video.published_at = None
         video.scheduled_at = None
         video.save()
         return video
@@ -148,6 +177,7 @@ class VideoRepository:
         if not video:
             return None
         video.status = "scheduled"
+        video.publish_intent = "schedule"
         video.scheduled_at = scheduled_at_dt
         video.save()
         return video

@@ -218,7 +218,8 @@ In a Multi-Tenant SaaS platform hosting multiple creators:
 | `title` | `VARCHAR(255)` | Standard | NO | None | Mandatory video title |
 | `description` | `TEXT` | Standard | NO | None | Mandatory video description |
 | `category` | `VARCHAR(100)` | Standard | YES | `NULL` | Category name association (set to NULL when category is deleted) |
-| `status` | `VARCHAR(20)` | Standard | NO | `"PENDING"` | Processing status (`PENDING`, `ENCODING`, `READY`, `PLAYABLE`, `SCHEDULED`, `FAILED`) |
+| `status` | `VARCHAR(20)` | Standard | NO | `"processing"` | Video visibility status (`processing`, `draft`, `scheduled`, `published`) |
+| `publish_intent` | `VARCHAR(20)` | Standard | NO | `"draft"` | Upfront creator publishing intent (`draft`, `publish`, `schedule`) |
 | `encode_progress`| `INTEGER` | Standard | NO | `0` | Transcoding progress percentage (0-100) |
 | `is_playable` | `BOOLEAN` | Standard | NO | `False` | Playable state flag (True when 240p+ ready) |
 | `main_thumbnail_url`| `VARCHAR(500)`| Standard | YES | `NULL` | Primary CDN thumbnail URL (Slot 0) |

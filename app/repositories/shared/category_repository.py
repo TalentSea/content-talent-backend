@@ -67,7 +67,7 @@ class CategoryRepository:
                 .where(
                     (Video.user == user_id)
                     & (Video.category.is_null(False))
-                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
                 )
                 .group_by(fn.LOWER(Video.category))

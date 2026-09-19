@@ -33,7 +33,7 @@ class MobileVideoRepository:
         try:
             active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
             query = Video.select().where(
-                (fn.LOWER(Video.status).in_(["published", "ready"]))
+                (fn.LOWER(Video.status) == "published")
                 & (Video.is_playable == True)
                 & (Video.user.in_(active_creators))
             )
@@ -99,7 +99,7 @@ class MobileVideoRepository:
                 .join(VideoLike, on=(Video.id == VideoLike.video))
                 .where(
                     (VideoLike.subscriber == subscriber_id)
-                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
                 )
             )
@@ -130,7 +130,7 @@ class MobileVideoRepository:
             active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
             query = Video.select().where(
                 (Video.id == video_id)
-                & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                & (fn.LOWER(Video.status) == "published")
                 & (Video.is_playable == True)
                 & (Video.user.in_(active_creators))
             )
@@ -335,7 +335,7 @@ class MobileVideoRepository:
                 .join(VideoSave, on=(Video.id == VideoSave.video))
                 .where(
                     (VideoSave.subscriber == subscriber_id)
-                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
                 )
             )
@@ -480,7 +480,7 @@ class MobileVideoRepository:
                     (WatchHistory.subscriber == subscriber_id)
                     & (WatchHistory.completed == False)
                     & (WatchHistory.last_position_seconds >= settings.CONTINUE_WATCHING_MIN_SECONDS)
-                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
                 )
             )
@@ -517,7 +517,7 @@ class MobileVideoRepository:
                 .join(Video)
                 .where(
                     (WatchHistory.subscriber == subscriber_id)
-                    & (fn.LOWER(Video.status).in_(["published", "ready"]))
+                    & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
                 )
             )

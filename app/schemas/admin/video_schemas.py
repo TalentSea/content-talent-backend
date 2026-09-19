@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +11,13 @@ class VideoInitiateRequest(BaseModel):
     description: str | None = None
     category: str | None = None
     tags: list[str] | None = []
-    status: str | None = "draft"
+    publish_intent: Literal["draft", "publish", "schedule"] = "draft"
+    scheduled_date: str | None = Field(
+        None, description="Optional target date (YYYY-MM-DD) if publish_intent is 'schedule'"
+    )
+    scheduled_time: str | None = Field(
+        None, description="Optional target time (HH:MM) if publish_intent is 'schedule'"
+    )
 
 
 class VideoInitiateResponse(BaseModel):
@@ -20,6 +27,7 @@ class VideoInitiateResponse(BaseModel):
     bunny_video_id: str
     bunny_library_id: str
     status: str
+    publish_intent: str
     signature: str
     expiration_time: int
 
@@ -107,10 +115,10 @@ class DeleteThumbnailRequest(BaseModel):
 
 
 class VideoPublishResponse(BaseModel):
-    """Response payload returned when a video is published immediately matching spec doc API 10."""
+    """Response payload returned when a video is published or unpublished."""
 
     id: int
-    status: str = "published"
+    status: str
     published_at: datetime | None = None
 
 

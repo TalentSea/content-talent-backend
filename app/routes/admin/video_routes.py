@@ -180,6 +180,20 @@ def publish_video(video_id: int, current_user: CurrentAdmin):
 
 
 @router.post(
+    "/{video_id}/unpublish",
+    response_model=VideoPublishResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Unpublish Video (Revert to Draft)",
+    description="Reverts a published video back to draft status, immediately removing it from public subscriber catalog feeds.",
+)
+def unpublish_video(video_id: int, current_user: CurrentAdmin):
+    """
+    POST /api/v1/admin/videos/{video_id}/unpublish — Reverts a published video back to draft state.
+    """
+    return video_service.unpublish_video(current_user["user_id"], video_id)
+
+
+@router.post(
     "/{video_id}/schedule",
     response_model=VideoScheduleResponse,
     status_code=status.HTTP_200_OK,

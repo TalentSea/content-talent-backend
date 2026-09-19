@@ -109,6 +109,24 @@ def normalize_tags(tags: list[str] | None) -> list[str]:
     return clean_tags
 
 
+def resolve_display_status(video) -> str:
+    """
+    Normalizes video status to strictly one of 4 canonical creator states:
+    'processing', 'draft', 'scheduled', 'published'.
+    Hides internal technical codes (READY, PLAYABLE, ENCODING) from creator studio views.
+    """
+    raw = (video.status or "").lower().strip()
+    if raw in ("published", "scheduled"):
+        return raw
+    if raw == "draft":
+        return "draft"
+    if not video.is_playable:
+        return "processing"
+    if video.scheduled_at and video.scheduled_at > datetime.now(timezone.utc):
+        return "scheduled"
+    return "draft"
+
+
 class VideoService:
     """
     Business logic and cloud orchestration layer for Video operations (Peewee ORM).
@@ -143,7 +161,8 @@ class VideoService:
                 bunny_pull_zone_url=pull_zone,
                 bunny_video_id=video.bunny_video_id,
                 resolution=clean_res,
-                token_security_key=token_key,
+                token_key=token_key,
+                expires_in_seconds=settings.BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS,
             )
             download_items.append(
                 DownloadUrlItem(resolution=clean_res, label=label, url=url)
@@ -173,7 +192,7 @@ class VideoService:
             description=video.description,
             category=video.category,
             tags=list(video.tags or []),
-            status=video.status,
+            status=resolve_display_status(video),
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
             views=video.views or 0,
@@ -200,7 +219,7 @@ class VideoService:
             id=video.id,
             title=video.title,
             category=video.category,
-            status=video.status,
+            status=resolve_display_status(video),
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
             views=video.views or 0,
@@ -222,7 +241,7 @@ class VideoService:
             description=video.description,
             category=video.category,
             tags=list(video.tags or []),
-            status=video.status,
+            status=resolve_display_status(video),
         )
 
     def initiate_video_upload(
@@ -257,14 +276,33 @@ class VideoService:
             f"{pull_zone}/{bunny_video_id}/thumb_3.jpg",
         ]
 
-        # Step 3: Insert initial PENDING video record into database
+        # Step 3: Parse optional scheduled datetime if schedule intent is specified
+        scheduled_dt = None
+        if (
+            payload.publish_intent == "schedule"
+            and payload.scheduled_date
+            and payload.scheduled_time
+        ):
+            try:
+                dt_str = f"{payload.scheduled_date} {payload.scheduled_time}"
+                scheduled_dt = (
+                    datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+                    .replace(tzinfo=get_app_timezone())
+                    .astimezone(timezone.utc)
+                )
+            except ValueError:
+                pass
+
+        # Step 4: Insert initial processing video record into database
         video_record_data = {
             "bunny_video_id": bunny_video_id,
             "title": payload.title,
             "description": payload.description,
             "category": payload.category,
             "tags": normalize_tags(payload.tags),
-            "status": "PENDING",
+            "status": "processing",
+            "publish_intent": payload.publish_intent,
+            "scheduled_at": scheduled_dt,
             "encode_progress": 0,
             "is_playable": False,
             "main_thumbnail_url": main_thumbnail_url,
@@ -278,6 +316,7 @@ class VideoService:
             bunny_video_id=bunny_video_id,
             bunny_library_id=library_id,
             status=created_video.status,
+            publish_intent=created_video.publish_intent,
             signature=signature,
             expiration_time=expiration_timestamp,
         )
@@ -366,9 +405,22 @@ class VideoService:
                     e,
                 )
 
+        # Resolve creator visibility status based on publish_intent
+        target_status = state.db_status
+        if state.is_playable and existing_video:
+            intent = (existing_video.publish_intent or "draft").lower()
+            if intent == "publish":
+                target_status = "published"
+            elif intent == "schedule":
+                target_status = "scheduled"
+            else:
+                target_status = "draft"
+        elif not state.is_playable:
+            target_status = "processing"
+
         self.repo.update_video_status(
             bunny_video_id=payload.VideoGuid,
-            status=state.db_status,
+            status=target_status,
             encode_progress=state.progress,
             is_playable=state.is_playable,
             captions_data=captions_data,
@@ -673,6 +725,24 @@ class VideoService:
         Publishes a video asset immediately, updating state to 'published' and recording published_at timestamp.
         """
         video = self.repo.publish_video(video_id, user_id)
+        if not video:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Video asset {video_id} not found",
+            )
+
+        return VideoPublishResponse(
+            id=video.id, status=video.status, published_at=video.published_at
+        )
+
+    def unpublish_video(
+        self, user_id: int, video_id: int
+    ) -> VideoPublishResponse:
+        """
+        Unpublishes a video asset, updating state to 'draft', clearing published_at,
+        and taking it off mobile feeds immediately.
+        """
+        video = self.repo.unpublish_video(video_id, user_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

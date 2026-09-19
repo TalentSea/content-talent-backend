@@ -59,7 +59,7 @@ class MobileFeaturedVideoRepository:
                 .where(
                     (FeaturedVideo.creator == creator_id)
                     & (
-                        (fn.LOWER(Video.status).in_(["published", "ready"]))
+                        (fn.LOWER(Video.status) == "published")
                         & (Video.is_playable == True)
                     )
                 )

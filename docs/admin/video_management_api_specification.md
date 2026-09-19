@@ -80,11 +80,15 @@ Content-Type: application/json
   "description": "Learn how to build a production grade video upload pipeline using Bunny.net.",
   "category": "tutorials",
   "tags": ["fastapi", "python", "bunny-stream"],
-  "status": "draft"
+  "publish_intent": "draft",
+  "scheduled_date": "2026-10-01",
+  "scheduled_time": "18:00"
 }
 ```
 
-* `status` (string, optional, default: `"draft"`): Initial video state (`"draft"` or `"published"`).
+* `publish_intent` (string, optional, default: `"draft"`): Publishing intent (`"draft"`, `"publish"`, or `"schedule"`). When Bunny finishes encoding, the backend automatically transitions the video to this state.
+* `scheduled_date` (string, optional): Target publication date (`YYYY-MM-DD`) if `publish_intent` is `"schedule"`.
+* `scheduled_time` (string, optional): Target publication time (`HH:MM`) if `publish_intent` is `"schedule"`.
 
 #### Internal Backend & External Cloud Workflows
 
@@ -592,7 +596,32 @@ Authorization: Bearer <creator_access_token>
 
 ---
 
-### 11. `POST /api/v1/admin/videos/{video_id}/schedule` — Schedule Video Publishing
+### 11. `POST /api/v1/admin/videos/{video_id}/unpublish` — Unpublish Video (Revert to Draft)
+
+Reverts a previously published video back to `draft` status, immediately taking it down from public subscriber catalog feeds and mobile apps.
+
+#### Request Headers
+```http
+Authorization: Bearer <creator_access_token>
+```
+
+#### Internal Backend Workflows
+
+##### Sub-Step A: Take-Down State Transition
+* **Purpose**: Updates `status = "draft"`, `publish_intent = "draft"`, and clears `published_at = NULL` and `scheduled_at = NULL`. The video is instantly removed from subscriber mobile feeds while keeping all transcoding containers and analytics safe.
+
+#### Response Specification (`200 OK`)
+```json
+{
+  "id": 101,
+  "status": "draft",
+  "published_at": null
+}
+```
+
+---
+
+### 12. `POST /api/v1/admin/videos/{video_id}/schedule` — Schedule Video Publishing
 
 Schedules a video asset for automated future publication at a specific target date and time.
 
