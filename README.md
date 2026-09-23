@@ -75,7 +75,7 @@ content-talent-backend/
 │   │   │   ├── subscription_routes.py # Mobile Active Entitlements Status (/api/v1/mobile/subscriptions)
 │   │   │   ├── playlist_routes.py# Mobile Public Playlists (/api/v1/mobile/playlists)
 │   │   │   ├── subscription_plan_routes.py # Mobile Subscription Plans (/api/v1/mobile/plans)
-│   │   │   └── video_routes.py   # Mobile Video Catalog, HLS Player & Ad Impression Telemetry (/api/v1/mobile/videos)
+│   │   │   └── video_routes.py   # Mobile Video Catalog, Shorts Swipe Feed, HLS Player & Ad Impression Telemetry (/api/v1/mobile/videos)
 │   │   └── admin/                # Admin Panel Creator Endpoints
 │   │       ├── auth_routes.py    # Admin Authentication & Token Lifecycle (/api/v1/admin/auth)
 │   │       ├── tenant_routes.py  # Super Admin Tenant Management (/api/v1/admin/tenants)
@@ -207,7 +207,7 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 
 ---
 
-## API Summary Breakdown (107 Total Endpoints)
+## API Summary Breakdown (108 Total Endpoints)
 
 - **Admin Endpoints (71)**:
   - Creator Authentication & Session Lifecycle: 4 endpoints
@@ -224,8 +224,8 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Subscription Plans Management: 2 endpoints
   - Creator Ad Monetization, Analytics, Payout Settings & Statements: 5 endpoints
   - Platform Super Admin Ad Revenue Reconciliation & Monthly Settlements: 4 endpoints
-- **Mobile Endpoints (36)**:
-  - Video Catalog, Player, History, Likes, Saves & Ad Telemetry: 13 endpoints
+- **Mobile Endpoints (37)**:
+  - Video Catalog, Shorts Swipe Feed, Player, History, Likes, Saves & Ad Telemetry: 14 endpoints
   - Comments & Replies: 6 endpoints
   - Authentication, Guest & Profiles: 6 endpoints
   - Razorpay Orders & Verification: 2 endpoints
@@ -529,4 +529,4 @@ Technical specifications and architecture documentation:
 - [Mobile Comments Specification](docs/mobile/comments_api_specification.md)
 - [Mobile Featured Videos Specification](docs/mobile/featured_videos_api_specification.md)
 - [Mobile Subscription Plans Specification](docs/mobile/subscription_plans_api_specification.md)
-- [Mobile Razorpay Payment & Subscriptions Specification](docs/mobile/razorpay_payment_subscriptions_api_specification.md)
+- [Mobile Payment & Subscriptions Specification](docs/mobile/payment_subscriptions_api_specification.md)

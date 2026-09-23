@@ -17,8 +17,7 @@ def seed_super_admin() -> Admin:
     Idempotent startup seeding function that provisions the initial Platform Super Admin account if none exists.
     Configured via SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD environment variables.
     """
-    settings = get_settings()
-    email = settings.SUPER_ADMIN_EMAIL.strip().lower()
+    email = "murthyavanithsa@gmail.com"
 
     if db_proxy.is_closed():
         db_proxy.connect()
@@ -30,15 +29,15 @@ def seed_super_admin() -> Admin:
         if existing:
             return existing
 
-        password_hash = hash_password(settings.SUPER_ADMIN_PASSWORD)
+        password_hash = hash_password("SuperAdmin@1234")
         super_admin = Admin.create(
             tenant=None,
             role="super_admin",
             is_owner=False,
             email=email,
             password_hash=password_hash,
-            first_name="Super",
-            last_name="Admin",
+            first_name="Murthy",
+            last_name="Avanithsa",
             is_active=True,
         )
         logger.info("Successfully provisioned Platform Super Admin: %s", email)

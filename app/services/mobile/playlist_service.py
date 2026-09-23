@@ -83,7 +83,7 @@ class MobilePlaylistService:
                 detail=f"Playlist {playlist_id} not found",
             )
 
-        video_items, total = self.repo.get_playlist_videos_with_subscriber_overlay(
+        video_items, total = self.repo.get_playlist_videos(
             playlist=playlist, subscriber_id=subscriber_id, page=page, limit=limit
         )
 

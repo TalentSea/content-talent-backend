@@ -59,6 +59,9 @@ def list_videos(
     date_to: str | None = Query(
         None, alias="dateTo", description="Filter creation end date (ISO string)"
     ),
+    video_type: str | None = Query(
+        None, description="Filter by video type: 'standard' or 'shorts'"
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
@@ -73,6 +76,7 @@ def list_videos(
         sort=sort,
         date_from_str=date_from,
         date_to_str=date_to,
+        video_type=video_type,
         page=page,
         limit=limit,
     )

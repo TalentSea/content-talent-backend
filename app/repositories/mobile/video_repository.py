@@ -36,6 +36,7 @@ class MobileVideoRepository:
             query = Video.select().where(
                 (fn.LOWER(Video.status) == "published")
                 & (Video.is_playable == True)
+                & (Video.video_type == "standard")
                 & (Video.tenant.in_(active_tenants))
             )
 
@@ -491,6 +492,7 @@ class MobileVideoRepository:
                     & (WatchHistory.last_position_seconds >= settings.CONTINUE_WATCHING_MIN_SECONDS)
                     & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
+                    & (Video.video_type == "standard")
                 )
             )
 
@@ -586,3 +588,95 @@ class MobileVideoRepository:
                 f"Error removing video {video_id} from watch history for subscriber {subscriber_id}: {e!s}"
             )
             raise
+
+    def list_published_shorts(
+        self,
+        tenant_id: int,
+        category: str | None = None,
+        sort: str = "newest",
+        page: int = 1,
+        limit: int = 10,
+    ) -> tuple[list[Video], int]:
+        """
+        Retrieves paginated published & ready short videos (video_type == 'shorts') scoped to tenant_id.
+        Eagerly loads tenant for creator branding.
+        """
+        try:
+            query = (
+                Video.select(Video, Tenant)
+                .join(Tenant, on=(Video.tenant == Tenant.id))
+                .where(
+                    (Video.tenant == tenant_id)
+                    & (Video.video_type == "shorts")
+                    & (fn.LOWER(Video.status) == "published")
+                    & (Video.is_playable == True)
+                    & (Tenant.is_active == True)
+                )
+            )
+
+            if category:
+                query = query.where(fn.LOWER(Video.category) == category.lower())
+
+            total_count = query.count()
+
+            if sort == "popular":
+                query = query.order_by(Video.popularity_score.desc(), Video.id.desc())
+            elif sort == "oldest":
+                query = query.order_by(Video.published_at.asc(), Video.id.asc())
+            else:
+                # Default "newest"
+                query = query.order_by(Video.published_at.desc(), Video.id.desc())
+
+            shorts = list(query.paginate(page, limit))
+            return shorts, total_count
+        except PeeweeException as e:
+            logger.error("Error querying published shorts: %s", e)
+            raise
+
+    def get_shorts_engagement_map(
+        self,
+        video_ids: list[int],
+        subscriber_id: int | None = None,
+    ) -> tuple[dict[int, int], dict[int, int], set[int], set[int]]:
+        """
+        Batches likes_count, comments_count, is_liked, and is_saved for a page of short videos.
+        Returns (likes_count_map, comments_count_map, liked_set, saved_set).
+        """
+        if not video_ids:
+            return {}, {}, set(), set()
+
+        from app.models.comment import Comment
+
+        # 1. Batch likes count
+        likes_query = (
+            VideoLike.select(VideoLike.video, fn.COUNT(VideoLike.id).alias("cnt"))
+            .where(VideoLike.video.in_(video_ids))
+            .group_by(VideoLike.video)
+        )
+        likes_map = {row.video_id: row.cnt for row in likes_query}
+
+        # 2. Batch comments count
+        comments_query = (
+            Comment.select(Comment.video, fn.COUNT(Comment.id).alias("cnt"))
+            .where(Comment.video.in_(video_ids))
+            .group_by(Comment.video)
+        )
+        comments_map = {row.video_id: row.cnt for row in comments_query}
+
+        # 3. Subscriber liked / saved sets
+        liked_set: set[int] = set()
+        saved_set: set[int] = set()
+        if subscriber_id:
+            liked_records = VideoLike.select(VideoLike.video).where(
+                (VideoLike.subscriber == subscriber_id)
+                & (VideoLike.video.in_(video_ids))
+            )
+            liked_set = {r.video_id for r in liked_records}
+
+            saved_records = VideoSave.select(VideoSave.video).where(
+                (VideoSave.subscriber == subscriber_id)
+                & (VideoSave.video.in_(video_ids))
+            )
+            saved_set = {r.video_id for r in saved_records}
+
+        return likes_map, comments_map, liked_set, saved_set

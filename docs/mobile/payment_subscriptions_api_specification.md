@@ -1,6 +1,6 @@
-# Mobile Subscriber — Razorpay Payment & Subscriptions API Specification
+# Mobile Subscriber — Payment & Subscriptions API Specification
 
-This document details the complete end-to-end architecture, API contracts, security standards, database schemas, and client integration workflows for the **Razorpay Payment Gateway & User Subscriptions Subsystem**.
+This document details the complete end-to-end architecture, API contracts, security standards, database schemas, and client integration workflows for the **Payment Gateway & User Subscriptions Subsystem**.
 
 ---
 
@@ -21,7 +21,7 @@ Authorization: Bearer <subscriber_access_token>
 ```
 
 - **Creator Multi-Tenancy**: The subscriber's active context is bound to their registered creator studio (`tenant_id`). Payments and subscriptions are isolated per creator.
-- **Public Webhook**: The Razorpay server webhook (`/api/v1/webhooks/razorpay`) is public but strictly authenticated via HMAC-SHA256 signature verification in the `X-Razorpay-Signature` request header.
+- **Public Webhook**: The payment server webhook (`/api/v1/webhooks/razorpay`) is public but strictly authenticated via HMAC-SHA256 signature verification in the `X-Razorpay-Signature` request header.
 
 ---
 
@@ -40,7 +40,7 @@ In modern OTT streaming applications, payment completion **must never trust the 
 +-----------------------------------------------------------------------------------+
 | LAYER 2: ASYNCHRONOUS SERVER-TO-SERVER WEBHOOK (SAFETY NET)                      |
 | If user switches to UPI / closes app without returning to app:                   |
-| Razorpay servers send "payment.captured" webhook to FastAPI backend.              |
+| Gateway servers send "payment.captured" webhook to FastAPI backend.               |
 | Backend verifies webhook signature & unlocks subscription automatically.          |
 +-----------------------------------------------------------------------------------+
 ```
@@ -56,22 +56,23 @@ sequenceDiagram
     autonumber
     actor User as Mobile Subscriber
     participant App as Mobile App (Flutter / React Native)
-    participant SDK as Razorpay Mobile SDK
+    participant SDK as Payment Gateway Mobile SDK
     participant API as FastAPI Backend
     participant DB as PostgreSQL Database
-    participant RZP as Razorpay Gateway
+    participant RZP as Payment Gateway
+
 
     %% Phase 1: Order Creation
     User->>App: Select Subscription Plan
     App->>API: POST /api/v1/mobile/payments/create-order { plan_id }
     API->>DB: Check active subscription & fetch plan tier
-    API->>RZP: POST https://api.razorpay.com/v1/orders (amount in paise, receipt, notes)
+    API->>RZP: POST /orders (amount in paise, receipt, notes)
     RZP-->>API: 200 OK { id: "order_xyz", amount, currency }
     API->>DB: Insert Payment record (status: "created", razorpay_order_id)
     API-->>App: 200 OK { order_id, amount, currency, key_id }
 
     %% Phase 2: Mobile SDK Checkout
-    App->>SDK: Razorpay.open(options: order_id, key_id, amount, prefill)
+    App->>SDK: Open Payment Sheet(order_id, key_id, amount, prefill)
     SDK->>User: Display native payment sheet (UPI, Cards, Netbanking)
     User->>SDK: Authorize payment (UPI PIN / OTP)
     SDK->>RZP: Process transaction
@@ -97,7 +98,7 @@ sequenceDiagram
 
 ### 3.2 4-Step Payment Workflow Steps
 
-#### Step 1: Create Order (`Mobile` ➔ `FastAPI` ➔ `Razorpay API`)
+#### Step 1: Create Order (`Mobile` ➔ `FastAPI` ➔ `Gateway API`)
 
 1. User selects a subscription plan (e.g., ₹2,499.00 for 24 months) on the mobile paywall screen and taps **"Subscribe"**.
 2. Mobile app calls `POST /api/v1/mobile/payments/create-order` with `{ "plan_id": 2 }`.
@@ -106,21 +107,21 @@ sequenceDiagram
    - Payment gateways require monetary amounts as **integers in the smallest currency subunit (paise)** to eliminate floating-point rounding errors.
    - $1\text{ INR} = 100\text{ paise}$.
    - Example: A plan priced at ₹2,499.00 converts to `2499.00 * 100 = 249900` paise.
-5. Backend generates a dynamic order using Razorpay's REST Orders API (`client.order.create({"amount": 249900, "currency": "INR"})`).
+5. Backend generates a dynamic order using the Gateway REST Orders API.
 6. Backend records a transaction row in the `payments` table with `status = "created"`.
 7. Backend returns `order_id`, `amount` (in paise), `currency`, and `key_id` to the mobile app.
 
 ---
 
-### Step 2: Native Checkout (`Mobile App` ➔ `Razorpay SDK`)
+### Step 2: Native Checkout (`Mobile App` ➔ `Payment SDK`)
 
-1. Mobile app passes backend order response into the Razorpay Checkout SDK (`RazorpayCheckout.open(options)`).
-2. Razorpay displays the native payment sheet (supporting **UPI: Google Pay / PhonePe / Paytm**, Credit/Debit Cards, Netbanking, and Wallets).
+1. Mobile app passes backend order response into the Checkout SDK.
+2. Gateway displays the native payment sheet (supporting **UPI: Google Pay / PhonePe / Paytm**, Credit/Debit Cards, Netbanking, and Wallets).
 3. User authorizes payment in their banking or UPI app.
-4. Razorpay SDK receives confirmation and returns control to the mobile app with 3 cryptographic values:
+4. SDK receives confirmation and returns control to the mobile app with 3 cryptographic values:
    - `razorpay_order_id` (e.g., `"order_KZsD31abc987xyz"`)
    - `razorpay_payment_id` (e.g., `"pay_L1aBc9876543210"`)
-   - `razorpay_signature` (HMAC-SHA256 hex string generated by Razorpay)
+   - `razorpay_signature` (HMAC-SHA256 hex string generated by Gateway)
 
 ---
 
@@ -128,7 +129,7 @@ sequenceDiagram
 
 1. Mobile app immediately sends the 3 values to `POST /api/v1/mobile/payments/verify`.
 2. Backend computes the cryptographic HMAC-SHA256 signature locally:
-   $$\text{expected\_signature} = \text{HMAC\_SHA256}(\text{order\_id} + \text{"|"} + \text{payment\_id},\; \text{RAZORPAY\_KEY\_SECRET})$$
+   $$\text{expected\_signature} = \text{HMAC\_SHA256}(\text{order\_id} + \text{"|"} + \text{payment\_id},\; \text{GATEWAY\_KEY\_SECRET})$$
 3. If signature matches:
    - Updates payment record to `status = "captured"`.
    - Calculates `end_date` based on the plan's duration (e.g., $+24$ months from today).
@@ -139,10 +140,10 @@ sequenceDiagram
 
 ---
 
-### Step 4: Webhook Fallback Safety Net (`Razorpay Server` ➔ `FastAPI Webhook`)
+### Step 4: Webhook Fallback Safety Net (`Gateway Server` ➔ `FastAPI Webhook`)
 
 - If the user pays in Google Pay or PhonePe and closes the app or encounters a network drop without returning:
-  - Razorpay server delivers an automated callback `POST /api/v1/webhooks/razorpay` (`event: "payment.captured"`).
+  - Gateway server delivers an automated callback `POST /api/v1/webhooks/razorpay` (`event: "payment.captured"`).
   - Backend verifies the webhook signature and unlocks the subscription if it wasn't already unlocked. **Zero lost purchases!**
 
 ---
@@ -158,9 +159,9 @@ The relational database schemas for payments and active subscription entitlement
 
 ## 5. 📄 API Endpoint Specifications
 
-### 5.1 `POST /api/v1/mobile/payments/create-order` — Initialize Razorpay Order
+### 5.1 `POST /api/v1/mobile/payments/create-order` — Initialize Gateway Order
 
-Initializes a new order in Razorpay and records a preliminary transaction row in the database.
+Initializes a new order with the gateway and records a preliminary transaction row in the database.
 
 > **Active Subscription Guard**: Checks if the subscriber already has an active subscription. If active, blocks the transaction to prevent accidental duplicate purchases.
 
@@ -190,96 +191,24 @@ Content-Type: application/json
 }
 ```
 
-- `order_id`: Razorpay Order ID for tracking and capturing this transaction.
-- `amount`: Integer in paise ($2499 \times 100$) strictly required by the Razorpay Checkout SDK.
+- `order_id`: Gateway Order ID for tracking and capturing this transaction.
+- `amount`: Integer in paise ($2499 \times 100$) strictly required by Checkout SDK.
 - `currency`: Currency ISO code (`"INR"`).
-- `key_id`: Public Razorpay Key ID for client SDK initialization.
+- `key_id`: Public Key ID for client SDK initialization.
 
 #### Error Responses
 
 - `400 Bad Request`: `{ "detail": "ACTIVE_SUBSCRIPTION_EXISTS" }` (Subscriber already has active access)
 - `400 Bad Request`: `{ "detail": "PLAN_AMOUNT_BELOW_GATEWAY_MINIMUM" }` (Plan price is below gateway minimum of 100 paise)
 - `404 Not Found`: `{ "detail": "PLAN_NOT_FOUND" }` (Plan is missing or inactive)
-- `500 Internal Server Error`: `{ "detail": "PAYMENT_GATEWAY_NOT_CONFIGURED" }` (Razorpay API credentials missing in `.env`)
-- `502 Bad Gateway`: `{ "detail": "PAYMENT_GATEWAY_ERROR" }` or `{ "detail": "PAYMENT_GATEWAY_UNAVAILABLE" }` (Razorpay API failure or timeout)
-
-#### 5.1.1 Upstream Razorpay Orders REST API Specification (`FastAPI` ➔ `Razorpay Server`)
-
-During `create-order`, the backend issues a server-to-server HTTP request directly to Razorpay's REST API:
-
-- **Endpoint**: `POST https://api.razorpay.com/v1/orders`
-- **Authentication**: HTTP Basic Auth with `(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)`
-- **Headers**: `Content-Type: application/json`
-
-##### Upstream Request Payload sent to Razorpay
-
-```json
-{
-  "amount": 249900,
-  "currency": "INR",
-  "receipt": "sub_14_p2_1725807600"
-}
-```
-
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `amount` | Integer | Yes | Amount in the smallest currency subunit (paise for INR: $₹2,499.00 \times 100 = 249900$). Razorpay rejects decimal floats. |
-| `currency` | String | Yes | 3-letter ISO code (`"INR"`). |
-| `receipt` | String | No | Unique internal reference token (max 40 chars) linking our internal subscriber and plan for ledger cross-auditing. |
-| `notes` | Object | No | Key-value dictionary (up to 15 pairs) for arbitrary metadata (e.g. `{"user_id": "14", "plan_id": "2"}`). |
-
-##### Upstream Success Response from Razorpay (`200 OK` / `201 Created`)
-
-```json
-{
-  "id": "order_KZsD31abc987xyz",
-  "entity": "order",
-  "amount": 249900,
-  "amount_paid": 0,
-  "amount_due": 249900,
-  "currency": "INR",
-  "receipt": "sub_14_p2_1725807600",
-  "offer_id": null,
-  "status": "created",
-  "attempts": 0,
-  "notes": [],
-  "created_at": 1725807600
-}
-```
-
-| Response Field | Type | Description |
-| :--- | :--- | :--- |
-| `id` | String | The official Razorpay Order ID (`order_...`). Passed to the mobile client SDK to bind checkout. |
-| `entity` | String | Always `"order"`. |
-| `amount` | Integer | Total order amount in paise. |
-| `amount_paid` | Integer | Amount captured so far (initially `0`). |
-| `amount_due` | Integer | Remaining balance on the order (initially equal to `amount`). |
-| `currency` | String | Currency code (`"INR"`). |
-| `receipt` | String | Echo of our internal receipt identifier string. |
-| `status` | String | Initial lifecycle state: `"created"`, `"attempted"`, or `"paid"`. |
-| `attempts` | Integer | Number of customer checkout attempts recorded on this order. |
-| `created_at` | Integer | Unix epoch timestamp (seconds) when the order was created. |
-
-##### Upstream Error Response from Razorpay (`400 Bad Request` / `401 Unauthorized` / `500 Server Error`)
-
-```json
-{
-  "error": {
-    "code": "BAD_REQUEST_ERROR",
-    "description": "amount must be at least 100",
-    "source": "business",
-    "step": "payment_initiation",
-    "reason": "input_validation_failed",
-    "field": "amount"
-  }
-}
-```
+- `500 Internal Server Error`: `{ "detail": "PAYMENT_GATEWAY_NOT_CONFIGURED" }` (Gateway API credentials missing in `.env`)
+- `502 Bad Gateway`: `{ "detail": "PAYMENT_GATEWAY_ERROR" }` or `{ "detail": "PAYMENT_GATEWAY_UNAVAILABLE" }` (Gateway API failure or timeout)
 
 ---
 
 ### 5.2 `POST /api/v1/mobile/payments/verify` — Verify Payment & Activate Access
 
-Verifies the cryptographic HMAC signature returned by the Razorpay SDK and immediately unlocks the subscriber's membership.
+Verifies the cryptographic HMAC signature returned by the SDK and immediately unlocks the subscriber's membership.
 
 > **Idempotent Design**: If the payment was already captured (due to app retries on flaky mobile networks or concurrent webhook execution), the endpoint safely returns `200 OK` with the active subscription instead of throwing an error.
 
@@ -368,7 +297,7 @@ Authorization: Bearer <subscriber_access_token>
 
 ---
 
-### 5.4 `POST /api/v1/webhooks/razorpay` — Razorpay Asynchronous Safety Net
+### 5.4 `POST /api/v1/webhooks/razorpay` — Asynchronous Safety Net Webhook
 
 Public webhook callback endpoint to catch and process payments where mobile clients drop or lose connectivity before calling `/verify`.
 
@@ -447,7 +376,7 @@ Content-Type: application/json
 
 ---
 
-## 5. Subscription Expiration Lifecycle Architecture (Two-Pillar Model)
+## 6. Subscription Expiration Lifecycle Architecture (Two-Pillar Model)
 
 To guarantee 0ms entitlement cutoff without performance degradation or write-on-read lock overhead:
 
@@ -471,4 +400,3 @@ To guarantee 0ms entitlement cutoff without performance degradation or write-on-
      ```
    - Automatically synchronizes `SubscriptionPlan.active_subscribers` counter caches atomically.
    - Guarantees Admin dashboards, revenue calculations, and platform reporting stay accurate even for dormant users who do not open the app.
-

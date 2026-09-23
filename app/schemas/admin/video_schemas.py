@@ -10,6 +10,7 @@ class VideoInitiateRequest(BaseModel):
     title: str
     description: str | None = None
     category: str | None = None
+    video_type: Literal["standard", "shorts"] = "standard"
     tags: list[str] | None = []
     publish_intent: Literal["draft", "publish", "schedule"] = "draft"
     scheduled_date: str | None = Field(
@@ -46,6 +47,7 @@ class VideoListItemResponse(BaseModel):
     id: int
     title: str
     category: str | None = None
+    video_type: str = "standard"
     status: str
     encode_progress: int
     is_playable: bool
@@ -65,6 +67,7 @@ class VideoResponse(BaseModel):
     title: str
     description: str | None = None
     category: str | None = None
+    video_type: str = "standard"
     tags: list[str] = []
     status: str
     encode_progress: int

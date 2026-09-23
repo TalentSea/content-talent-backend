@@ -477,6 +477,12 @@ class MonetizationService:
                 detail=f"Video asset with ID {video_id} not found.",
             )
 
+        if getattr(video, "video_type", "standard") == "shorts":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Short videos are ad-free",
+            )
+
         tenant_id = video.tenant_id
         if not is_tenant_active(tenant_id):
             # Video does not have an active creator owner; ignore quietly

@@ -63,6 +63,7 @@ class Video(BaseModel):
     title = CharField(max_length=255, null=False)
     description = TextField(null=False)
     category = CharField(max_length=100, null=True)
+    video_type = CharField(max_length=20, default="standard", index=True)
     status = CharField(max_length=20, default="processing")
     publish_intent = CharField(
         max_length=20, default="draft"

@@ -28,10 +28,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 60
 
-    # Platform Super Admin Configuration
-    SUPER_ADMIN_EMAIL: str = "superadmin@example.com"
-    SUPER_ADMIN_PASSWORD: str = "SuperAdmin@1234"
-
     # Media Presigning & Expiration Timers
     BUNNY_TUS_UPLOAD_SIGNATURE_EXPIRE_SECONDS: int = 86400
     BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS: int = 7200

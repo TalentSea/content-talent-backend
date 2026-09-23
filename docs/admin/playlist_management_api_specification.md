@@ -8,6 +8,13 @@ All endpoints require a valid JWT Bearer token passed in the HTTP request header
 Authorization: Bearer <creator_access_token>
 ```
 The admin identity (`user_id`) and active studio context (`tenant_id`) are extracted directly from the session context via `get_current_admin`. Playlists are strictly scoped to the active tenant. For Platform Super Admins, the target tenant is resolved via the `X-Tenant-Id` header (falling back to the first active tenant).
+
+### 🚫 Content Isolation Standard: Playlists Exclusively Curate Standard Videos
+Playlists are specifically engineered for long-form OTT movies, episodic web series, and structured tutorials. **Short vertical videos (`video_type == 'shorts'`) cannot be added to playlists**:
+- The "Available Videos for Playlist" picker (`GET /playlists/{id}/available_videos`) **automatically filters out short videos** (`WHERE video_type == 'standard'`).
+- Playlist curation endpoints (`POST /playlists` and `POST /playlists/{id}/videos`) validate that all linked video IDs are standard videos. Submitting short video IDs is rejected with `400 Bad Request`.
+- Mobile playlist feeds strictly render standard videos.
+
 ### Standard HTTP Error Responses
 
 All error responses across all endpoints follow the standard FastAPI JSON error envelope:
@@ -75,6 +82,7 @@ Content-Type: application/json
   "video_ids": [101, 105]
 }
 ```
+*(Note: `video_ids` must strictly be standard OTT catalog videos with `video_type == 'standard'`. Short videos cannot be added.)*
 
 #### Response Specification (`201 Created`)
 ```json
@@ -277,6 +285,7 @@ Content-Type: application/json
   "video_ids": [101, 102]
 }
 ```
+*(Note: All IDs in `video_ids` must belong to standard videos with `video_type == 'standard'`. Passing short video IDs results in `400 Bad Request`.)*
 
 #### Response Specification (`200 OK`)
 ```json
@@ -341,6 +350,9 @@ Content-Type: application/json
 ### 10. `GET /api/v1/admin/playlists/{playlist_id}/available_videos` — Get Available Videos for Playlist Picker (Paginated)
 
 Fetches a paginated list of uploaded videos owned by the creator that are **not** currently included in the specified playlist (used for populating "Add Videos to Playlist" picker UI).
+
+> [!IMPORTANT]
+> **Strict Content Filtering:** This endpoint strictly filters `WHERE video_type == 'standard'`. Vertical short videos (`video_type == 'shorts'`) are automatically excluded from the picker to ensure playlists only contain standard OTT content.
 
 #### Request Headers
 ```http

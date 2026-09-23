@@ -124,3 +124,34 @@ class MobileAdImpressionRequest(BaseModel):
         ge=0,
         description="Creative duration in seconds",
     )
+
+
+class CreatorBrandingSummary(BaseModel):
+    """
+    Creator studio branding summary embedded in shorts feed items.
+    """
+
+    name: str
+    logo_url: str | None = None
+
+
+class MobileShortItemResponse(BaseModel):
+    """
+    Rich vertical video DTO for Mobile Reels / Shorts swipe feed.
+    Streams via HLS only. 100% ad-free, no downloads.
+    """
+
+    id: int
+    title: str
+    description: str | None = None
+    thumbnail_url: str | None = None
+    duration: int = 0
+    views_count: int = 0
+    likes_count: int = 0
+    comments_count: int = 0
+    is_liked: bool = False
+    is_saved: bool = False
+    hls_stream_url: str
+    captions: list[MobileVideoCaptionResponse] = Field(default_factory=list)
+    creator: CreatorBrandingSummary
+    published_at: datetime | None = None

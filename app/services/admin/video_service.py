@@ -176,11 +176,16 @@ class VideoService:
                 settings.BUNNY_STREAM_TOKEN_KEY,
             )
 
+        v_type = getattr(video, "video_type", "standard") or "standard"
+        alt_thumbs = [] if v_type == "shorts" else list(video.alt_thumbnail_urls or [])
+        download_urls = [] if v_type == "shorts" else self._generate_download_urls(video)
+
         return VideoResponse(
             id=video.id,
             title=video.title,
             description=video.description,
             category=video.category,
+            video_type=v_type,
             tags=list(video.tags or []),
             status=resolve_display_status(video),
             encode_progress=video.encode_progress,
@@ -190,9 +195,9 @@ class VideoService:
             duration=video.duration,
             playback_url=playback_url,
             main_thumbnail_url=video.main_thumbnail_url,
-            alt_thumbnail_urls=list(video.alt_thumbnail_urls or []),
+            alt_thumbnail_urls=alt_thumbs,
             captions_data=list(video.captions_data or []),
-            download_urls=self._generate_download_urls(video),
+            download_urls=download_urls,
             published_at=video.published_at,
             scheduled_at=video.scheduled_at,
             created_at=video.created_at,
@@ -209,6 +214,7 @@ class VideoService:
             id=video.id,
             title=video.title,
             category=video.category,
+            video_type=getattr(video, "video_type", "standard") or "standard",
             status=resolve_display_status(video),
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
@@ -264,10 +270,13 @@ class VideoService:
 
         pull_zone = settings.BUNNY_PULL_ZONE_URL.rstrip("/")
         main_thumbnail_url = f"{pull_zone}/{bunny_video_id}/thumb_1.jpg"
-        alt_thumbnail_urls = [
-            f"{pull_zone}/{bunny_video_id}/thumb_2.jpg",
-            f"{pull_zone}/{bunny_video_id}/thumb_3.jpg",
-        ]
+        if payload.video_type == "shorts":
+            alt_thumbnail_urls = []
+        else:
+            alt_thumbnail_urls = [
+                f"{pull_zone}/{bunny_video_id}/thumb_2.jpg",
+                f"{pull_zone}/{bunny_video_id}/thumb_3.jpg",
+            ]
 
         # Step 3: Parse optional scheduled datetime if schedule intent is specified
         scheduled_dt = None
@@ -292,6 +301,7 @@ class VideoService:
             "title": payload.title,
             "description": payload.description,
             "category": payload.category,
+            "video_type": payload.video_type,
             "tags": normalize_tags(payload.tags),
             "status": "processing",
             "publish_intent": payload.publish_intent,
@@ -434,6 +444,7 @@ class VideoService:
         sort: str | None = "newest",
         date_from_str: str | None = None,
         date_to_str: str | None = None,
+        video_type: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> PaginatedResponse[VideoListItemResponse]:
@@ -464,6 +475,7 @@ class VideoService:
             sort=sort,
             date_from=date_from,
             date_to=date_to,
+            video_type=video_type,
             page=page,
             limit=limit,
         )

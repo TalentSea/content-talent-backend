@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.dependencies import CurrentSubscriber
 from app.schemas.mobile.video_schemas import (
     MobileAdImpressionRequest,
+    MobileShortItemResponse,
     MobileVideoDetailResponse,
     MobileVideoLikeResponse,
     MobileVideoListItemResponse,
@@ -161,6 +162,33 @@ def list_subscriber_saved_videos(
         tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
+    )
+
+
+@router.get(
+    "/shorts",
+    response_model=PaginatedResponse[MobileShortItemResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Short Videos Feed (Reels / Shorts)",
+    description="Retrieves a paginated list of published & ready vertical short videos for the mobile swipe feed. Includes time-bound presigned HLS streaming URLs, captions, and creator branding. 100% ad-free.",
+)
+def list_shorts(
+    current_subscriber: CurrentSubscriber,
+    category: str | None = Query(None, description="Filter shorts by category slug"),
+    sort: str | None = Query(
+        "newest",
+        description="Sort order: newest, oldest, popular",
+    ),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+):
+    return mobile_video_service.list_shorts(
+        tenant_id=current_subscriber["tenant_id"],
+        category=category,
+        sort=sort,
+        page=page,
+        limit=limit,
+        subscriber_id=current_subscriber.get("user_id"),
     )
 
 

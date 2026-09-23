@@ -44,6 +44,7 @@ class VideoRepository:
         sort: str | None = "newest",
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        video_type: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[Video], int]:
@@ -51,6 +52,9 @@ class VideoRepository:
         Fetches a paginated, filtered, and sorted list of video records owned by the tenant.
         """
         query = Video.select().where(Video.tenant == tenant_id)
+
+        if video_type:
+            query = query.where(Video.video_type == video_type.lower().strip())
 
         if status:
             clean_status = status.lower().strip()

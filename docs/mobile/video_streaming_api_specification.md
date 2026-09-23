@@ -45,20 +45,27 @@ The video streaming subsystem integrates FastAPI with **Bunny Stream CDN Infrast
 
 The mobile video subsystem strictly enforces Role-Based Access Control (RBAC) across all endpoints:
 
-1. **`GET /api/v1/mobile/videos` (Catalog Feed & Search)**:
+1. **`GET /api/v1/mobile/videos` (Standard Catalog Feed & Search)**:
    - **Guarded by**: `Depends(get_current_subscriber)`
    - **Header**: `Authorization: Bearer <access_token>` (**Required**)
-   - **Multi-Tenant Isolation**: Decodes `current_subscriber["tenant_id"]` from JWT claims (< 1ms) and filters catalog queries (`Video.select().where(Video.tenant == tenant_id)`).
+   - **Multi-Tenant Isolation**: Decodes `current_subscriber["tenant_id"]` from JWT claims (< 1ms) and filters catalog queries (`Video.select().where(Video.tenant == tenant_id, Video.video_type == 'standard')`).
    - **Allowed Roles**: Both `guest` AND `subscriber`
    - **Behavior**: Rejects requests missing a Bearer token with `HTTP 401 Unauthorized`. Accepts Guest tokens for catalog browsing, and Subscriber tokens for browsing + personalized progress.
 
-2. **`GET /api/v1/mobile/videos/{video_id}` (Video Player & HLS Stream)**:
+2. **`GET /api/v1/mobile/videos/shorts` (Vertical Reels / Shorts Swipe Feed)**:
+   - **Guarded by**: `Depends(get_current_subscriber)`
+   - **Header**: `Authorization: Bearer <access_token>` (**Required**)
+   - **Multi-Tenant Isolation**: Filters by tenant and strictly `video_type == 'shorts'`.
+   - **Allowed Roles**: Both `guest` AND `subscriber`
+   - **Behavior**: Bundles presigned HLS and direct MP4 URLs, poster thumbnail, engagement metrics, creator branding, and personalized `is_liked` / `is_saved` state for instant vertical swiping.
+
+3. **`GET /api/v1/mobile/videos/{video_id}` (Video Player & HLS Stream)**:
    - **Guarded by**: `Depends(get_current_subscriber)`
    - **Header**: `Authorization: Bearer <access_token>` (**Required**)
    - **Allowed Roles**: Strictly `subscriber` (and creator/admin)
    - **Behavior**: Blocks Guest accounts with `HTTP 403 Forbidden` (`"Subscriber access required"`). Forces Guests to sign in with Google or Facebook to stream videos!
 
-3. **Protected Subscriber Actions**:
+4. **Protected Subscriber Actions**:
    - **Guarded by**: `Depends(get_current_subscriber)`
    - **Endpoints**:
      - `POST /api/v1/mobile/videos/{id}/progress` *(Watch Progress Heartbeat)*
@@ -143,9 +150,88 @@ This rewards high subscriber engagement, prevents clickbait videos from dominati
 
 ---
 
-### 2. `GET /api/v1/mobile/videos/continue-watching` — Continue Watching Carousel Feed
+### 2. `GET /api/v1/mobile/videos/shorts` — Vertical Short Videos (Reels / Shorts) Swipe Feed
+
+Retrieves a paginated list of published, ready-to-stream **short vertical video assets** (Instagram Reels / YouTube Shorts style).
+
+#### ⚡ Zero-Latency Full-Screen Player Architecture
+Unlike standard catalog endpoints (`GET /api/v1/mobile/videos`) which return metadata cards without media streams (requiring a second call to `/videos/{id}`), the Shorts feed **directly bundles presigned adaptive HLS streams (`hls_stream_url`)** alongside creator branding, caption tracks, and interaction counters (`likes_count`, `comments_count`, `is_liked`, `is_saved`).
+
+This architecture allows mobile video players (Flutter `PageView.builder`, React Native `FlatList`, iOS `UICollectionView`) to preload the next 2-3 vertical videos into memory and begin rendering on swipe with **0ms playback latency** and continuous looping.
+
+#### Request Headers
+```http
+Authorization: Bearer <access_token>  (Required: Accepts Guest token for public preview, Subscriber token for full personalized playback & interactions)
+```
+
+#### Query Parameters
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `page` | `integer` | No | `1` | Page number for cursor/infinite scrolling (min 1) |
+| `limit` | `integer` | No | `10` | Number of shorts per batch (min 1, max 20, default 10) |
+| `category` | `string` | No | `null` | Filter shorts by category slug (e.g. `comedy`, `tech`, `bts`) |
+| `sort` | `string` | No | `"newest"` | Sorting algorithm: `newest` (recent uploads first), `popular` (weighted engagement: `views + 3*likes`), `most_liked` |
+
+#### 🔒 Content Isolation, Ad-Free & No Downloads Guarantee
+- **Shorts Feed (`/videos/shorts`)**: Exclusively returns videos where `video_type = 'shorts'` and `status = 'published'` and `transcoding_status = 'READY'`.
+- **Standard Catalog Feed (`/videos`)**: Exclusively returns standard widescreen/landscape videos (`video_type = 'standard'`), ensuring vertical micro-content never pollutes movie, series, or tutorial carousels.
+- **🚫 100% Ad-Free Experience**: Vertical short videos are strictly ad-free (`ad_tag_url` is omitted). Google IMA VAST video ads are never inserted into the Shorts swipe experience, guaranteeing continuous, uninterrupted looping.
+- **🔒 No Downloads / HLS-Only**: Short videos are strictly for in-app online swipe streaming via adaptive HLS (`hls_stream_url`). Offline MP4 downloads are disabled for shorts to safeguard creator content.
+
+#### Response Specification (`200 OK`)
+```json
+{
+  "items": [
+    {
+      "id": 201,
+      "title": "Clean Architecture in 60 Seconds 🚀",
+      "description": "Why separating routes, services, and repositories saves months of refactoring.",
+      "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_201_main.jpg",
+      "duration": 58,
+      "views_count": 14200,
+      "likes_count": 1820,
+      "comments_count": 94,
+      "is_liked": true,
+      "is_saved": false,
+      "hls_stream_url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_5544/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1786195200",
+      "captions": [
+        {
+          "language": "English",
+          "srclang": "en-auto",
+          "url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_5544/captions/en-auto.vtt"
+        }
+      ],
+      "creator": {
+        "name": "Alex Rivers",
+        "logo_url": "https://talentsea.b-cdn.net/branding/logo.png"
+      },
+      "published_at": "2026-09-22T16:00:00Z"
+    }
+  ],
+  "total": 35,
+  "page": 1,
+  "limit": 10,
+  "total_pages": 4
+}
+```
+
+#### 🔄 Zero-Redundancy Social Interactions for Shorts
+Because shorts are unified within the core `videos` entity, **all social and engagement actions reuse the existing video endpoints directly**:
+- **Like / Unlike a Short**: `POST /api/v1/mobile/videos/{id}/like`
+- **Save / Bookmark a Short**: `POST /api/v1/mobile/videos/{id}/save`
+- **View Comments on a Short**: `GET /api/v1/mobile/comments?video_id={id}`
+- **Post a Comment on a Short**: `POST /api/v1/mobile/comments` with `{ "video_id": 201, "content": "..." }`
+- **Increment View Count**: `POST /api/v1/mobile/videos/{id}/views`
+- **Watch Progress Tracking**: `POST /api/v1/mobile/videos/{id}/progress`
+
+---
+
+### 3. `GET /api/v1/mobile/videos/continue-watching` — Continue Watching Carousel Feed
 
 Retrieves a paginated list of videos that **the authenticated subscriber has started watching but not completed yet**, sorted by most recently watched (`last_watched_at DESC`). Serves the "Continue Watching" carousel on the mobile home screen.
+
+> [!NOTE]
+> **Strict Exclusion of Shorts:** This endpoint strictly filters `WHERE video_type == 'standard'`. Vertical short videos (15-60s looping micro-content) are **excluded** from Continue Watching so the home screen carousel stays exclusively focused on movies, series episodes, and tutorials.
 
 #### Request Headers
 ```http
@@ -183,9 +269,12 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 3. `GET /api/v1/mobile/videos/history` — Full Watch History Feed
+### 4. `GET /api/v1/mobile/videos/history` — Full Watch History Feed
 
 Retrieves a paginated list of all videos watched by the authenticated subscriber, sorted by `last_watched_at DESC`.
+
+> [!NOTE]
+> **Full History Includes Shorts:** Unlike the Continue Watching carousel, the complete Watch History feed **includes both standard catalog videos and vertical short videos** (`video_type IN ('standard', 'shorts')`), giving subscribers a complete chronological log of all content they have engaged with.
 
 #### Request Headers
 ```http
@@ -217,7 +306,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 4. `DELETE /api/v1/mobile/videos/history` — Clear All Watch History
+### 5. `DELETE /api/v1/mobile/videos/history` — Clear All Watch History
 
 Clears the entire watch history for the authenticated subscriber.
 
@@ -235,7 +324,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 5. `DELETE /api/v1/mobile/videos/history/{video_id}` — Remove Single Video from Watch History
+### 6. `DELETE /api/v1/mobile/videos/history/{video_id}` — Remove Single Video from Watch History
 
 Removes a specific video from the authenticated subscriber's watch history and "Continue Watching" carousel.
 
@@ -258,7 +347,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 6. `GET /api/v1/mobile/videos/liked` — My Liked Videos (Subscriber Favorites)
+### 7. `GET /api/v1/mobile/videos/liked` — My Liked Videos (Subscriber Favorites)
 
 Retrieves a paginated list of videos that **the authenticated subscriber has liked**, sorted by `liked_at DESC`. Serves the "Liked Videos" screen in the mobile app profile.
 
@@ -292,7 +381,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 7. `GET /api/v1/mobile/videos/saved` — My Saved Videos (Subscriber Watchlist)
+### 8. `GET /api/v1/mobile/videos/saved` — My Saved Videos (Subscriber Watchlist)
 
 Retrieves a paginated list of videos that **the authenticated subscriber has saved / bookmarked**, sorted by `saved_at DESC`. Serves the "My Watchlist" screen in the mobile app profile.
 
@@ -326,7 +415,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 8. `GET /api/v1/mobile/videos/{video_id}` — Video Details & Presigned HLS / MP4 Stream Player
+### 9. `GET /api/v1/mobile/videos/{video_id}` — Video Details & Presigned HLS / MP4 Stream Player
 
 Retrieves complete video metadata. If the authenticated user holds an active subscription under this creator studio, it attaches the **time-bound presigned HLS player URL** (`playlist.m3u8?token=...`), **presigned MP4 download links**, and **closed caption tracks**. 
 
@@ -494,7 +583,7 @@ if (video.hls_stream_url != null) {
 
 ---
 
-### 9. `POST /api/v1/mobile/videos/{video_id}/progress` — Sync Watch Progress Heartbeat
+### 10. `POST /api/v1/mobile/videos/{video_id}/progress` — Sync Watch Progress Heartbeat
 
 Syncs playback watch position from the mobile video player into `watch_history`.
 
@@ -525,7 +614,7 @@ HTTP/1.1 204 No Content
 
 ---
 
-### 10. `POST /api/v1/mobile/videos/{video_id}/views` — Increment View Count
+### 11. `POST /api/v1/mobile/videos/{video_id}/views` — Increment View Count
 
 Registers an immutable, verified watch view for creator analytics. Strictly verified on the backend (Zero-Trust Model).
 
@@ -551,7 +640,7 @@ Authorization: Bearer <access_token>  (Required: Strictly requires subscriber ro
 
 ---
 
-### 11. `POST /api/v1/mobile/videos/{video_id}/like` — Toggle Subscriber Video Like
+### 12. `POST /api/v1/mobile/videos/{video_id}/like` — Toggle Subscriber Video Like
 
 Toggles like state (like / unlike) for an authenticated subscriber on a published video asset.
 
@@ -570,7 +659,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 12. `POST /api/v1/mobile/videos/{video_id}/save` — Toggle Subscriber Video Save (Watchlist)
+### 13. `POST /api/v1/mobile/videos/{video_id}/save` — Toggle Subscriber Video Save (Watchlist)
 
 Toggles saved/bookmarked state (save / unsave) for an authenticated subscriber on a published video asset.
 
@@ -588,7 +677,7 @@ Authorization: Bearer <access_token>  (Required)
 
 ---
 
-### 13. `POST /api/v1/mobile/videos/{video_id}/ad-impression` — Record In-Stream Ad Impression Telemetry
+### 14. `POST /api/v1/mobile/videos/{video_id}/ad-impression` — Record In-Stream Ad Impression Telemetry
 
 Dispatched by the mobile video player whenever the **Google Interactive Media Ads (IMA) SDK** fires an ad impression or milestone event during video playback on the Standard tier (`with_ads`).
 
@@ -639,11 +728,12 @@ HTTP/1.1 204 No Content
 ```
 
 #### 🛡️ Zero-Trust Verification & Anti-Spam Debounce Gates
-When this endpoint is invoked, the backend enforces 4 zero-trust validation checks:
+When this endpoint is invoked, the backend enforces 5 zero-trust validation checks:
 1. **Subscriber Role Enforcement:** Anonymous guest accounts are rejected with `HTTP 403 Forbidden` (`"Subscriber access required to log ad telemetry"`).
 2. **Active Subscription Verification:** Validates that caller holds an active subscription with `plan_type == 'with_ads'`. If caller holds a `no_ads` Premium subscription or is unsubscribed, request is rejected.
 3. **Published Video Validation:** Video must exist, be published, and belong to the calling tenant's creator studio.
-4. **Session Debounce Cooldown:** If multiple impression pings arrive for the same `(subscriber_id, video_id)` within `10 seconds`, duplicate pings are discarded to prevent client loop or replay attacks.
+4. **Standard Video Content Enforcement:** In-stream ad impressions are **strictly valid for standard catalog videos** (`video_type == 'standard'`). Short videos (`video_type == 'shorts'`) are 100% ad-free and reject ad impression events.
+5. **Session Debounce Cooldown:** If multiple impression pings arrive for the same `(subscriber_id, video_id)` within `10 seconds`, duplicate pings are discarded to prevent client loop or replay attacks.
 
 ---
 

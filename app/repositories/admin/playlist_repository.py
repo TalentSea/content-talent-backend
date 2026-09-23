@@ -27,7 +27,11 @@ class PlaylistRepository:
             for order, vid_id in enumerate(video_ids):
                 if (
                     Video.select()
-                    .where((Video.id == vid_id) & (Video.tenant == tenant_id))
+                    .where(
+                        (Video.id == vid_id)
+                        & (Video.tenant == tenant_id)
+                        & (Video.video_type == "standard")
+                    )
                     .exists()
                 ):
                     PlaylistVideo.create(playlist=playlist, video=vid_id, order=order)
@@ -66,7 +70,10 @@ class PlaylistRepository:
         query = (
             Video.select(Video, PlaylistVideo.order, PlaylistVideo.added_at)
             .join(PlaylistVideo)
-            .where(PlaylistVideo.playlist == playlist)
+            .where(
+                (PlaylistVideo.playlist == playlist)
+                & (Video.video_type == "standard")
+            )
         )
 
         if search:
@@ -177,7 +184,11 @@ class PlaylistRepository:
         for vid_id in video_ids:
             exists = (
                 Video.select()
-                .where((Video.id == vid_id) & (Video.tenant == tenant_id))
+                .where(
+                    (Video.id == vid_id)
+                    & (Video.tenant == tenant_id)
+                    & (Video.video_type == "standard")
+                )
                 .exists()
             )
             link_exists = (
@@ -302,7 +313,9 @@ class PlaylistRepository:
             PlaylistVideo.playlist_id == playlist_id
         )
         query = Video.select().where(
-            (Video.tenant == tenant_id) & (Video.id.not_in(attached_subquery))
+            (Video.tenant == tenant_id)
+            & (Video.id.not_in(attached_subquery))
+            & (Video.video_type == "standard")
         )
 
         if search:

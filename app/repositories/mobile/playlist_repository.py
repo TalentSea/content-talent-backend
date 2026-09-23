@@ -61,6 +61,7 @@ class MobilePlaylistRepository:
                     (PlaylistVideo.playlist.in_(pl_ids))
                     & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
+                    & (Video.video_type == "standard")
                 )
                 .group_by(PlaylistVideo.playlist)
             )
@@ -96,7 +97,7 @@ class MobilePlaylistRepository:
             logger.error("Error fetching mobile playlist %s: %s", playlist_id, e)
             raise
 
-    def get_playlist_videos_with_subscriber_overlay(
+    def get_playlist_videos(
         self,
         playlist: Playlist,
         subscriber_id: int | None = None,
@@ -104,7 +105,7 @@ class MobilePlaylistRepository:
         limit: int = 20,
     ) -> tuple[list[dict], int]:
         """
-        Retrieves paginated published & ready videos for a playlist with order and subscriber engagement overlay.
+        Retrieves paginated published & ready videos for a playlist with order and subscriber engagement data.
         """
         try:
             query = (
@@ -114,6 +115,7 @@ class MobilePlaylistRepository:
                     (PlaylistVideo.playlist == playlist)
                     & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
+                    & (Video.video_type == "standard")
                 )
                 .order_by(PlaylistVideo.order.asc())
             )

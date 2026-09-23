@@ -74,22 +74,66 @@ Authorization: Bearer <creator_access_token>
 Content-Type: application/json
 ```
 
-#### Request Body
+#### Request Body & The 3 Publishing Cases (`publish_intent`)
+
+The video upload session uses a **single unified request body** for all videos. The content format is determined solely by `video_type`:
+* **`"video_type": "standard"`** *(Default)*: Regular widescreen/landscape OTT catalog videos (movies, series, tutorials).
+* **`"video_type": "shorts"`**: Instagram Reels / YouTube Shorts style 9:16 vertical micro-content. (Shorts strictly use one single primary thumbnail: `thumbnail_url`).
+
+All videos support three distinct publishing flows controlled by `publish_intent`:
+
+##### Case 1: Direct / Instant Publish (`"publish"`)
+Video automatically goes live on the platform as soon as Bunny Stream finishes transcoding (`is_playable: true`).
 ```json
 {
-  "title": "Introduction to FastAPI & OTT Streaming",
-  "description": "Learn how to build a production grade video upload pipeline using Bunny.net.",
-  "category": "tutorials",
-  "tags": ["fastapi", "python", "bunny-stream"],
-  "publish_intent": "draft",
+  "title": "Interstellar Odyssey - Official Trailer",
+  "description": "The official high-definition trailer for the upcoming sci-fi epic.",
+  "category": "sci-fi",
+  "tags": ["sci-fi", "trailer", "space", "4k"],
+  "video_type": "standard",
+  "publish_intent": "publish"
+}
+```
+*(For a short vertical reel, simply pass `"video_type": "shorts"` with your caption and tags!)*
+
+##### Case 2: Save as Draft (`"draft"`) *(Default)*
+Video stays hidden in `"draft"` status after transcoding. Creators can edit metadata or publish manually later from the Studio table.
+```json
+{
+  "title": "Behind the Scenes - Episode 4 (Rough Cut)",
+  "description": "Internal crew footage and bloopers for review.",
+  "category": "behind-the-scenes",
+  "tags": ["bts", "filmmaking"],
+  "video_type": "standard",
+  "publish_intent": "draft"
+}
+```
+
+##### Case 3: Schedule for Future Release (`"schedule"`)
+Video enters `"scheduled"` status upon encoding completion. The background worker automatically publishes the video when the specified target date and time arrive.
+```json
+{
+  "title": "Weekend Special: Complete Cyberpunk Season 1",
+  "description": "Full season binge-watch releasing this Saturday night!",
+  "category": "action",
+  "tags": ["cyberpunk", "season1", "premiere"],
+  "video_type": "standard",
+  "publish_intent": "schedule",
   "scheduled_date": "2026-10-01",
   "scheduled_time": "18:00"
 }
 ```
 
-* `publish_intent` (string, optional, default: `"draft"`): Publishing intent (`"draft"`, `"publish"`, or `"schedule"`). When Bunny finishes encoding, the backend automatically transitions the video to this state.
-* `scheduled_date` (string, optional): Target publication date (`YYYY-MM-DD`) if `publish_intent` is `"schedule"`.
-* `scheduled_time` (string, optional): Target publication time (`HH:MM`) if `publish_intent` is `"schedule"`.
+| Field | Type | Required | Description |
+| :--- | :---: | :---: | :--- |
+| `title` | `string` | **Yes** | Video title or short caption (max 255 chars). |
+| `description` | `string` | No | Video synopsis or caption notes. |
+| `category` | `string` | No | Category slug or name. |
+| `tags` | `array[string]` | No | Array of keyword tags. |
+| `video_type` | `string` | No | `"standard"` (default for normal catalog videos) or `"shorts"` (for Instagram Reels / YouTube Shorts style vertical videos). |
+| `publish_intent` | `string` | No | `"draft"` (default), `"publish"`, or `"schedule"`. |
+| `scheduled_date` | `string` | If `"schedule"` | Target publication date in format `YYYY-MM-DD`. |
+| `scheduled_time` | `string` | If `"schedule"` | Target publication time in 24-hr format `HH:MM`. |
 
 #### Internal Backend & External Cloud Workflows
 
@@ -187,10 +231,44 @@ When building the creator upload form/modal in React/React Native, the frontend 
 4. Stream video file chunks directly to Bunny TUS `https://video.bunnycdn.com/tusupload`.
 
 ##### Sequence C: Schedule Publication Flow
-1. Call `POST /api/v1/admin/videos/initiate` ➔ Receive `id` (e.g. `101`).
-2. Immediately Call `POST /api/v1/admin/videos/101/schedule` with `{ "date": "YYYY-MM-DD", "time": "HH:MM" }` ➔ Video status becomes `"scheduled"`.
-3. *(Optional)* Call `POST /api/v1/admin/videos/101/thumbnails/upload?slot=0` with cover image binary.
-4. Stream video file chunks directly to Bunny TUS `https://video.bunnycdn.com/tusupload`.
+1. Call `POST /api/v1/admin/videos/initiate` with `"publish_intent": "schedule"`, `"scheduled_date": "YYYY-MM-DD"`, `"scheduled_time": "HH:MM"` ➔ Receive `id` (e.g. `101`).
+2. *(Optional)* Call `POST /api/v1/admin/videos/101/thumbnails/upload?slot=0` with cover image binary.
+3. Stream video file chunks directly to Bunny TUS `https://video.bunnycdn.com/tusupload`.
+
+##### Sequence D: Short Video (Reels) Complete Lifecycle Workflow
+
+When building the creator upload and curation flow for vertical shorts, the web admin frontend calls these exact endpoints:
+
+1. **Step 1: Initiate Short Upload Session**
+   - Call `POST /api/v1/admin/videos/initiate` with `"video_type": "shorts"` and chosen `publish_intent` (`"publish"`, `"draft"`, or `"schedule"`).
+   - Backend reserves a video container in Bunny Stream and returns `id` (e.g. `201`), `bunny_video_id`, and TUS upload signature headers (`AuthorizationSignature`, `AuthorizationExpire`).
+
+2. **Step 2: Upload Vertical Poster Thumbnail (Slot 0 Only)**
+   - Call `POST /api/v1/admin/videos/201/thumbnails/upload?slot=0` with the 9:16 vertical poster image (`1080x1920`).
+   - *Architecture Rule*: Shorts strictly use **one single primary thumbnail** (`thumbnail_url`). Do not upload to slots 1, 2, or 3.
+
+3. **Step 3: Direct TUS Vertical Video Upload**
+   - Stream vertical 9:16 video chunks (`.mp4`) directly to Bunny TUS `https://video.bunnycdn.com/tusupload` using the signed authorization headers.
+
+4. **Step 4: Transcoding & Webhook State Processing**
+   - Bunny Stream automatically detects the 9:16 vertical aspect ratio and encodes vertical HLS & MP4 resolutions.
+   - Bunny sends webhook `POST /api/v1/webhooks/bunny` with `Status = 3` (`READY`). Backend marks video `is_playable = true`.
+   - If `publish_intent == "publish"`, video status becomes `"published"`.
+   - If `publish_intent == "schedule"`, video status becomes `"scheduled"`.
+   - If `publish_intent == "draft"`, video status becomes `"draft"`.
+
+5. **Step 5: Creator Studio Lifecycle Management Actions**
+   - **Filter Shorts in Table**: `GET /api/v1/admin/videos?video_type=shorts` (lists only short vertical reels).
+   - **Activate / Publish Draft Short**: `POST /api/v1/admin/videos/{id}/publish` (takes a draft or scheduled short live immediately).
+   - **Deactivate / Unpublish Short**: `POST /api/v1/admin/videos/{id}/unpublish` (reverts a live short to draft, immediately hiding it from the mobile Reels feed).
+   - **Schedule Draft Short**: `POST /api/v1/admin/videos/{id}/schedule` with `{ "date": "YYYY-MM-DD", "time": "HH:MM" }`.
+   - **Edit Caption / Metadata**: `PATCH /api/v1/admin/videos/{id}` with updated `title`, `description`, `tags`, or `category`.
+   - **Delete Short**: `DELETE /api/v1/admin/videos/{id}` (purges DB row and drops Bunny Stream video container).
+
+6. **Step 6: Mobile Client Zero-Latency Consumption**
+   - The short automatically appears in the mobile vertical swipe feed `GET /api/v1/mobile/videos/shorts` with presigned HLS and MP4 streams.
+   - The short is automatically excluded from the standard movie catalog `GET /api/v1/mobile/videos` (`video_type == 'standard'`).
+   - Mobile subscribers can like (`POST /videos/{id}/like`), save (`POST /videos/{id}/save`), comment (`POST /comments`), and record views (`POST /videos/{id}/views`).
 
 ---
 
@@ -264,6 +342,7 @@ Authorization: Bearer <creator_access_token>
 
 #### Request Query Parameters
 - `status` (string, optional): Filter by publication state (`"published"`, `"draft"`, `"scheduled"`).
+- `video_type` (string, optional): Filter by video type (`"standard"`, `"shorts"`). If omitted, returns all videos.
 - `category` (string, optional): Category ID or slug string.
 - `search` (string, optional): Search query to filter videos by title substring.
 - `sort` (string, optional, default: `"newest"`): Sorting order (`"newest"`, `"oldest"`, `"views"`, `"title"`).
@@ -299,6 +378,7 @@ GET /api/v1/admin/videos?status=published&search=FastAPI&sort=newest&page=1&limi
     {
       "id": 101,
       "title": "Introduction to FastAPI & OTT Streaming",
+      "video_type": "standard",
       "category": "tutorials",
       "status": "published",
       "encode_progress": 100,
@@ -345,6 +425,7 @@ Authorization: Bearer <creator_access_token>
   "id": 101,
   "title": "Introduction to FastAPI & OTT Streaming",
   "description": "Learn how to build a production grade video upload pipeline using Bunny.net.",
+  "video_type": "standard",
   "category": "tutorials",
   "tags": ["fastapi", "python", "bunny-stream"],
   "status": "ENCODING",
@@ -366,12 +447,13 @@ Authorization: Bearer <creator_access_token>
 }
 ```
 
-##### Scenario B: Transcoding Finished & Ready (`status: "published"`)
+##### Scenario B: Transcoding Finished & Ready Standard Video (`status: "published"`)
 ```json
 {
   "id": 101,
   "title": "Introduction to FastAPI & OTT Streaming",
   "description": "Learn how to build a production grade video upload pipeline using Bunny.net.",
+  "video_type": "standard",
   "category": "tutorials",
   "tags": ["fastapi", "python", "bunny-stream"],
   "status": "published",
@@ -409,6 +491,50 @@ Authorization: Bearer <creator_access_token>
   "published_at": "2024-06-01T00:00:00Z",
   "scheduled_at": null,
   "created_at": "2024-05-20T00:00:00Z"
+}
+```
+
+##### Scenario C: Transcoding Finished & Ready Short Video (`video_type: "shorts"`)
+```json
+{
+  "id": 201,
+  "title": "Clean Architecture in 60 Seconds 🚀",
+  "description": "Why separating routes, services, and repositories saves months of refactoring.",
+  "video_type": "shorts",
+  "category": "tech-tips",
+  "tags": ["coding", "architecture", "shorts"],
+  "status": "published",
+  "encode_progress": 100,
+  "is_playable": true,
+  "views": 14200,
+  "likes": 1820,
+  "duration": "00:58",
+  "playback_url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/playlist.m3u8?token=a1b2c3d4e5f6...&expires=1719825600",
+  "main_thumbnail_url": "https://your-storage-pull-zone.b-cdn.net/bunny_vid_5544/thumb_1.jpg",
+  "alt_thumbnail_urls": [],
+  "captions_data": [
+    {
+      "srclang": "en-auto",
+      "label": "EN",
+      "is_default": true,
+      "url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/captions/en-auto.vtt"
+    }
+  ],
+  "download_urls": [
+    {
+      "resolution": "1080p",
+      "label": "1080p HD",
+      "url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/play_1080p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
+    },
+    {
+      "resolution": "720p",
+      "label": "720p HD",
+      "url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/play_720p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
+    }
+  ],
+  "published_at": "2026-09-22T16:00:00Z",
+  "scheduled_at": null,
+  "created_at": "2026-09-22T15:30:00Z"
 }
 ```
 

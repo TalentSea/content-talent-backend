@@ -8,6 +8,8 @@ from app.repositories.mobile.user_subscription_repository import (
 )
 from app.repositories.mobile.video_repository import MobileVideoRepository
 from app.schemas.mobile.video_schemas import (
+    CreatorBrandingSummary,
+    MobileShortItemResponse,
     MobileVideoCaptionResponse,
     MobileVideoDetailResponse,
     MobileVideoDownloadUrlResponse,
@@ -96,6 +98,105 @@ class MobileVideoService:
         )
         items = self._build_list_item_responses(videos, subscriber_id=subscriber_id)
         return self._build_paginated_response(items, total_count, page, limit)
+
+    def list_shorts(
+        self,
+        tenant_id: int,
+        category: str | None = None,
+        sort: str = "newest",
+        page: int = 1,
+        limit: int = 10,
+        subscriber_id: int | None = None,
+    ) -> PaginatedResponse[MobileShortItemResponse]:
+        """
+        Retrieves a paginated list of published & ready short videos for the vertical swipe Reels feed.
+        HLS streaming URLs are presigned with time-bound Bunny tokens.
+        100% ad-free, no downloads.
+        Attaches creator studio branding, captions, and personalized engagement status.
+        """
+        shorts, total_count = self.repo.list_published_shorts(
+            tenant_id=tenant_id,
+            category=category,
+            sort=sort,
+            page=page,
+            limit=limit,
+        )
+
+        video_ids = [s.id for s in shorts]
+        likes_map, comments_map, liked_set, saved_set = (
+            self.repo.get_shorts_engagement_map(video_ids, subscriber_id=subscriber_id)
+        )
+
+        settings = get_settings()
+        pull_zone_url = settings.BUNNY_PULL_ZONE_URL
+        token_key = settings.BUNNY_STREAM_TOKEN_KEY
+        base_cdn = pull_zone_url.rstrip("/") if pull_zone_url else ""
+
+        items = []
+        for s in shorts:
+            # Presigned HLS Stream URL
+            hls_url = ""
+            if s.bunny_video_id and pull_zone_url and token_key:
+                hls_url = generate_signed_playback_url(
+                    bunny_pull_zone_url=pull_zone_url,
+                    bunny_video_id=s.bunny_video_id,
+                    token_security_key=token_key,
+                )
+
+            # Captions
+            captions = []
+            if s.captions_data:
+                for cap in s.captions_data:
+                    if isinstance(cap, dict) and cap.get("srclang"):
+                        srclang = str(cap.get("srclang")).strip()
+                        lang_name = str(cap.get("label") or srclang.capitalize()).strip()
+                        vtt_url = (
+                            cap.get("url")
+                            or f"{base_cdn}/{s.bunny_video_id}/captions/{srclang}.vtt"
+                        )
+                        captions.append(
+                            MobileVideoCaptionResponse(
+                                language=lang_name,
+                                srclang=srclang,
+                                url=vtt_url,
+                            )
+                        )
+
+            # Creator Studio Branding
+            creator_name = s.tenant.name if s.tenant else "Creator Studio"
+            creator_logo = s.tenant.logo_url if s.tenant else None
+            creator_summary = CreatorBrandingSummary(
+                name=creator_name,
+                logo_url=creator_logo,
+            )
+
+            dur_sec = parse_duration_seconds(s.duration)
+
+            items.append(
+                MobileShortItemResponse(
+                    id=s.id,
+                    title=s.title,
+                    description=s.description,
+                    thumbnail_url=s.main_thumbnail_url,
+                    duration=dur_sec,
+                    views_count=s.views or 0,
+                    likes_count=likes_map.get(s.id, 0),
+                    comments_count=comments_map.get(s.id, 0),
+                    is_liked=s.id in liked_set,
+                    is_saved=s.id in saved_set,
+                    hls_stream_url=hls_url,
+                    captions=captions,
+                    creator=creator_summary,
+                    published_at=s.published_at,
+                )
+            )
+
+        return PaginatedResponse.create(
+            items=items,
+            total=total_count,
+            page=page,
+            limit=limit,
+        )
 
     def get_video_details(
         self,

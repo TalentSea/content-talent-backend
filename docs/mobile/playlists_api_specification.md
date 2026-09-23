@@ -9,6 +9,7 @@ The **Mobile Playlist Feed API** powers curated video series, collections, and c
 2. **Read-Only Access**: Mobile clients consume public creator playlists. Playlist creation, editing, thumbnail uploads, and video reordering are managed exclusively via Creator Admin APIs.
 3. **Only Playable & Published Videos**: Playlist video feeds strictly include videos with `status == "published"` and `transcoding_status == "READY"`. Unready or draft videos are hidden.
 4. **Personalized Subscriber Overlay**: For authenticated subscribers, responses include `is_liked`, `is_saved`, and `watch_progress` (`last_position_seconds`, `completion_percentage`). For guest users, these default to `false` / `null`.
+5. **Strict Exclusion of Short Videos**: Playlists exclusively curate standard widescreen/landscape catalog content (`video_type == "standard"`). Vertical short videos (`video_type == "shorts"`) are strictly excluded from playlist tracklists and counts.
 
 ---
 

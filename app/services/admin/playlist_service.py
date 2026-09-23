@@ -4,7 +4,7 @@ import time
 from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
-from app.models.video import VideoLike
+from app.models.video import Video, VideoLike
 from app.repositories.admin.playlist_repository import PlaylistRepository
 from app.schemas.admin.playlist_schemas import (
     PlaylistAddVideosRequest,
@@ -35,12 +35,37 @@ class PlaylistService:
     def __init__(self):
         self.repo = PlaylistRepository()
 
+    def _validate_no_shorts(self, tenant_id: int, video_ids: list[int] | None) -> None:
+        """
+        Validates that none of the provided video IDs are short videos.
+        Raises HTTP 400 Bad Request if any short videos are detected.
+        """
+        if not video_ids:
+            return
+
+        shorts_exist = (
+            Video.select()
+            .where(
+                (Video.id.in_(video_ids))
+                & (Video.tenant == tenant_id)
+                & (Video.video_type == "shorts")
+            )
+            .exists()
+        )
+        if shorts_exist:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Short videos cannot be added to playlists",
+            )
+
     def create_playlist(
         self, tenant_id: int, payload: PlaylistCreateRequest, created_by: int | None = None
     ) -> PlaylistCreateResponse:
         """
         Creates a new playlist container and attaches initial video IDs in DB.
         """
+        self._validate_no_shorts(tenant_id, payload.video_ids)
+
         playlist_data = payload.model_dump()
         playlist = self.repo.create_playlist(
             playlist_data, tenant_id=tenant_id, created_by=created_by
@@ -215,6 +240,8 @@ class PlaylistService:
         """
         Adds an array of video IDs to a playlist.
         """
+        self._validate_no_shorts(tenant_id, payload.video_ids)
+
         playlist = self.repo.add_videos_to_playlist(
             playlist_id, tenant_id, payload.video_ids
         )
