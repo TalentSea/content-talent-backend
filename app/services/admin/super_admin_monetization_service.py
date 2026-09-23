@@ -1,4 +1,4 @@
-import math
+from fastapi import HTTPException, status
 
 from app.config import get_settings
 from app.repositories.admin.super_admin_monetization_repository import (
@@ -34,12 +34,18 @@ class SuperAdminMonetizationService:
         # Fetch the platform margin percentage dynamically from configuration
         platform_commission_pct = get_settings().PLATFORM_AD_COMMISSION_PERCENT
 
-        platform_draft, preview_statements = self.repository.generate_draft(
-            month=request.month,
-            gross_revenue=request.gross_revenue,
-            notes=request.notes,
-            platform_commission_pct=platform_commission_pct,
-        )
+        try:
+            platform_draft, preview_statements = self.repository.generate_draft(
+                month=request.month,
+                gross_revenue=request.gross_revenue,
+                notes=request.notes,
+                platform_commission_pct=platform_commission_pct,
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(e),
+            )
 
         return PlatformReconciliationResponse(
             id=platform_draft.id,
@@ -62,9 +68,20 @@ class SuperAdminMonetizationService:
         """
         Locks the draft platform reconciliation and publishes the official statements.
         """
-        platform_reconciliation, generated_statements = (
-            self.repository.publish_reconciliation(month=month)
-        )
+        try:
+            platform_reconciliation, generated_statements = (
+                self.repository.publish_reconciliation(month=month)
+            )
+        except LookupError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
 
         statement_dtos = []
         for stmt in generated_statements:
@@ -105,11 +122,22 @@ class SuperAdminMonetizationService:
         """
         Marks an individual tenant's statement as 'paid' via Bank UTR.
         """
-        stmt = self.repository.mark_statement_paid(
-            statement_id=statement_id,
-            transaction_reference=request.transaction_reference,
-            invoice_url=request.invoice_url,
-        )
+        try:
+            stmt = self.repository.mark_statement_paid(
+                statement_id=statement_id,
+                transaction_reference=request.transaction_reference,
+                invoice_url=request.invoice_url,
+            )
+        except LookupError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
 
         return SettledStatementResponse(
             statement_id=stmt.statement_id,
@@ -130,8 +158,6 @@ class SuperAdminMonetizationService:
             page=page, limit=limit
         )
 
-        total_pages = math.ceil(total / limit) if total > 0 else 1
-
         dtos = []
         for item in items:
             dtos.append(
@@ -147,10 +173,9 @@ class SuperAdminMonetizationService:
                 )
             )
 
-        return ReconciliationListResponse(
+        return ReconciliationListResponse.create(
+            items=dtos,
             total=total,
             page=page,
             limit=limit,
-            total_pages=total_pages,
-            items=dtos,
         )

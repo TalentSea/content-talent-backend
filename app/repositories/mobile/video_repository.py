@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from peewee import IntegrityError, PeeweeException, fn
 
 from app.config import get_settings
+from app.database import db_proxy
 from app.models.tenant import Tenant
 from app.models.video import Video, VideoLike, VideoSave, VideoViewEvent, WatchHistory
 from app.utils.formatters import parse_duration_seconds
@@ -206,18 +207,26 @@ class MobileVideoRepository:
             # Daily cap reached
             return video.views or 0
 
-        # 4. Record legitimate view event and increment counters
-        VideoViewEvent.create(
-            video=video_id,
-            tenant=video.tenant_id,
-            subscriber=subscriber_id,
-            created_at=now,
-        )
-        video.views = (video.views or 0) + 1
-        likes_count = self.get_video_likes_count(video_id)
-        video.popularity_score = video.views + (settings.POPULARITY_SCORE_LIKE_WEIGHT * likes_count)
-        video.save()
-        return video.views
+        # 4. Record legitimate view event and atomically increment counters
+        with db_proxy.atomic():
+            VideoViewEvent.create(
+                video=video_id,
+                tenant=video.tenant_id,
+                subscriber=subscriber_id,
+                created_at=now,
+            )
+            likes_count = self.get_video_likes_count(video_id)
+            new_views_expr = fn.COALESCE(Video.views, 0) + 1
+            new_popularity_expr = new_views_expr + (
+                settings.POPULARITY_SCORE_LIKE_WEIGHT * likes_count
+            )
+            Video.update(
+                views=new_views_expr,
+                popularity_score=new_popularity_expr,
+            ).where(Video.id == video_id).execute()
+
+        video = self.get_public_video_by_id(video_id, tenant_id=tenant_id)
+        return video.views if video else 0
 
     def get_video_likes_count(self, video_id: int) -> int:
         """

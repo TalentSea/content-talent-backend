@@ -32,8 +32,11 @@ class TenantService:
     def __init__(self, repo: TenantRepository | None = None):
         self.repo = repo or TenantRepository()
 
-    def _to_tenant_response(self, tenant) -> TenantResponse:
-        counts = self.repo.get_counts(tenant.id)
+    def _to_tenant_response(
+        self, tenant, counts: dict[str, int] | None = None
+    ) -> TenantResponse:
+        if counts is None:
+            counts = self.repo.get_counts(tenant.id)
         return TenantResponse(
             id=tenant.id,
             name=tenant.name,
@@ -46,9 +49,9 @@ class TenantService:
             deactivated_at=tenant.deactivated_at,
             created_at=tenant.created_at,
             updated_at=tenant.updated_at,
-            admins_count=counts["admins_count"],
-            videos_count=counts["videos_count"],
-            subscribers_count=counts["subscribers_count"],
+            admins_count=counts.get("admins_count", 0),
+            videos_count=counts.get("videos_count", 0),
+            subscribers_count=counts.get("subscribers_count", 0),
         )
 
     def _to_admin_response(self, admin) -> AdminUserResponse:
@@ -168,18 +171,23 @@ class TenantService:
         """
         is_detailed = mode == "detailed"
 
-        # 1. Fetch data (applying pagination only if detailed)
+        # 1. Fetch data (applying pagination only if detailed; selects all columns if detailed)
         tenants = self.repo.list_tenants(
             is_active=is_active,
             search=search,
             page=page if is_detailed else None,
             limit=limit if is_detailed else None,
+            detailed=is_detailed,
         )
 
-        # 2. Format detailed paginated response
+        # 2. Format detailed paginated response with batch aggregated counts
         if is_detailed:
             total = self.repo.count_tenants(is_active=is_active, search=search)
-            items = [self._to_tenant_response(t) for t in tenants]
+            tenant_ids = [t.id for t in tenants]
+            batch_counts = self.repo.get_batch_counts(tenant_ids)
+            items = [
+                self._to_tenant_response(t, batch_counts.get(t.id)) for t in tenants
+            ]
             return PaginatedResponse.create(
                 items=items, total=total, page=page, limit=limit
             )

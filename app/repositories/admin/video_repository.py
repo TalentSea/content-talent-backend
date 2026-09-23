@@ -109,6 +109,7 @@ class VideoRepository:
         for k, v in update_data.items():
             if v is not None:
                 setattr(video, k, v)
+        video.updated_at = datetime.now(timezone.utc)
         video.save()
         return video
 
@@ -139,6 +140,7 @@ class VideoRepository:
             video.duration = duration
         if status == "published" and not video.published_at:
             video.published_at = datetime.now(timezone.utc)
+        video.updated_at = datetime.now(timezone.utc)
         video.save()
         return video
 
@@ -153,6 +155,7 @@ class VideoRepository:
         video.publish_intent = "publish"
         video.published_at = datetime.now(timezone.utc)
         video.scheduled_at = None
+        video.updated_at = datetime.now(timezone.utc)
         video.save()
         return video
 
@@ -167,6 +170,7 @@ class VideoRepository:
         video.publish_intent = "draft"
         video.published_at = None
         video.scheduled_at = None
+        video.updated_at = datetime.now(timezone.utc)
         video.save()
         return video
 
@@ -182,6 +186,7 @@ class VideoRepository:
         video.status = "scheduled"
         video.publish_intent = "schedule"
         video.scheduled_at = scheduled_at_dt
+        video.updated_at = datetime.now(timezone.utc)
         video.save()
         return video
 

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import db_proxy, init_db
 from app.middleware.cors_middleware import setup_cors_middleware
 from app.middleware.db_middleware import PeeweeDBMiddleware
 from app.repositories.admin.video_repository import VideoRepository
@@ -53,7 +53,8 @@ async def scheduled_video_auto_publisher():
     repo = VideoRepository()
     while True:
         try:
-            count = repo.publish_due_scheduled_videos()
+            with db_proxy.connection_context():
+                count = repo.publish_due_scheduled_videos()
             if count > 0:
                 logger.info("Auto-published %s due scheduled videos.", count)
         except Exception as e:  # noqa: BLE001
@@ -67,7 +68,8 @@ async def scheduled_stale_guest_cleanup():
     while True:
         try:
             cleanup_days = get_settings().STALE_GUEST_CLEANUP_DAYS
-            purged_count = repo.cleanup_stale_guest_subscribers(days=cleanup_days)
+            with db_proxy.connection_context():
+                purged_count = repo.cleanup_stale_guest_subscribers(days=cleanup_days)
             if purged_count > 0:
                 logger.info(
                     "Stale Guest Cleanup Worker purged %s guest accounts inactive > %s days.",
@@ -84,7 +86,8 @@ async def scheduled_subscription_expiration_worker():
     repo = UserSubscriptionRepository()
     while True:
         try:
-            expired_count = repo.expire_outdated_subscriptions()
+            with db_proxy.connection_context():
+                expired_count = repo.expire_outdated_subscriptions()
             if expired_count > 0:
                 logger.info(
                     "Subscription Expiration Worker expired %s past-due subscriptions.",

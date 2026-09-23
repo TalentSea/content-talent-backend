@@ -2,10 +2,10 @@ import hashlib
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
 from peewee import fn
 
-from app.database import db
+from app.config import get_settings
+from app.database import db_proxy
 from app.models.ad_monetization import (
     AdImpressionEvent,
     AdMonthlySettlement,
@@ -74,7 +74,7 @@ class SuperAdminMonetizationRepository:
             creator_net_ecpm = (creator_pool / total_impressions) * 1000.0
 
         # 3. Create or update the Draft row in the Database
-        with db.atomic():
+        with db_proxy.atomic():
             platform_draft, created = AdPlatformMonthlyReconciliation.get_or_create(
                 month=month,
                 defaults={
@@ -94,9 +94,8 @@ class SuperAdminMonetizationRepository:
             # If it already existed but was drafted, update the numbers safely
             if not created:
                 if platform_draft.status != "draft":
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Reconciliation for month {month} has already been published.",
+                    raise ValueError(
+                        f"Reconciliation for month {month} has already been published."
                     )
                 platform_draft.total_google_revenue = gross_revenue
                 platform_draft.total_impressions = total_impressions
@@ -146,28 +145,28 @@ class SuperAdminMonetizationRepository:
             AdPlatformMonthlyReconciliation.month == month
         )
         if not platform_draft:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No draft found for month {month}. Please generate a draft first.",
+            raise LookupError(
+                f"No draft found for month {month}. Please generate a draft first."
             )
 
         if platform_draft.status != "draft":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Reconciliation for month {month} is already in '{platform_draft.status}' status.",
+            raise ValueError(
+                f"Reconciliation for month {month} is already in '{platform_draft.status}' status."
             )
 
         start_date, end_date = get_date_range_for_month(month)
 
-        # Re-fetch tenant impression breakdown
+        # Re-fetch tenant impression breakdown (aligned strictly with draft active tenant rules)
         tenant_stats = list(
             AdImpressionEvent.select(
                 AdImpressionEvent.tenant_id,
                 fn.COUNT(AdImpressionEvent.id).alias("impressions_count"),
             )
+            .join(Tenant, on=(AdImpressionEvent.tenant == Tenant.id))
             .where(
                 AdImpressionEvent.created_at >= start_date,
                 AdImpressionEvent.created_at < end_date,
+                Tenant.is_active == True,
             )
             .group_by(AdImpressionEvent.tenant_id)
             .dicts()
@@ -190,7 +189,7 @@ class SuperAdminMonetizationRepository:
 
         # We need the Tenant IDs mapping to Name to return nice DTOs or we can join later.
         # But for insertion we just need the data.
-        with db.atomic():
+        with db_proxy.atomic():
             platform_draft.status = "reconciled"
             platform_draft.reconciled_at = now_utc()
             platform_draft.save()
@@ -216,7 +215,7 @@ class SuperAdminMonetizationRepository:
 
                 # State machine rules
                 stmt_status = "accruing"
-                if net_amount >= 500.0:
+                if net_amount >= get_settings().MIN_PAYOUT_THRESHOLD:
                     stmt_status = (
                         "reconciled"
                         if t_id in tenants_with_bank
@@ -264,22 +263,15 @@ class SuperAdminMonetizationRepository:
             AdMonthlySettlement.statement_id == statement_id
         )
         if not stmt:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Statement not found",
-            )
+            raise LookupError("Statement not found")
         if stmt.status == "paid":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Statement is already paid",
-            )
+            raise ValueError("Statement is already paid")
         if stmt.status != "reconciled":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot pay statement in '{stmt.status}' status. Must be 'reconciled'.",
+            raise ValueError(
+                f"Cannot pay statement in '{stmt.status}' status. Must be 'reconciled'."
             )
 
-        with db.atomic():
+        with db_proxy.atomic():
             stmt.status = "paid"
             stmt.transaction_reference = transaction_reference
             stmt.invoice_url = invoice_url

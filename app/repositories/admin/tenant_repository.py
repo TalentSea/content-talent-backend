@@ -7,6 +7,7 @@ from app.models.admin import Admin
 from app.models.subscriber import Subscriber
 from app.models.tenant import Tenant
 from app.models.video import Video
+from app.utils.string_utils import slugify
 
 
 class TenantRepository:
@@ -20,14 +21,19 @@ class TenantRepository:
         search: str | None = None,
         page: int | None = None,
         limit: int | None = None,
+        detailed: bool = False,
     ) -> list[Tenant]:
         """
         Retrieves all tenants with optional is_active and name filtering.
         Supports pagination via page and limit.
+        If detailed=True, selects all columns to avoid lazy-loading attribute lookups.
         """
-        query = Tenant.select(Tenant.id, Tenant.name, Tenant.is_active).order_by(
-            Tenant.id.asc()
-        )
+        if detailed:
+            query = Tenant.select().order_by(Tenant.id.asc())
+        else:
+            query = Tenant.select(Tenant.id, Tenant.name, Tenant.is_active).order_by(
+                Tenant.id.asc()
+            )
         if is_active is not None:
             query = query.where(Tenant.is_active == is_active)
         if search and search.strip():
@@ -92,24 +98,71 @@ class TenantRepository:
             if hasattr(tenant, key):
                 setattr(tenant, key, value)
 
+        if fields.get("name"):
+            new_name = fields["name"].strip()
+            if new_name:
+                tenant.name = new_name
+                tenant.slug = slugify(new_name)
+
         tenant.updated_at = datetime.now(timezone.utc)
         tenant.save()
         return tenant
 
     def get_counts(self, tenant_id: int) -> dict[str, int]:
         """
-        Fetches operational stats (admins, videos, subscribers) for a tenant.
+        Fetches operational stats (admins, videos, subscribers) for a single tenant
+        by delegating directly to the centralized batch aggregation function.
         """
-        admins_count = Admin.select().where(Admin.tenant == tenant_id).count()
-        videos_count = Video.select().where(Video.tenant == tenant_id).count()
-        subscribers_count = (
-            Subscriber.select().where(Subscriber.tenant == tenant_id).count()
+        batch = self.get_batch_counts([tenant_id])
+        return batch.get(
+            tenant_id,
+            {"admins_count": 0, "videos_count": 0, "subscribers_count": 0},
         )
-        return {
-            "admins_count": admins_count,
-            "videos_count": videos_count,
-            "subscribers_count": subscribers_count,
+
+    def get_batch_counts(self, tenant_ids: list[int]) -> dict[int, dict[str, int]]:
+        """
+        Batch fetches operational stats (admins, videos, subscribers) for multiple tenants
+        in 3 single aggregated SQL queries using GROUP BY, eliminating N+1 query loops.
+        """
+        if not tenant_ids:
+            return {}
+
+        counts: dict[int, dict[str, int]] = {
+            tid: {"admins_count": 0, "videos_count": 0, "subscribers_count": 0}
+            for tid in tenant_ids
         }
+
+        admin_counts = (
+            Admin.select(Admin.tenant, fn.COUNT(Admin.id).alias("cnt"))
+            .where(Admin.tenant.in_(tenant_ids))
+            .group_by(Admin.tenant)
+            .tuples()
+        )
+        for tid, cnt in admin_counts:
+            if tid in counts:
+                counts[tid]["admins_count"] = cnt
+
+        video_counts = (
+            Video.select(Video.tenant, fn.COUNT(Video.id).alias("cnt"))
+            .where(Video.tenant.in_(tenant_ids))
+            .group_by(Video.tenant)
+            .tuples()
+        )
+        for tid, cnt in video_counts:
+            if tid in counts:
+                counts[tid]["videos_count"] = cnt
+
+        sub_counts = (
+            Subscriber.select(Subscriber.tenant, fn.COUNT(Subscriber.id).alias("cnt"))
+            .where(Subscriber.tenant.in_(tenant_ids))
+            .group_by(Subscriber.tenant)
+            .tuples()
+        )
+        for tid, cnt in sub_counts:
+            if tid in counts:
+                counts[tid]["subscribers_count"] = cnt
+
+        return counts
 
     def list_admins_by_tenant(self, tenant_id: int) -> list[Admin]:
         """
@@ -195,4 +248,3 @@ class TenantRepository:
                 return False
         admin.delete_instance()
         return True
-

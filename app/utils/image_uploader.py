@@ -55,9 +55,9 @@ def validate_and_upload_image(
             detail=f"Unsupported file format. Only {allowed_str} image files under {max_size_mb}MB are allowed.",
         )
 
-    # Validate file size
-    file_bytes = file.file.read()
+    # Validate file size with capped buffer read to prevent memory exhaustion DoS
     max_bytes = max_size_mb * 1024 * 1024
+    file_bytes = file.file.read(max_bytes + 1)
     if len(file_bytes) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -66,10 +66,11 @@ def validate_and_upload_image(
 
     pull_zone = settings.BUNNY_STORAGE_PULL_ZONE_URL.rstrip("/")
 
-    # Optional old file cleanup on Bunny Storage
+    # Optional old file cleanup on Bunny Storage (sanitizing any query parameters)
     if old_file_url and "b-cdn.net" in old_file_url:
         try:
-            old_filename = old_file_url.split("/")[-1]
+            clean_url = old_file_url.split("?")[0]
+            old_filename = clean_url.split("/")[-1]
             folder_prefix = (
                 f"{old_file_storage_folder.rstrip('/')}/"
                 if old_file_storage_folder

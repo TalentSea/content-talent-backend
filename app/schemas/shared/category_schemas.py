@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.config import get_settings
 
@@ -42,6 +42,8 @@ class CategoryThumbnailUploadResponse(BaseModel):
 class CategoryCreateResponse(BaseModel):
     """Response payload returned when a category is created matching spec doc API 2 and Playlist pattern."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: int
     name: str
     slug: str
@@ -49,25 +51,37 @@ class CategoryCreateResponse(BaseModel):
     color: str = Field(
         default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
     )
-    order: int = 0
-    createdAt: datetime | None = None
+    order: int = Field(0, validation_alias=AliasChoices("order", "display_order"))
+    created_at: datetime | None = Field(
+        None, validation_alias=AliasChoices("created_at", "createdAt")
+    )
 
 
 class CategoryResponse(BaseModel):
     """Response payload for category metadata."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: int
     name: str
     slug: str
     description: str | None = None
-    thumbnailUrl: str
+    thumbnail_url: str = Field(
+        "", validation_alias=AliasChoices("thumbnail_url", "thumbnailUrl")
+    )
     color: str = Field(
         default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
     )
-    contentCount: int = 0
-    order: int = 0
-    createdAt: datetime | None = None
-    updatedAt: datetime | None = None
+    content_count: int = Field(
+        0, validation_alias=AliasChoices("content_count", "contentCount")
+    )
+    order: int = Field(0, validation_alias=AliasChoices("order", "display_order"))
+    created_at: datetime | None = Field(
+        None, validation_alias=AliasChoices("created_at", "createdAt")
+    )
+    updated_at: datetime | None = Field(
+        None, validation_alias=AliasChoices("updated_at", "updatedAt")
+    )
 
 
 class CategoryOptionResponse(BaseModel):
@@ -87,11 +101,15 @@ class CategoryOptionListResponse(BaseModel):
 class MobileCategoryResponse(BaseModel):
     """Lightweight response DTO for mobile home feed category filter chips."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: int
     name: str
     slug: str
     description: str | None = None
-    thumbnailUrl: str
+    thumbnail_url: str = Field(
+        "", validation_alias=AliasChoices("thumbnail_url", "thumbnailUrl")
+    )
     color: str = Field(
         default_factory=lambda: get_settings().DEFAULT_CATEGORY_COLOR
     )

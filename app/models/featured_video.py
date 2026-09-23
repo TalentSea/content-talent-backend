@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
-
 from peewee import DateTimeField, ForeignKeyField, IntegerField
 
 from app.models.base import BaseModel
 from app.models.tenant import Tenant
 from app.models.video import Video
+from app.utils.date_utils import now_utc
 
 
 class FeaturedVideo(BaseModel):
@@ -29,7 +28,7 @@ class FeaturedVideo(BaseModel):
         index=True,
     )
     position = IntegerField(default=0, index=True)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "featured_videos"

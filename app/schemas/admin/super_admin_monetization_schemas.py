@@ -2,6 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
+from app.schemas.shared.common_schemas import PaginatedResponse
+
 # ---------------------------------------------------------------------------
 # API 1 & 2: Generate Draft & Publish Reconciliations
 # ---------------------------------------------------------------------------
@@ -63,7 +66,7 @@ class PlatformReconciliationResponse(BaseModel):
     creator_pool_amount: float
     creator_net_ecpm: float
     creators_count: int
-    currency: str = "INR"
+    currency: str = Field(default_factory=lambda: get_settings().DEFAULT_CURRENCY)
     status: str
     notes: str | None
     statements: list[TenantStatementDraft] = Field(default_factory=list)
@@ -76,7 +79,7 @@ class PublishReconciliationResponse(BaseModel):
     month: str
     total_google_revenue: float
     status: str
-    currency: str = "INR"
+    currency: str = Field(default_factory=lambda: get_settings().DEFAULT_CURRENCY)
     creator_pool_amount: float
     platform_profit: float
     reconciled_at: datetime
@@ -102,7 +105,7 @@ class SettledStatementResponse(BaseModel):
     tenant_id: int
     month: str
     amount: float
-    currency: str = "INR"
+    currency: str = Field(default_factory=lambda: get_settings().DEFAULT_CURRENCY)
     status: str
     transaction_reference: str
     settled_at: datetime
@@ -121,16 +124,10 @@ class ReconciliationListItem(BaseModel):
     total_google_revenue: float
     platform_profit: float
     creator_pool_amount: float
-    currency: str = "INR"
+    currency: str = Field(default_factory=lambda: get_settings().DEFAULT_CURRENCY)
     status: str
     reconciled_at: datetime | None = None
 
 
-class ReconciliationListResponse(BaseModel):
+class ReconciliationListResponse(PaginatedResponse[ReconciliationListItem]):
     """Response DTO for GET /api/v1/admin/monetization/reconciliations"""
-
-    total: int
-    page: int
-    limit: int
-    total_pages: int
-    items: list[ReconciliationListItem] = Field(default_factory=list)

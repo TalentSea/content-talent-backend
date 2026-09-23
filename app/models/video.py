@@ -1,5 +1,4 @@
 import json
-from datetime import datetime, timezone
 
 from peewee import (
     BooleanField,
@@ -14,6 +13,7 @@ from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
 from app.models.tenant import Tenant
+from app.utils.date_utils import now_utc
 from app.utils.formatters import calculate_completion_percentage
 
 
@@ -64,7 +64,9 @@ class Video(BaseModel):
     description = TextField(null=False)
     category = CharField(max_length=100, null=True)
     status = CharField(max_length=20, default="processing")
-    publish_intent = CharField(max_length=20, default="draft")  # 'draft', 'publish', 'schedule'
+    publish_intent = CharField(
+        max_length=20, default="draft"
+    )  # 'draft', 'publish', 'schedule'
     encode_progress = IntegerField(default=0)
     is_playable = BooleanField(default=False)
     main_thumbnail_url = CharField(max_length=500, null=True)
@@ -77,7 +79,8 @@ class Video(BaseModel):
     views = IntegerField(default=0)
     popularity_score = IntegerField(default=0, index=True)
     duration = CharField(max_length=50, null=True)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "videos"
@@ -90,7 +93,7 @@ class VideoLike(BaseModel):
 
     video = ForeignKeyField(Video, backref="likes", on_delete="CASCADE")
     subscriber = ForeignKeyField(Subscriber, backref="video_likes", on_delete="CASCADE")
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "video_likes"
@@ -104,7 +107,7 @@ class VideoSave(BaseModel):
 
     video = ForeignKeyField(Video, backref="saves", on_delete="CASCADE")
     subscriber = ForeignKeyField(Subscriber, backref="video_saves", on_delete="CASCADE")
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "video_saves"
@@ -122,8 +125,8 @@ class WatchHistory(BaseModel):
     )
     last_position_seconds = IntegerField(default=0)
     completed = BooleanField(default=False)
-    last_watched_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    last_watched_at = DateTimeField(default=now_utc)
+    created_at = DateTimeField(default=now_utc)
 
     @property
     def completion_percentage(self) -> float:
@@ -155,10 +158,8 @@ class VideoViewEvent(BaseModel):
         on_delete="CASCADE",
         index=True,
     )
-    subscriber = ForeignKeyField(
-        Subscriber, backref="view_events", on_delete="CASCADE"
-    )
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    subscriber = ForeignKeyField(Subscriber, backref="view_events", on_delete="CASCADE")
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "video_view_events"

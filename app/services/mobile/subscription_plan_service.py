@@ -1,8 +1,8 @@
 import logging
 
 from app.constants.plans import get_plan_features
-from app.repositories.mobile.subscription_plan_repository import (
-    MobileSubscriptionPlanRepository,
+from app.repositories.admin.subscription_plan_repository import (
+    SubscriptionPlanRepository,
 )
 from app.schemas.mobile.subscription_plan_schemas import MobileSubscriptionPlanResponse
 
@@ -14,8 +14,8 @@ class MobileSubscriptionPlanService:
     Business logic layer for Mobile Subscribers querying active subscription plans.
     """
 
-    def __init__(self, repo: MobileSubscriptionPlanRepository | None = None) -> None:
-        self.repo = repo or MobileSubscriptionPlanRepository()
+    def __init__(self, repo: SubscriptionPlanRepository | None = None) -> None:
+        self.repo = repo or SubscriptionPlanRepository()
 
     def list_active_plans(
         self, tenant_id: int
@@ -24,7 +24,7 @@ class MobileSubscriptionPlanService:
         Retrieves active plans for mobile paywall checkout matching spec doc API 2.1.
         Enriched with dynamic built-in platform features.
         """
-        plans = self.repo.get_active_plans(tenant_id)
+        plans = self.repo.get_plans_by_creator(tenant_id)
         return [
             MobileSubscriptionPlanResponse(
                 id=p.id,

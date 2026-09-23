@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
+
 # ---------------------------------------------------------------------------
 # API 1: /summary Schemas
 # ---------------------------------------------------------------------------
@@ -52,7 +54,10 @@ class LastPayoutSummary(BaseModel):
 class MonetizationSummaryResponse(BaseModel):
     """Response DTO for GET /api/v1/admin/monetization/summary."""
 
-    currency: str = Field(default="INR", description="Three-letter currency code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Three-letter currency code",
+    )
     payout_profile_configured: bool = Field(
         default=False,
         description="True if creator has registered a valid bank account for payouts",
@@ -90,7 +95,10 @@ class MonetizationAnalyticsResponse(BaseModel):
     start_date: str = Field(..., description="Resolved ISO start date (YYYY-MM-DD)")
     end_date: str = Field(..., description="Resolved ISO end date (YYYY-MM-DD)")
     interval: str = Field(..., description="Bucket interval: 'day', 'week', or 'month'")
-    currency: str = Field(default="INR", description="Three-letter currency code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Three-letter currency code",
+    )
     data_points: list[MonetizationAnalyticsPoint] = Field(default_factory=list)
 
 
@@ -107,7 +115,10 @@ class SettlementItemResponse(BaseModel):
     impressions_count: int = Field(..., description="Verified billable ad impressions")
     ecpm: float = Field(..., description="Net creator eCPM rate applied")
     amount: float = Field(..., description="Net payout amount transferred to bank")
-    currency: str = Field(default="INR", description="Three-letter currency code")
+    currency: str = Field(
+        default_factory=lambda: get_settings().DEFAULT_CURRENCY,
+        description="Three-letter currency code",
+    )
     status: str = Field(
         ...,
         description="Settlement state: 'accruing', 'pending_bank_details', 'reconciled', 'paid'",

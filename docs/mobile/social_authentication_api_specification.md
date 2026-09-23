@@ -9,7 +9,7 @@ This specification defines the industry-standard **OAuth 2.0, OpenID Connect (OI
 The system uses a **Native SDK Token Exchange & Anonymous Device Session Architecture** with mandatory **Multi-Tenant Creator Isolation**:
 
 1. **Registered Subscribers**: The mobile app performs native authentication via Google/Facebook SDKs, obtains cryptographically verifiable identity tokens, and exchanges them with the FastAPI backend for long-lived application sessions bound to a specific Admin Creator (`tenant_id`).
-2. **Anonymous Guests ("Skip Signup")**: When a user taps "Skip Signup", the app generates a unique hardware `device_id` and calls `POST /api/v1/auth/guest` with `tenant_id` to receive an Anonymous Subscriber Token.
+2. **Anonymous Guests ("Skip Signup")**: When a user taps "Skip Signup", the app generates a unique hardware `device_id` and calls `POST /api/v1/mobile/auth/guest` with `tenant_id` to receive an Anonymous Subscriber Token.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
@@ -17,9 +17,9 @@ The system uses a **Native SDK Token Exchange & Anonymous Device Session Archite
 │ 1. Taps "Skip Signup" OR Signs in via Native Google / Facebook SDK                       │
 │ 2. Sends Auth Request to Backend with mandatory tenant_id                               │
 │         │                                                                                │
-│         │ 1. POST /api/v1/auth/guest    { tenant_id, device_id }   ──► Guest Token      │
-│         │ 2. POST /api/v1/auth/google   { tenant_id, id_token }    ──► Google Token     │
-│         │ 3. POST /api/v1/auth/facebook { tenant_id, access_token} ──► Facebook Token   │
+│         │ 1. POST /api/v1/mobile/auth/guest    { tenant_id, device_id }   ──► Guest Token│
+│         │ 2. POST /api/v1/mobile/auth/google   { tenant_id, id_token }    ──► Google Tok │
+│         │ 3. POST /api/v1/mobile/auth/facebook { tenant_id, access_token} ──► FB Token   │
 │         ▼                                                                                │
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
 │ FastAPI Backend                                                                          │
@@ -57,7 +57,7 @@ sequenceDiagram
     GSDK-->>App: Return GoogleSignInAccount { idToken, email, displayName }
 
     %% Phase 2: Token Exchange with Backend
-    App->>API: POST /api/v1/auth/google<br/>Headers: [Optional Bearer <guest_token>]<br/>Body: { tenant_id, id_token, device_info }
+    App->>API: POST /api/v1/mobile/auth/google<br/>Headers: [Optional Bearer <guest_token>]<br/>Body: { tenant_id, id_token, device_info }
 
     %% Phase 3: Cryptographic Verification
     API->>API: verify_tenant_active(tenant_id)
@@ -135,7 +135,7 @@ In Google Cloud Console, credentials are created under the **same project**:
 
 ## 3. 🔌 API Endpoints Specification
 
-### 1. `POST /api/v1/auth/guest` — Anonymous Guest Session ("Skip Signup")
+### 1. `POST /api/v1/mobile/auth/guest` — Anonymous Guest Session ("Skip Signup")
 
 Issues an application JWT session for anonymous guest users skipping social login on app launch.
 
@@ -177,7 +177,7 @@ Content-Type: application/json
 
 ---
 
-### 2. `POST /api/v1/auth/google` — Sign-In with Google (OIDC) & Account Upgrade
+### 2. `POST /api/v1/mobile/auth/google` — Sign-In with Google (OIDC) & Account Upgrade
 
 Exchanges a Google OIDC `id_token` for application session JWT tokens.
 _(If header `Authorization: Bearer <guest_access_token>` is included, the backend automatically upgrades the existing guest account into a permanent Google subscriber account, preserving watch history and saved videos!)_
@@ -221,7 +221,7 @@ Content-Type: application/json
 
 ---
 
-### 3. `POST /api/v1/auth/facebook` — Sign-In with Facebook (OAuth 2.0) & Account Upgrade
+### 3. `POST /api/v1/mobile/auth/facebook` — Sign-In with Facebook (OAuth 2.0) & Account Upgrade
 
 Exchanges a Facebook OAuth `access_token` for application session JWT tokens.
 _(If header `Authorization: Bearer <guest_access_token>` is included, the backend automatically upgrades the existing guest account into a permanent Facebook subscriber account!)_
@@ -265,7 +265,7 @@ Content-Type: application/json
 
 ---
 
-### 4. `POST /api/v1/auth/refresh` — Refresh Access Token
+### 4. `POST /api/v1/mobile/auth/refresh` — Refresh Access Token
 
 Rotates a 60-day Refresh Token to issue a fresh 30-minute Access Token.
 
@@ -299,7 +299,7 @@ Rotates a 60-day Refresh Token to issue a fresh 30-minute Access Token.
 
 ---
 
-### 5. `POST /api/v1/auth/logout` — Revoke Session
+### 5. `POST /api/v1/mobile/auth/logout` — Revoke Session
 
 Revokes the refresh token and terminates the subscriber's session.
 
@@ -321,14 +321,13 @@ Authorization: Bearer <access_token>
 
 ```json
 {
-  "success": true,
-  "message": "Session terminated successfully"
+  "status": "success"
 }
 ```
 
 ---
 
-### 6. `GET /api/v1/auth/me` — Get Subscriber Profile
+### 6. `GET /api/v1/mobile/auth/me` — Get Subscriber Profile
 
 Returns current subscriber identity details.
 

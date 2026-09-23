@@ -229,8 +229,7 @@ Authorization: Bearer <access_token>  (Required)
 #### Response Specification (`200 OK`)
 ```json
 {
-  "status": "success",
-  "message": "Watch history cleared successfully"
+  "status": "success"
 }
 ```
 
@@ -253,8 +252,7 @@ Authorization: Bearer <access_token>  (Required)
 #### Response Specification (`200 OK`)
 ```json
 {
-  "status": "success",
-  "message": "Video removed from watch history"
+  "status": "success"
 }
 ```
 

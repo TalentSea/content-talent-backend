@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
-from peewee import fn
+from peewee import Case, fn
 
+from app.database import db_proxy
 from app.models.playlist import Playlist, PlaylistSave, PlaylistVideo
 from app.models.video import Video, VideoLike
 
@@ -20,17 +21,18 @@ class PlaylistRepository:
         """
         data = dict(playlist_data)
         video_ids = data.pop("video_ids", []) or []
-        playlist = Playlist.create(tenant=tenant_id, created_by=created_by, **data)
+        with db_proxy.atomic():
+            playlist = Playlist.create(tenant=tenant_id, created_by=created_by, **data)
 
-        for order, vid_id in enumerate(video_ids):
-            if (
-                Video.select()
-                .where((Video.id == vid_id) & (Video.tenant == tenant_id))
-                .exists()
-            ):
-                PlaylistVideo.create(playlist=playlist, video=vid_id, order=order)
+            for order, vid_id in enumerate(video_ids):
+                if (
+                    Video.select()
+                    .where((Video.id == vid_id) & (Video.tenant == tenant_id))
+                    .exists()
+                ):
+                    PlaylistVideo.create(playlist=playlist, video=vid_id, order=order)
 
-        return playlist
+            return playlist
 
     def get_playlist_by_id(self, playlist_id: int, tenant_id: int) -> Playlist | None:
         """
@@ -251,18 +253,27 @@ class PlaylistRepository:
         if not playlist:
             return False
 
-        for vo in video_orders:
-            vid_id = vo.get("video_id")
-            order_val = vo.get("order")
-            if vid_id is not None and order_val is not None:
-                PlaylistVideo.update(order=order_val).where(
-                    (PlaylistVideo.playlist == playlist)
-                    & (PlaylistVideo.video == vid_id)
-                ).execute()
+        valid_orders = [
+            vo
+            for vo in video_orders
+            if vo.get("video_id") is not None and vo.get("order") is not None
+        ]
+        if not valid_orders:
+            return True
 
-        playlist.updated_at = datetime.now(timezone.utc)
-        playlist.save()
-        return True
+        whens = [(vo["video_id"], vo["order"]) for vo in valid_orders]
+        vid_ids = [vo["video_id"] for vo in valid_orders]
+        order_case = Case(PlaylistVideo.video, whens)
+
+        with db_proxy.atomic():
+            PlaylistVideo.update(order=order_case).where(
+                (PlaylistVideo.playlist == playlist)
+                & (PlaylistVideo.video.in_(vid_ids))
+            ).execute()
+
+            playlist.updated_at = datetime.now(timezone.utc)
+            playlist.save()
+            return True
 
     def delete_playlist(self, playlist_id: int, tenant_id: int) -> bool:
         """

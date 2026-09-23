@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.models.tenant import Tenant
+from app.utils.string_utils import slugify
 
 
 class BrandingRepository:
@@ -24,19 +25,23 @@ class BrandingRepository:
     def update_branding_text(self, tenant_id: int, fields: dict[str, Any]) -> Tenant:
         """
         Applies partial updates to tenant brand text fields.
-        Maps 'studio_name' to 'Tenant.name'.
+        Maps 'studio_name' to 'Tenant.name' and updates 'Tenant.slug'.
         """
         tenant = self.get_by_tenant_id(tenant_id)
         if not tenant:
             raise ValueError(f"Tenant {tenant_id} not found")
 
         if "studio_name" in fields and fields["studio_name"] is not None:
-            tenant.name = fields["studio_name"].strip()
+            new_name = fields["studio_name"].strip()
+            if new_name:
+                tenant.name = new_name
+                tenant.slug = slugify(new_name)
         if "tagline" in fields:
             tenant.tagline = fields["tagline"].strip() if fields["tagline"] else None
         if "description" in fields:
-            tenant.description = fields["description"].strip() if fields["description"] else None
-
+            tenant.description = (
+                fields["description"].strip() if fields["description"] else None
+            )
 
         tenant.updated_at = datetime.now(timezone.utc)
         tenant.save()

@@ -12,7 +12,7 @@ from app.schemas.mobile.auth_schemas import (
 from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.services.mobile.auth_service import AuthService
 
-router = APIRouter(prefix="/api/v1/auth", tags=["Mobile Social Authentication"])
+router = APIRouter(prefix="/api/v1/mobile/auth", tags=["Mobile Social Authentication"])
 auth_service = AuthService()
 
 

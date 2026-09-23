@@ -1,15 +1,14 @@
 import logging
 from datetime import datetime, timezone
 
-from peewee import PeeweeException, fn
+from peewee import Case, PeeweeException, fn
 
+from app.database import db_proxy
 from app.models.category import Category
 from app.models.video import Video
+from app.utils.string_utils import slugify
 
 logger = logging.getLogger(__name__)
-
-
-from app.utils.string_utils import slugify
 
 
 class CategoryRepository:
@@ -141,30 +140,31 @@ class CategoryRepository:
         Updates fields of an existing category. Updates slug if name changes.
         """
         try:
-            cat = self.get_category_by_id(category_id, tenant_id)
-            if not cat:
-                return None
+            with db_proxy.atomic():
+                cat = self.get_category_by_id(category_id, tenant_id)
+                if not cat:
+                    return None
 
-            if update_data.get("name"):
-                old_name = cat.name
-                new_name = update_data["name"].strip()
-                if old_name.lower().strip() != new_name.lower():
-                    Video.update(category=new_name).where(
-                        (Video.tenant == tenant_id)
-                        & (fn.LOWER(Video.category) == old_name.lower().strip())
-                    ).execute()
-                cat.name = new_name
-                cat.slug = slugify(new_name)
-            if "description" in update_data:
-                cat.description = update_data["description"]
-            if "thumbnail_url" in update_data:
-                cat.thumbnail_url = update_data["thumbnail_url"]
-            if update_data.get("color"):
-                cat.color = update_data["color"]
+                if update_data.get("name"):
+                    old_name = cat.name
+                    new_name = update_data["name"].strip()
+                    if old_name.lower().strip() != new_name.lower():
+                        Video.update(category=new_name).where(
+                            (Video.tenant == tenant_id)
+                            & (fn.LOWER(Video.category) == old_name.lower().strip())
+                        ).execute()
+                    cat.name = new_name
+                    cat.slug = slugify(new_name)
+                if "description" in update_data:
+                    cat.description = update_data["description"]
+                if "thumbnail_url" in update_data:
+                    cat.thumbnail_url = update_data["thumbnail_url"]
+                if update_data.get("color"):
+                    cat.color = update_data["color"]
 
-            cat.updated_at = datetime.now(timezone.utc)
-            cat.save()
-            return cat
+                cat.updated_at = datetime.now(timezone.utc)
+                cat.save()
+                return cat
         except PeeweeException as e:
             logger.error("Error updating category %s: %s", category_id, e)
             raise
@@ -174,30 +174,35 @@ class CategoryRepository:
         Deletes a category and unassigns videos (setting Video.category = None) so assets remain intact.
         """
         try:
-            cat = self.get_category_by_id(category_id, tenant_id)
-            if not cat:
-                return False
+            with db_proxy.atomic():
+                cat = self.get_category_by_id(category_id, tenant_id)
+                if not cat:
+                    return False
 
-            # Unlink associated videos safely
-            Video.update(category=None).where(
-                (Video.tenant == tenant_id)
-                & (fn.LOWER(Video.category) == cat.name.lower().strip())
-            ).execute()
+                # Unlink associated videos safely
+                Video.update(category=None).where(
+                    (Video.tenant == tenant_id)
+                    & (fn.LOWER(Video.category) == cat.name.lower().strip())
+                ).execute()
 
-            cat.delete_instance()
-            return True
+                cat.delete_instance()
+                return True
         except PeeweeException as e:
             logger.error("Error deleting category %s: %s", category_id, e)
             raise
 
     def reorder_categories(self, tenant_id: int, category_ids: list[int]) -> bool:
         """
-        Atomically updates category display_order values according to array order.
+        Atomically updates category display_order values in 1 single bulk CASE query.
         """
+        if not category_ids:
+            return True
         try:
-            for idx, cat_id in enumerate(category_ids):
-                Category.update(display_order=idx + 1).where(
-                    (Category.id == cat_id) & (Category.tenant == tenant_id)
+            whens = [(cat_id, idx + 1) for idx, cat_id in enumerate(category_ids)]
+            order_case = Case(Category.id, whens)
+            with db_proxy.atomic():
+                Category.update(display_order=order_case).where(
+                    (Category.tenant == tenant_id) & (Category.id.in_(category_ids))
                 ).execute()
             return True
         except PeeweeException as e:

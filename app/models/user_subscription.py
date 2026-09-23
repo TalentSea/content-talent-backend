@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from peewee import (
     CharField,
     DateTimeField,
@@ -11,6 +9,7 @@ from app.models.payment import Payment
 from app.models.subscriber import Subscriber
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.tenant import Tenant
+from app.utils.date_utils import now_utc
 
 
 class UserSubscription(BaseModel):
@@ -49,12 +48,11 @@ class UserSubscription(BaseModel):
         null=True,
         on_delete="SET NULL",
     )
-    start_date = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    start_date = DateTimeField(default=now_utc)
     end_date = DateTimeField(index=True, null=False)
     status = CharField(max_length=30, default="active", index=True, null=False)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "user_subscriptions"

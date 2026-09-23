@@ -51,14 +51,15 @@ class ProfileRepository:
         if "website" in update_data:
             admin.website = update_data["website"]
 
-        # Social links mapping to Tenant
-        if admin.tenant and social:
+        # Social links mapping to Tenant (strictly guarded: only tenant primary owner can modify studio branding links)
+        if admin.tenant and social and admin.is_owner:
             if "twitter" in social:
                 admin.tenant.twitter_url = social["twitter"]
             if "youtube" in social:
                 admin.tenant.youtube_url = social["youtube"]
             if "instagram" in social:
                 admin.tenant.instagram_url = social["instagram"]
+            admin.tenant.updated_at = datetime.now(timezone.utc)
             admin.tenant.save()
 
         admin.updated_at = datetime.now(timezone.utc)

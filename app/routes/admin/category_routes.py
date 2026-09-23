@@ -11,6 +11,7 @@ from app.schemas.shared.category_schemas import (
     CategoryThumbnailUploadResponse,
     CategoryUpdateRequest,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.services.shared.category_service import CategoryService
 
 router = APIRouter(prefix="/api/v1/admin/categories", tags=["Admin Categories"])
@@ -43,6 +44,7 @@ def create_category(req: CategoryCreateRequest, current_user: CurrentAdmin):
 
 @router.put(
     "/reorder",
+    response_model=ActionSuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="Reorder Categories (Drag-and-Drop)",
     description="Persists new category display ordering after drag-and-drop actions in the Admin Portal UI.",
@@ -85,6 +87,7 @@ def upload_category_thumbnail(
 
 @router.delete(
     "/{category_id}",
+    response_model=ActionSuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete Category",
     description="Deletes a category asset and safely unassigns videos belonging to it.",

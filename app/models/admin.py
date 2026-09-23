@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from peewee import (
     BooleanField,
     CharField,
@@ -10,6 +8,7 @@ from peewee import (
 
 from app.models.base import BaseModel
 from app.models.tenant import Tenant
+from app.utils.date_utils import now_utc
 from app.utils.string_utils import format_full_name
 
 
@@ -40,8 +39,8 @@ class Admin(BaseModel):
     avatar_url = CharField(max_length=500, null=True)
     refresh_token = TextField(null=True)
     is_active = BooleanField(default=True, index=True)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     @property
     def name(self) -> str:

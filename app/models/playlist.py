@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from peewee import (
     CharField,
     CompositeKey,
@@ -14,6 +12,7 @@ from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
 from app.models.tenant import Tenant
 from app.models.video import Video
+from app.utils.date_utils import now_utc
 
 
 class Playlist(BaseModel):
@@ -40,10 +39,8 @@ class Playlist(BaseModel):
     name = CharField(max_length=255)
     description = TextField(null=True)
     thumbnail_url = CharField(max_length=500, null=True)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-
-
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "playlists"
@@ -69,7 +66,7 @@ class PlaylistVideo(BaseModel):
         on_delete="CASCADE",
     )
     order = IntegerField(default=0)
-    added_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    added_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "playlist_videos"
@@ -95,7 +92,7 @@ class PlaylistSave(BaseModel):
         backref="playlist_saves",
         on_delete="CASCADE",
     )
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "playlist_saves"

@@ -10,7 +10,10 @@ from app.schemas.mobile.video_schemas import (
     MobileViewCountResponse,
     MobileWatchProgressRequest,
 )
-from app.schemas.shared.common_schemas import PaginatedResponse
+from app.schemas.shared.common_schemas import (
+    ActionSuccessResponse,
+    PaginatedResponse,
+)
 from app.services.admin.monetization_service import MonetizationService
 from app.services.mobile.video_service import MobileVideoService
 
@@ -90,6 +93,7 @@ def list_watch_history(
 
 @router.delete(
     "/history",
+    response_model=ActionSuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="Clear All Watch History",
     description="Deletes all watch history records for the authenticated subscriber.",
@@ -99,11 +103,12 @@ def clear_watch_history(current_subscriber: CurrentSubscriber):
         subscriber_id=current_subscriber.get("user_id"),
         tenant_id=current_subscriber.get("tenant_id"),
     )
-    return {"status": "success", "message": "Watch history cleared successfully"}
+    return ActionSuccessResponse(status="success")
 
 
 @router.delete(
     "/history/{video_id}",
+    response_model=ActionSuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="Remove Single Video from Watch History",
     description="Deletes a specific video from the authenticated subscriber's watch history and continue watching carousel.",
@@ -116,7 +121,7 @@ def remove_video_from_watch_history(
         subscriber_id=current_subscriber.get("user_id"),
         tenant_id=current_subscriber.get("tenant_id"),
     )
-    return {"status": "success", "message": "Video removed from watch history"}
+    return ActionSuccessResponse(status="success")
 
 
 @router.get(

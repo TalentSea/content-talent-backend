@@ -7,6 +7,7 @@ from app.schemas.admin.auth_schemas import (
     AdminSummaryResponse,
     AdminTokenResponse,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.services.admin.auth_service import AuthService
 
 router = APIRouter(prefix="/api/v1/admin/auth", tags=["Admin Authentication"])
@@ -42,7 +43,11 @@ def admin_get_me(current_admin: CurrentAdmin):
     return auth_service.get_me(current_admin["user_id"])
 
 
-@router.post("/logout", status_code=status.HTTP_200_OK)
+@router.post(
+    "/logout",
+    response_model=ActionSuccessResponse,
+    status_code=status.HTTP_200_OK,
+)
 def admin_logout(current_admin: CurrentAdmin, response: Response):
     """
     POST /api/v1/admin/auth/logout — Revokes active refresh session in DB and erases HttpOnly cookie.

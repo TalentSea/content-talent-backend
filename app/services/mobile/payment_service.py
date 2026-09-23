@@ -13,10 +13,10 @@ from app.config import get_settings
 from app.database import db_proxy
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user_subscription import UserSubscription
-from app.repositories.mobile.payment_repository import PaymentRepository
-from app.repositories.mobile.subscription_plan_repository import (
-    MobileSubscriptionPlanRepository,
+from app.repositories.admin.subscription_plan_repository import (
+    SubscriptionPlanRepository,
 )
+from app.repositories.mobile.payment_repository import PaymentRepository
 from app.repositories.mobile.user_subscription_repository import (
     UserSubscriptionRepository,
 )
@@ -67,11 +67,11 @@ class MobilePaymentService:
         self,
         payment_repo: PaymentRepository | None = None,
         subscription_repo: UserSubscriptionRepository | None = None,
-        plan_repo: MobileSubscriptionPlanRepository | None = None,
+        plan_repo: SubscriptionPlanRepository | None = None,
     ):
         self.payment_repo = payment_repo or PaymentRepository()
         self.subscription_repo = subscription_repo or UserSubscriptionRepository()
-        self.plan_repo = plan_repo or MobileSubscriptionPlanRepository()
+        self.plan_repo = plan_repo or SubscriptionPlanRepository()
 
     def _to_subscription_dto(self, sub: UserSubscription) -> SubscriptionDTO:
         now = datetime.now(timezone.utc)
@@ -113,7 +113,7 @@ class MobilePaymentService:
             )
 
         # 2. Fetch Plan Tier
-        plan = self.plan_repo.get_plan_by_id(plan_id, tenant_id)
+        plan = self.plan_repo.get_plan_by_id(tenant_id, plan_id)
         if not plan:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

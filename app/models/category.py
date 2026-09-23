@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
-
 from peewee import CharField, DateTimeField, ForeignKeyField, IntegerField, TextField
 
 from app.config import get_settings
 from app.models.base import BaseModel
 from app.models.tenant import Tenant
+from app.utils.date_utils import now_utc
 
 
 class Category(BaseModel):
@@ -24,10 +23,12 @@ class Category(BaseModel):
     slug = CharField(max_length=120)
     description = TextField(null=True)
     thumbnail_url = CharField(max_length=500, null=True)
-    color = CharField(max_length=30, default=lambda: get_settings().DEFAULT_CATEGORY_COLOR)
+    color = CharField(
+        max_length=30, default=lambda: get_settings().DEFAULT_CATEGORY_COLOR
+    )
     display_order = IntegerField(default=0)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "categories"

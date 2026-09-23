@@ -117,7 +117,7 @@ sequenceDiagram
     Backend->>DB: Unlink videos (UPDATE videos SET category = NULL WHERE category = '...')
     Backend->>Bunny: DELETE assets/categories/cat_5_{timestamp}.webp
     Backend->>DB: DELETE FROM categories WHERE id = 5
-    Backend-->>Admin: 200 OK ("Category deleted successfully")
+    Backend-->>Admin: 200 OK ({"status": "success"})
 ```
 
 ### Architectural Principles:
@@ -127,12 +127,12 @@ sequenceDiagram
    - This `category_id` is then deterministically embedded into the storage path (`assets/categories/cat_{category_id}_{timestamp}.webp`), guaranteeing clean multi-tenant isolation and zero storage collisions.
 
 2. **Decoupled Creation Response (`CategoryCreateResponse`)**:
-   - Following the exact pattern of `PlaylistCreateResponse`, `POST /api/v1/admin/categories` creates the container and returns pure metadata (`id`, `name`, `slug`, `color`, `order`, `createdAt`).
-   - The creation response intentionally does **not** include `thumbnailUrl`, avoiding misleading `null` states in API responses.
+   - Following the exact pattern of `PlaylistCreateResponse`, `POST /api/v1/admin/categories` creates the container and returns pure metadata (`id`, `name`, `slug`, `color`, `order`, `created_at`).
+   - The creation response intentionally does **not** include `thumbnail_url`, avoiding misleading `null` states in API responses.
 
-3. **Guaranteed Non-Null `thumbnailUrl: string`**:
+3. **Guaranteed Non-Null `thumbnail_url: string`**:
    - The agreed creator studio UI flow requires selecting and uploading the thumbnail immediately after container allocation (`POST /api/v1/admin/categories/{id}/thumbnail/upload`).
-   - In all category query and feed endpoints (`GET /api/v1/admin/categories`, `GET /api/v1/mobile/categories`), `thumbnailUrl` is strictly a non-null string (`thumbnailUrl: str`), satisfying the frontend contract.
+   - In all category query and feed endpoints (`GET /api/v1/admin/categories`, `GET /api/v1/mobile/categories`), `thumbnail_url` is strictly a non-null string (`thumbnail_url: str`), satisfying the frontend contract.
 
 4. **Zero-Orphan Cloud Storage Lifecycle**:
    - **On Replace**: When a creator uploads a new thumbnail, the backend extracts the old storage path from `cat.thumbnail_url` and sends a `DELETE` request to Bunny Storage before saving the new URL.
@@ -144,7 +144,7 @@ sequenceDiagram
 
 ### 1. `GET /api/v1/admin/categories` — List All Creator Categories
 
-Retrieves all categories owned by the authenticated creator account, ordered by `display_order` (ascending). Dynamically computes `contentCount` (total published videos in each category) or returns a lightweight dropdown list if `simple=true`.
+Retrieves all categories owned by the authenticated creator account, ordered by `display_order` (ascending). Dynamically computes `content_count` (total published videos in each category) or returns a lightweight dropdown list if `simple=true`.
 
 #### Request Headers
 
@@ -162,7 +162,7 @@ Authorization: Bearer <creator_access_token>
 2. If `simple=true`:
    - Queries `Category` table for `id`, `name`, `slug` filtering by `user == user_id`, ordered by `display_order.asc()`. Skips SQL `Video` count join.
 3. If `simple=false` (default):
-   - Executes dynamic SQL `LEFT OUTER JOIN` between `Category` and `Video` tables to aggregate `contentCount` on-the-fly:
+   - Executes dynamic SQL `LEFT OUTER JOIN` between `Category` and `Video` tables to aggregate `content_count` on-the-fly:
    ```python
    query = Category.select(
        Category,
@@ -188,24 +188,24 @@ Authorization: Bearer <creator_access_token>
       "name": "Programming",
       "slug": "programming",
       "description": "Software development and engineering tutorials",
-      "thumbnailUrl": "https://talent-sea987.b-cdn.net/assets/categories/cat_1_1726732800.webp",
+      "thumbnail_url": "https://talent-sea987.b-cdn.net/assets/categories/cat_1_1726732800.webp",
       "color": "#3b82f6",
-      "contentCount": 42,
+      "content_count": 42,
       "order": 1,
-      "createdAt": "2024-01-15T08:00:00Z",
-      "updatedAt": "2024-06-20T10:30:00Z"
+      "created_at": "2024-01-15T08:00:00Z",
+      "updated_at": "2024-06-20T10:30:00Z"
     },
     {
       "id": 2,
       "name": "Design & UI/UX",
       "slug": "design-ui-ux",
       "description": "Figma, mobile UI, and visual design courses",
-      "thumbnailUrl": "https://talent-sea987.b-cdn.net/assets/categories/cat_2_1726732800.webp",
+      "thumbnail_url": "https://talent-sea987.b-cdn.net/assets/categories/cat_2_1726732800.webp",
       "color": "#ec4899",
-      "contentCount": 18,
+      "content_count": 18,
       "order": 2,
-      "createdAt": "2024-02-01T12:00:00Z",
-      "updatedAt": "2024-06-20T10:30:00Z"
+      "created_at": "2024-02-01T12:00:00Z",
+      "updated_at": "2024-06-20T10:30:00Z"
     }
   ]
 }
@@ -265,7 +265,7 @@ Content-Type: application/json
 2. Generates URL-friendly `slug` from category name (`mobile-development`).
 3. Auto-calculates `display_order = max(display_order) + 1`.
 4. Commits new `Category` container record to database.
-5. Returns `CategoryCreateResponse` without `thumbnailUrl` (container ready for immediate thumbnail upload).
+5. Returns `CategoryCreateResponse` without `thumbnail_url` (container ready for immediate thumbnail upload).
 
 #### Response Specification (`201 Created`)
 
@@ -277,7 +277,7 @@ Content-Type: application/json
   "description": "Flutter, React Native, and iOS Native tutorials",
   "color": "#10b981",
   "order": 3,
-  "createdAt": "2026-08-12T00:00:00Z"
+  "created_at": "2026-08-12T00:00:00Z"
 }
 ```
 
@@ -319,12 +319,12 @@ Content-Type: application/json
   "name": "Mobile & Cross Platform",
   "slug": "mobile-cross-platform",
   "description": "Updated mobile engineering tutorials",
-  "thumbnailUrl": "https://talent-sea987.b-cdn.net/assets/categories/cat_3_1726732800.webp",
+  "thumbnail_url": "https://talent-sea987.b-cdn.net/assets/categories/cat_3_1726732800.webp",
   "color": "#059669",
-  "contentCount": 0,
+  "content_count": 0,
   "order": 3,
-  "createdAt": "2026-08-12T00:00:00Z",
-  "updatedAt": "2026-08-12T00:00:00Z"
+  "created_at": "2026-08-12T00:00:00Z",
+  "updated_at": "2026-08-12T00:00:00Z"
 }
 ```
 
@@ -394,7 +394,7 @@ Authorization: Bearer <creator_access_token>
 
 ```json
 {
-  "message": "Category deleted successfully"
+  "status": "success"
 }
 ```
 
@@ -428,6 +428,6 @@ Content-Type: application/json
 
 ```json
 {
-  "message": "Category order updated"
+  "status": "success"
 }
 ```

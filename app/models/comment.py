@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
-
 from peewee import BooleanField, DateTimeField, ForeignKeyField, IntegerField, TextField
 
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
 from app.models.video import Video
+from app.utils.date_utils import now_utc
 
 
 class Comment(BaseModel):
@@ -20,7 +19,7 @@ class Comment(BaseModel):
     likes = IntegerField(default=0)
     is_hearted_by_creator = BooleanField(default=False)
     parent = ForeignKeyField("self", null=True, backref="replies", on_delete="CASCADE")
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "comments"
@@ -33,10 +32,13 @@ class CommentLike(BaseModel):
 
     user = ForeignKeyField(Subscriber, backref="comment_likes", on_delete="CASCADE")
     comment = ForeignKeyField(Comment, backref="likes_rel", on_delete="CASCADE")
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "comment_likes"
         indexes = (
-            (("user", "comment"), True),  # Enforces 1 unique like per subscriber per comment
+            (
+                ("user", "comment"),
+                True,
+            ),  # Enforces 1 unique like per subscriber per comment
         )

@@ -36,6 +36,7 @@ from app.utils.bunny_signature import (
     generate_tus_signature,
 )
 from app.utils.date_utils import get_app_timezone
+from app.utils.formatters import format_duration
 from app.utils.image_uploader import validate_and_upload_image
 
 logger = logging.getLogger("uvicorn.error")
@@ -78,17 +79,6 @@ def resolve_bunny_status(
     db_status, default_prog, is_playable = BUNNY_STATUS_MAP[status_code]
     progress = live_progress if live_progress is not None else default_prog
     return BunnyVideoState(db_status, progress, is_playable)
-
-
-def format_duration(seconds: int | None) -> str | None:
-    """Formats integer seconds into MM:SS or HH:MM:SS string."""
-    if not seconds or seconds <= 0:
-        return None
-    mins, secs = divmod(seconds, 60)
-    hours, mins = divmod(mins, 60)
-    if hours > 0:
-        return f"{hours:02d}:{mins:02d}:{secs:02d}"
-    return f"{mins:02d}:{secs:02d}"
 
 
 def normalize_tags(tags: list[str] | None) -> list[str]:
@@ -696,7 +686,9 @@ class VideoService:
                         e,
                     )
 
-    def delete_video_asset(self, tenant_id: int, video_id: int) -> ActionSuccessResponse:
+    def delete_video_asset(
+        self, tenant_id: int, video_id: int
+    ) -> ActionSuccessResponse:
         """
         Issues HTTP DELETE to Bunny Stream API to remove cloud video container, deletes all storage thumbnails, and drops video record from DB.
         """
@@ -740,9 +732,7 @@ class VideoService:
             id=video.id, status=video.status, published_at=video.published_at
         )
 
-    def unpublish_video(
-        self, tenant_id: int, video_id: int
-    ) -> VideoPublishResponse:
+    def unpublish_video(self, tenant_id: int, video_id: int) -> VideoPublishResponse:
         """
         Unpublishes a video asset, updating state to 'draft', clearing published_at,
         and taking it off mobile feeds immediately.
@@ -783,6 +773,13 @@ class VideoService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid date or time specification: {e!s}",
             ) from e
+
+        now_utc = datetime.now(timezone.utc)
+        if scheduled_dt <= now_utc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scheduled publication time must be in the future.",
+            )
 
         updated_video = self.repo.schedule_video(video_id, tenant_id, scheduled_dt)
         return VideoScheduleResponse(

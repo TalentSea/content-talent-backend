@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
-
 from peewee import BooleanField, CharField, DateTimeField, TextField
 
 from app.models.base import BaseModel
+from app.utils.date_utils import now_utc
 from app.utils.string_utils import slugify
 
 
@@ -24,8 +23,8 @@ class Tenant(BaseModel):
     is_active = BooleanField(default=True, index=True)
     deactivation_reason = TextField(null=True)
     deactivated_at = DateTimeField(null=True)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     def save(self, *args, **kwargs):
         if not self.slug and self.name:

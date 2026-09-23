@@ -27,6 +27,17 @@ def parse_duration_seconds(val) -> int:
         return 0
 
 
+def format_duration(seconds: int | None) -> str | None:
+    """Formats integer seconds into MM:SS or HH:MM:SS string."""
+    if not seconds or seconds <= 0:
+        return None
+    mins, secs = divmod(seconds, 60)
+    hours, mins = divmod(mins, 60)
+    if hours > 0:
+        return f"{hours:02d}:{mins:02d}:{secs:02d}"
+    return f"{mins:02d}:{secs:02d}"
+
+
 def calculate_completion_percentage(
     last_position_seconds: int | None,
     video_duration: str | int | None,

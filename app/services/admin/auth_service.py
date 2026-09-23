@@ -10,6 +10,7 @@ from app.schemas.admin.auth_schemas import (
     AdminSummaryResponse,
     AdminTokenResponse,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.utils.auth import (
     create_access_token,
     create_refresh_token_string,
@@ -280,11 +281,11 @@ class AuthService:
             is_owner=is_owner,
         )
 
-    def logout(self, admin_id: int, response: Response) -> dict[str, str]:
+    def logout(self, admin_id: int, response: Response) -> ActionSuccessResponse:
         """
         Revokes creator refresh session in database and clears the browser HttpOnly cookies.
         """
         self.repo.update_refresh_token_hash(admin_id, None)
         self._clear_refresh_cookie(response)
         self._clear_access_cookie(response)
-        return {"message": "Successfully logged out"}
+        return ActionSuccessResponse(status="success")

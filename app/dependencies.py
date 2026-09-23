@@ -8,9 +8,9 @@ from app.models.subscriber import Subscriber
 from app.models.tenant import Tenant
 from app.utils.auth import decode_access_token, verify_tenant_active
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/admin/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(
-    tokenUrl="api/v1/auth/login", auto_error=False
+    tokenUrl="/api/v1/admin/auth/login", auto_error=False
 )
 
 

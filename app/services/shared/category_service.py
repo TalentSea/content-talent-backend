@@ -17,6 +17,7 @@ from app.schemas.shared.category_schemas import (
     CategoryUpdateRequest,
     MobileCategoryResponse,
 )
+from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.utils.bunny_client import delete_bunny_storage_file
 from app.utils.image_uploader import validate_and_upload_image
 
@@ -38,12 +39,12 @@ class CategoryService:
             name=cat.name,
             slug=cat.slug,
             description=cat.description,
-            thumbnailUrl=cat.thumbnail_url or "",
+            thumbnail_url=cat.thumbnail_url or "",
             color=cat.color or settings.DEFAULT_CATEGORY_COLOR,
-            contentCount=content_count,
+            content_count=content_count,
             order=cat.display_order,
-            createdAt=cat.created_at,
-            updatedAt=cat.updated_at,
+            created_at=cat.created_at,
+            updated_at=cat.updated_at,
         )
 
     def list_mobile_categories(self, tenant_id: int | None = None):
@@ -58,7 +59,7 @@ class CategoryService:
                 name=c.name,
                 slug=c.slug,
                 description=c.description,
-                thumbnailUrl=c.thumbnail_url or "",
+                thumbnail_url=c.thumbnail_url or "",
                 color=c.color or settings.DEFAULT_CATEGORY_COLOR,
             )
             for c in categories
@@ -108,7 +109,7 @@ class CategoryService:
             description=cat.description,
             color=cat.color or settings.DEFAULT_CATEGORY_COLOR,
             order=cat.display_order,
-            createdAt=cat.created_at,
+            created_at=cat.created_at,
         )
 
     def update_category(
@@ -175,7 +176,9 @@ class CategoryService:
 
         return CategoryThumbnailUploadResponse(thumbnail_url=thumbnail_url)
 
-    def delete_category(self, category_id: int, tenant_id: int) -> dict:
+    def delete_category(
+        self, category_id: int, tenant_id: int
+    ) -> ActionSuccessResponse:
         """
         Deletes a category asset and cleans up its thumbnail from Bunny Storage.
         """
@@ -202,11 +205,11 @@ class CategoryService:
                 )
 
         self.repo.delete_category(category_id, tenant_id)
-        return {"message": "Category deleted successfully"}
+        return ActionSuccessResponse(status="success")
 
     def reorder_categories(
         self, req: CategoryReorderRequest, tenant_id: int
-    ) -> dict:
+    ) -> ActionSuccessResponse:
         """
         Updates display_order for category IDs.
         """
@@ -220,4 +223,4 @@ class CategoryService:
             )
 
         self.repo.reorder_categories(tenant_id, req.ids)
-        return {"message": "Category order updated"}
+        return ActionSuccessResponse(status="success")
