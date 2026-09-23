@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from peewee import PeeweeException, fn
 
-from app.models.admin import Admin
+from app.models.tenant import Tenant
 from app.models.video import Video
 
 logger = logging.getLogger(__name__)
@@ -12,19 +12,22 @@ logger = logging.getLogger(__name__)
 class VideoRepository:
     """
     Data access layer for performing CRUD operations and advanced queries on Video Peewee entities.
+    Scoping is enforced by Tenant.
     """
 
-    def create_video(self, video_data: dict, user_id: int) -> Video:
+    def create_video(
+        self, video_data: dict, tenant_id: int, created_by: int | None = None
+    ) -> Video:
         """
-        Commits a new Video record into the database with initial status 'PENDING' linked to user_id.
+        Commits a new Video record into the database with initial status 'pending' linked to tenant_id.
         """
-        return Video.create(user=user_id, **video_data)
+        return Video.create(tenant=tenant_id, created_by=created_by, **video_data)
 
-    def get_video_by_id(self, video_id: int, user_id: int) -> Video | None:
+    def get_video_by_id(self, video_id: int, tenant_id: int) -> Video | None:
         """
-        Fetches a video record by integer primary key ID ensuring ownership authorization (user_id).
+        Fetches a video record by integer primary key ID ensuring ownership authorization (tenant_id).
         """
-        return Video.get_or_none((Video.id == video_id) & (Video.user == user_id))
+        return Video.get_or_none((Video.id == video_id) & (Video.tenant == tenant_id))
 
     def get_video_by_bunny_id(self, bunny_video_id: str) -> Video | None:
         """
@@ -34,7 +37,7 @@ class VideoRepository:
 
     def get_all_videos_by_user(
         self,
-        user_id: int,
+        tenant_id: int,
         status: str | None = None,
         category: str | None = None,
         search: str | None = None,
@@ -45,9 +48,9 @@ class VideoRepository:
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
-        Fetches a paginated, filtered, and sorted list of video records owned by the creator.
+        Fetches a paginated, filtered, and sorted list of video records owned by the tenant.
         """
-        query = Video.select().where(Video.user == user_id)
+        query = Video.select().where(Video.tenant == tenant_id)
 
         if status:
             clean_status = status.lower().strip()
@@ -95,12 +98,12 @@ class VideoRepository:
         return items, total
 
     def update_video_metadata(
-        self, video_id: int, user_id: int, update_data: dict
+        self, video_id: int, tenant_id: int, update_data: dict
     ) -> Video | None:
         """
         Updates textual fields (title, description, category, tags) of a video asset in DB.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         for k, v in update_data.items():
@@ -139,11 +142,11 @@ class VideoRepository:
         video.save()
         return video
 
-    def publish_video(self, video_id: int, user_id: int) -> Video | None:
+    def publish_video(self, video_id: int, tenant_id: int) -> Video | None:
         """
         Publishes a video asset immediately, setting status = 'published' and recording ISO UTC timestamp.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         video.status = "published"
@@ -153,11 +156,11 @@ class VideoRepository:
         video.save()
         return video
 
-    def unpublish_video(self, video_id: int, user_id: int) -> Video | None:
+    def unpublish_video(self, video_id: int, tenant_id: int) -> Video | None:
         """
         Unpublishes a video asset, reverting status = 'draft', publish_intent = 'draft', and clearing published_at.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         video.status = "draft"
@@ -168,12 +171,12 @@ class VideoRepository:
         return video
 
     def schedule_video(
-        self, video_id: int, user_id: int, scheduled_at_dt: datetime
+        self, video_id: int, tenant_id: int, scheduled_at_dt: datetime
     ) -> Video | None:
         """
         Schedules a video asset for future publication, setting status = 'scheduled' and target datetime.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         video.status = "scheduled"
@@ -189,7 +192,7 @@ class VideoRepository:
         """
         try:
             now = datetime.now(timezone.utc)
-            active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
+            active_tenants = Tenant.select(Tenant.id).where(Tenant.is_active == True)
             count = (
                 Video.update(
                     status="published",
@@ -200,7 +203,7 @@ class VideoRepository:
                     (Video.status == "scheduled")
                     & (Video.scheduled_at.is_null(False))
                     & (Video.scheduled_at <= now)
-                    & (Video.user.in_(active_creators))
+                    & (Video.tenant.in_(active_tenants))
                 )
                 .execute()
             )
@@ -210,12 +213,12 @@ class VideoRepository:
             return 0
 
     def swap_main_thumbnail(
-        self, video_id: int, user_id: int, new_main_url: str
+        self, video_id: int, tenant_id: int, new_main_url: str
     ) -> Video | None:
         """
         Updates main_thumbnail_url and pushes the previous main URL into alt_thumbnail_urls list.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         old_main = video.main_thumbnail_url
@@ -230,12 +233,12 @@ class VideoRepository:
         return video
 
     def delete_alt_thumbnail_url(
-        self, video_id: int, user_id: int, target_url: str
+        self, video_id: int, tenant_id: int, target_url: str
     ) -> Video | None:
         """
         Removes a target thumbnail URL entry from alt_thumbnail_urls array in DB.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         alts = list(video.alt_thumbnail_urls or [])
@@ -246,12 +249,12 @@ class VideoRepository:
         return video
 
     def update_thumbnail_url(
-        self, video_id: int, user_id: int, slot: int, new_url: str
+        self, video_id: int, tenant_id: int, slot: int, new_url: str
     ) -> Video | None:
         """
         Updates main_thumbnail_url (slot 0) or alt_thumbnail_urls list (slot 1 or 2) in DB.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return None
         if slot == 0:
@@ -267,22 +270,22 @@ class VideoRepository:
         video.save()
         return video
 
-    def delete_video(self, video_id: int, user_id: int) -> bool:
+    def delete_video(self, video_id: int, tenant_id: int) -> bool:
         """
         Deletes a video record from DB and cascades playlist association cleanup.
         """
-        video = self.get_video_by_id(video_id, user_id)
+        video = self.get_video_by_id(video_id, tenant_id)
         if not video:
             return False
         video.delete_instance(recursive=True)
         return True
 
-    def bulk_delete_videos(self, video_ids: list[int], user_id: int) -> list[Video]:
+    def bulk_delete_videos(self, video_ids: list[int], tenant_id: int) -> list[Video]:
         """
-        Fetches and deletes multiple video assets by ID array owned by creator. Returns deleted Video instances.
+        Fetches and deletes multiple video assets by ID array owned by tenant. Returns deleted Video instances.
         """
         videos = list(
-            Video.select().where((Video.id.in_(video_ids)) & (Video.user == user_id))
+            Video.select().where((Video.id.in_(video_ids)) & (Video.tenant == tenant_id))
         )
         for video in videos:
             video.delete_instance(recursive=True)

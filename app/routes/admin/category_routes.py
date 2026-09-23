@@ -26,7 +26,7 @@ category_service = CategoryService()
 )
 def list_categories(current_user: CurrentAdmin, simple: bool = False):
     return category_service.list_categories(
-        user_id=current_user["user_id"], simple=simple
+        tenant_id=current_user["tenant_id"], simple=simple
     )
 
 
@@ -38,7 +38,7 @@ def list_categories(current_user: CurrentAdmin, simple: bool = False):
     description="Creates a new content category container with title, description, and hex color.",
 )
 def create_category(req: CategoryCreateRequest, current_user: CurrentAdmin):
-    return category_service.create_category(user_id=current_user["user_id"], req=req)
+    return category_service.create_category(tenant_id=current_user["tenant_id"], req=req)
 
 
 @router.put(
@@ -48,7 +48,7 @@ def create_category(req: CategoryCreateRequest, current_user: CurrentAdmin):
     description="Persists new category display ordering after drag-and-drop actions in the Admin Portal UI.",
 )
 def reorder_categories(req: CategoryReorderRequest, current_user: CurrentAdmin):
-    return category_service.reorder_categories(user_id=current_user["user_id"], req=req)
+    return category_service.reorder_categories(tenant_id=current_user["tenant_id"], req=req)
 
 
 @router.put(
@@ -64,7 +64,7 @@ def update_category(
     current_user: CurrentAdmin,
 ):
     return category_service.update_category(
-        category_id=category_id, user_id=current_user["user_id"], req=req
+        category_id=category_id, tenant_id=current_user["tenant_id"], req=req
     )
 
 
@@ -79,7 +79,7 @@ def upload_category_thumbnail(
     category_id: int, current_user: CurrentAdmin, file: FormFile
 ):
     return category_service.upload_category_thumbnail(
-        user_id=current_user["user_id"], category_id=category_id, file=file
+        tenant_id=current_user["tenant_id"], category_id=category_id, file=file
     )
 
 
@@ -91,5 +91,5 @@ def upload_category_thumbnail(
 )
 def delete_category(category_id: int, current_user: CurrentAdmin):
     return category_service.delete_category(
-        category_id=category_id, user_id=current_user["user_id"]
+        category_id=category_id, tenant_id=current_user["tenant_id"]
     )

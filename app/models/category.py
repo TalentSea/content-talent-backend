@@ -3,21 +3,22 @@ from datetime import datetime, timezone
 from peewee import CharField, DateTimeField, ForeignKeyField, IntegerField, TextField
 
 from app.config import get_settings
-from app.models.admin import Admin
 from app.models.base import BaseModel
+from app.models.tenant import Tenant
 
 
 class Category(BaseModel):
     """
-    Stores category metadata for creator content categorization.
+    Stores category metadata for tenant content categorization.
     """
 
-    user = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="user_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="categories",
         on_delete="CASCADE",
+        index=True,
     )
     name = CharField(max_length=100)
     slug = CharField(max_length=120)
@@ -30,4 +31,4 @@ class Category(BaseModel):
 
     class Meta:
         table_name = "categories"
-        indexes = ((("user", "name"), True),)
+        indexes = ((("tenant", "name"), True),)

@@ -31,7 +31,7 @@ def get_monetization_summary(
     GET /api/v1/admin/monetization/summary
     """
     return monetization_service.get_monetization_summary(
-        creator_id=current_user["user_id"]
+        tenant_id=current_user["tenant_id"]
     )
 
 
@@ -61,7 +61,7 @@ def get_monetization_analytics(
     GET /api/v1/admin/monetization/analytics
     """
     return monetization_service.get_monetization_analytics(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         range_preset=range,
         start_date_str=start_date,
         end_date_str=end_date,
@@ -85,7 +85,7 @@ def get_settlements(
     GET /api/v1/admin/monetization/settlements
     """
     return monetization_service.get_settlement_history(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         page=page,
         limit=limit,
     )
@@ -104,7 +104,7 @@ def get_payout_settings(
     """
     GET /api/v1/admin/monetization/settings
     """
-    return monetization_service.get_payout_profile(creator_id=current_user["user_id"])
+    return monetization_service.get_payout_profile(tenant_id=current_user["tenant_id"])
 
 
 @router.put(
@@ -122,6 +122,6 @@ def update_payout_settings(
     PUT /api/v1/admin/monetization/settings
     """
     return monetization_service.update_payout_profile(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         request=payload,
     )

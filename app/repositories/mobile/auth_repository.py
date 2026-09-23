@@ -17,16 +17,16 @@ class AuthRepository:
     """
 
     def find_user_by_provider_or_email(
-        self, creator_id: int, provider: str, provider_id: str, email: str | None = None
+        self, tenant_id: int, provider: str, provider_id: str, email: str | None = None
     ) -> Subscriber | None:
         """
-        Finds existing subscriber bound to creator_id by (provider, provider_id) pair or matching email address.
+        Finds existing subscriber bound to tenant_id by (provider, provider_id) pair or matching email address.
         """
         try:
             sub = (
                 Subscriber.select()
                 .where(
-                    (Subscriber.creator == creator_id)
+                    (Subscriber.tenant == tenant_id)
                     & (Subscriber.provider == provider)
                     & (Subscriber.provider_id == provider_id)
                 )
@@ -39,7 +39,7 @@ class AuthRepository:
                 sub_by_email = (
                     Subscriber.select()
                     .where(
-                        (Subscriber.creator == creator_id) & (Subscriber.email == email)
+                        (Subscriber.tenant == tenant_id) & (Subscriber.email == email)
                     )
                     .first()
                 )
@@ -55,7 +55,7 @@ class AuthRepository:
 
     def create_social_user(
         self,
-        creator_id: int,
+        tenant_id: int,
         provider: str,
         provider_id: str,
         email: str | None = None,
@@ -63,11 +63,11 @@ class AuthRepository:
         avatar_url: str | None = None,
     ) -> Subscriber:
         """
-        Creates a new social subscriber bound to creator_id in the database.
+        Creates a new social subscriber bound to tenant_id in the database.
         """
         try:
             sub = Subscriber.create(
-                creator=creator_id,
+                tenant=tenant_id,
                 email=email,
                 name=name,
                 avatar_url=avatar_url,
@@ -80,7 +80,7 @@ class AuthRepository:
             return sub
         except IntegrityError:
             existing = self.find_user_by_provider_or_email(
-                creator_id, provider, provider_id, email
+                tenant_id, provider, provider_id, email
             )
             if existing:
                 return existing
@@ -172,17 +172,17 @@ class AuthRepository:
             return None
 
     def get_or_create_guest_subscriber(
-        self, creator_id: int, device_id: str
+        self, tenant_id: int, device_id: str
     ) -> Subscriber:
         """
-        Finds existing guest subscriber bound to creator_id by device_id or creates a new anonymous guest subscriber.
+        Finds existing guest subscriber bound to tenant_id by device_id or creates a new anonymous guest subscriber.
         Refreshes updated_at timestamp on active guest sessions.
         """
         now = datetime.now(timezone.utc)
         sub = (
             Subscriber.select()
             .where(
-                (Subscriber.creator == creator_id)
+                (Subscriber.tenant == tenant_id)
                 & (Subscriber.provider == "guest")
                 & (Subscriber.provider_id == device_id)
             )
@@ -196,7 +196,7 @@ class AuthRepository:
 
         try:
             sub = Subscriber.create(
-                creator=creator_id,
+                tenant=tenant_id,
                 name="Guest User",
                 email=None,
                 avatar_url=None,
@@ -212,7 +212,7 @@ class AuthRepository:
             sub = (
                 Subscriber.select()
                 .where(
-                    (Subscriber.creator == creator_id)
+                    (Subscriber.tenant == tenant_id)
                     & (Subscriber.provider == "guest")
                     & (Subscriber.provider_id == device_id)
                 )
@@ -227,7 +227,7 @@ class AuthRepository:
     def upgrade_guest_subscriber(
         self,
         guest_subscriber_id: int,
-        creator_id: int,
+        tenant_id: int,
         provider: str,
         provider_id: str,
         email: str | None = None,
@@ -240,7 +240,7 @@ class AuthRepository:
         """
         # 1. If this social user ALREADY has an account, return existing subscriber!
         existing_user = self.find_user_by_provider_or_email(
-            creator_id, provider, provider_id, email
+            tenant_id, provider, provider_id, email
         )
         if existing_user:
             guest_sub = self.get_user_by_id(guest_subscriber_id)
@@ -252,7 +252,7 @@ class AuthRepository:
         sub = self.get_user_by_id(guest_subscriber_id)
         if not sub:
             return self.create_social_user(
-                creator_id=creator_id,
+                tenant_id=tenant_id,
                 provider=provider,
                 provider_id=provider_id,
                 email=email,
@@ -261,7 +261,7 @@ class AuthRepository:
             )
 
         now = datetime.now(timezone.utc)
-        sub.creator = creator_id
+        sub.tenant = tenant_id
         sub.provider = provider
         sub.provider_id = provider_id
         sub.role = "subscriber"

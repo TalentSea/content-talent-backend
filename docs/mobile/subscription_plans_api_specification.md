@@ -16,7 +16,7 @@ This document details the RESTful API endpoint for Mobile Subscribers and Guest 
 ```http
 Authorization: Bearer <subscriber_access_token>
 ```
-* **Creator Multi-Tenancy**: The endpoint automatically filters plans for the subscriber's bound creator studio (`creator_id`).
+* **Creator Multi-Tenancy**: The endpoint automatically filters plans for the subscriber's bound creator studio (`tenant_id`).
 
 ### 1.3 Standardized Two-Tier OTT Architecture
 The platform enforces a standardized two-tier OTT subscription paywall provisioned for every creator:

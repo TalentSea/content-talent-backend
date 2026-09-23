@@ -11,13 +11,13 @@ This specification defines the complete authentication, credential management, t
 The platform operates as a specialized **White-Labeled Creator OTT Platform**. Unlike public consumer applications, the Creator Admin Studio is strictly accessible to verified, paying creators provisioned by platform operators.
 
 - **Zero Public Registration (`/register`)**: There is intentionally **NO public sign-up endpoint** on the Creator Admin portal. Public visitors cannot create admin accounts.
-- **Controlled Account Provisioning**: Creator accounts, studio spaces, default branding themes, and subscription plans are provisioned atomically by platform administrators via an internal CLI utility (`app.scripts.create_creator`) or secure provider orchestration.
+- **Controlled Account Provisioning via Super Admin GUI**: Creator accounts, tenant studio spaces, default branding themes, and subscription plans are provisioned directly by Platform Super Admins via the **Super Admin Management GUI** (`POST /api/v1/admin/tenants`).
 - **Attack Surface Elimination**: Removing public registration eliminates bot account spam, credential stuffing, orphaned tenant database records, and unauthorized dashboard access attempts.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ PLATFORM OPERATOR / CLI PROVISIONING                                                                             │
-│ python -m app.scripts.create_creator --email creator@studio.com --password "Secret123!" --studio-name "Studio"  │
+│ PLATFORM SUPER ADMIN (Web Client)                                                                                │
+│ POST /api/v1/admin/tenants  ──► { name: "Studio", admin_email: "creator@studio.com", admin_password: "..." }      │
 └────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┘
                                                          │
                                         Atomic Database Transaction
@@ -25,15 +25,17 @@ The platform operates as a specialized **White-Labeled Creator OTT Platform**. U
                         ┌────────────────────────────────┼────────────────────────────────┐
                         ▼                                ▼                                ▼
                ┌─────────────────┐              ┌─────────────────┐              ┌────────────────┐
-               │  Admin Record   │              │ Branding Record │              │ 2 Fixed Plans  │
-               │ (Hashed Pwd)    │              │(Studio Identity)│              │with_ads & no_ads│
-               └────────┬────────┘              └─────────────────┘              └────────────────┘
-                        │
-                        │ Login Credentials Delivered via Secure Channel (Email / SMS)
+               │  Tenant Record  │              │  Admin Record   │              │ 2 Fixed Plans  │
+               │(Studio Identity)│              │(Owner, tenant_id)│             │with_ads & no_ads│
+               └────────┬────────┘              └────────┬────────┘              └────────────────┘
+                        │                                │
+                        └─────────────────┬──────────────┘
+                                          │
+                        │ Login Credentials Delivered via Secure Channel (Email / Dashboard)
                         ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ CREATOR ADMIN WEB PORTAL (React / Vite SPA)                                                                      │
-│ 1. POST /api/v1/admin/auth/login   ──► Receives Access Token (30m) & HttpOnly Refresh Cookie (60d)│
+│ CREATOR / TENANT ADMIN (Web Client)                                                                              │
+│ 1. POST /api/v1/admin/auth/login   ──► Receives Access Token (30m) & HttpOnly Refresh Cookie (60d)               │
 │ 2. GET  /api/v1/admin/auth/me      ──► Rehydrates profile & verifies active token                                │
 │ 3. POST /api/v1/admin/auth/refresh ──► Silently renews expired access token                                      │
 │ 4. POST /api/v1/admin/auth/logout  ──► Server-side revocation of refresh session                                 │
@@ -48,8 +50,8 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
 
 | Token Type        | Lifespan       | Primary Transport (Browser)                                                                         | Fallback Transport (Tooling)         | Security & Theft Protection                                                                                                                                         |
 | :---------------- | :------------- | :-------------------------------------------------------------------------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Access Token**  | **30 Minutes** | **`HttpOnly; Secure; SameSite=Lax` Cookie** (`admin_access_token`) on path `/api/v1/admin`          | HTTP `Authorization: Bearer <token>` | **100% immune to JavaScript XSS exfiltration**. Never written to `localStorage`. Short lifespan limits stolen token window. Cryptographically signed JWT (`HS256`). |
-| **Refresh Token** | **60 Days**    | **`HttpOnly; Secure; SameSite=Strict` Cookie** (`admin_refresh_token`) on path `/api/v1/admin/auth` | _None_ (Cookie only)                 | **Completely inaccessible to JavaScript / XSS**. Stored in DB strictly as a **SHA-256 one-way hash**. Scoped strictly to auth routes.                               |
+| **Access Token**  | **30 Minutes** | **`HttpOnly; Secure; SameSite=None` Cookie** (`admin_access_token`) on path `/api/v1/admin`          | HTTP `Authorization: Bearer <token>` | **100% immune to JavaScript XSS exfiltration**. Never written to `localStorage`. Short lifespan limits stolen token window. Cryptographically signed JWT (`HS256`). |
+| **Refresh Token** | **60 Days**    | **`HttpOnly; Secure; SameSite=None` Cookie** (`admin_refresh_token`) on path `/api/v1/admin/auth` | _None_ (Cookie only)                 | **Completely inaccessible to JavaScript / XSS**. Stored in DB strictly as a **SHA-256 one-way hash**. Scoped strictly to auth routes.                               |
 
 #### How We Prevent & Handle Token Compromise:
 
@@ -81,11 +83,10 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
      1. **Swagger UI / OpenAPI (`/docs`)**: The interactive FastAPI Swagger documentation relies on the OAuth2 "Authorize" modal, which injects tokens via `Authorization: Bearer <token>`. Retaining the fallback allows developers to test admin endpoints directly in `/docs`.
      2. **Postman & API Tooling**: Developers and QA engineers can test endpoints in Postman, Thunder Client, or via `curl` by supplying standard Bearer headers without complex cookie jar mocking.
      3. **Automated CI/CD Test Suites**: Pytest suites and integration tests can execute against admin routes using standard header injection.
-   - **Zero Security Degradation**: The presence of the header fallback does not weaken browser security. Browsers with `HttpOnly` cookies do not expose the token to client scripts, and the frontend client never stores it in `localStorage`.
+   - **Zero Security Degradation**: The presence of the header fallback does not weaken browser security. Browsers with `HttpOnly` cookies do not expose the token to client scripts, and tokens are never stored in `localStorage`.
 
-3. **CSRF Protection via `SameSite=Strict` & `SameSite=Lax`**:
-   - The refresh token is marked `SameSite=Strict` and scoped strictly to `Path=/api/v1/admin/auth`. Cross-origin websites cannot trigger silent refresh calls on behalf of the creator.
-   - The access token is marked `SameSite=Lax` and scoped to `Path=/api/v1/admin`, ensuring smooth top-level navigation while rejecting cross-site state-modifying requests.
+3. **Cross-Origin Capability via `SameSite=None`**:
+   - Both tokens are marked `SameSite=None` (with `Secure=True`) to allow the React frontend to communicate with the FastAPI backend across different base domains (e.g., `b-cdn.net` and `bunny.run`).
 
 4. **Single-Use Refresh Token Rotation (RTR)**:
    - Every time `POST /api/v1/admin/auth/refresh` is called, the incoming refresh token is **immediately burned** and replaced with a newly minted refresh token and fresh access token.
@@ -97,7 +98,7 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
      - When Device A (previously closed without explicit logout) reopens and attempts a silent token refresh (`POST /api/v1/admin/auth/refresh`), its incoming cookie hash will not match the newly stored hash for Device B.
      - The backend returns `401 Unauthorized` with detail: `"Session expired or active on another device; please re-login"`.
      - **Crucial Rule**: The server **DOES NOT set `admins.refresh_token = NULL`**.
-     - **Result**: Device B's active session remains completely intact and undisturbed. Device A's frontend cleanly intercepts the 401 and redirects the user to `/login`. Device A's stale request never inadvertently logs out Device B.
+     - **Result**: Device B's active session remains completely intact and undisturbed. Device A receives the 401 and prompts the user to re-login. Device A's stale request never inadvertently logs out Device B.
 
 6. **Instant Server-Side Revocation (`POST /logout`)**:
    - Calling `POST /api/v1/admin/auth/logout` explicitly sets `admins.refresh_token = NULL` in the database and clears **both** browser cookies (`Max-Age=0`), terminating the active session immediately.
@@ -107,12 +108,109 @@ To eliminate session compromise and Cross-Site Scripting (XSS) risks, the system
 ### 1.3 Strict IDOR Security & Context Extraction
 
 - No `user_id` or `admin_id` parameter is accepted in request bodies or query parameters across any admin route.
-- The authenticated creator identity (`user_id`) is extracted strictly from the validated JWT token claims on the backend via the FastAPI dependency:
+- The authenticated creator identity (`user_id`), active `tenant_id`, user `role` (`"super_admin"` vs `"admin"`), and `is_owner` status are extracted strictly from the validated JWT token claims on the backend via the FastAPI dependency:
   ```python
   admin_ctx = Depends(get_current_admin)
-  # admin_ctx["user_id"] -> securely isolates all studio operations
+  # admin_ctx["user_id"]   -> Admin account PK
+  # admin_ctx["tenant_id"] -> Active Tenant Studio PK (isolated across all queries)
+  # admin_ctx["role"]      -> "super_admin" or "admin"
+  # admin_ctx["is_owner"]  -> True if studio owner
   ```
 - Any attempt by an ordinary mobile app subscriber to present a subscriber token to an admin route results in an immediate `403 Forbidden` response.
+
+---
+
+### 1.4 Multi-Tenant Role Hierarchy and Super Admin Context Switching
+
+1. **Platform Super Admin (`role = "super_admin"`, `tenant_id = NULL`)**:
+   - Seeded on server startup via `seed_super_admin()` using `.env` credentials (`SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`).
+   - Has global visibility over all tenants on the platform.
+   - Can dynamically switch tenant operational context by passing the `X-Tenant-Id: <id>` HTTP request header.
+   - If the `X-Tenant-Id` header is omitted, the backend **automatically defaults to the first active tenant** on the platform.
+
+2. **Tenant Admin (`role = "admin"`, `tenant_id = <id>`)**:
+   - Scoped strictly to their assigned `tenant_id`. Any `X-Tenant-Id` header sent by a regular admin is safely ignored.
+   - The backend actively verifies that the tenant is active (`is_active == True`). If the tenant is suspended, requests are rejected with `403 Forbidden` (`"Tenant studio is currently suspended"`).
+   - `is_owner == True` indicates the primary studio owner who registered the tenant. Owner accounts cannot be deleted or deactivated by staff members.
+
+---
+
+### 1.5 Unified Access Token Generation & Role Payloads
+
+Across the entire platform (Admin Web Portal and Mobile App), the backend uses **one single, unified function** (`create_access_token`) to generate all JWT Access Tokens. The payload structure is identical, but the claims (`role`, `tenant_id`) change depending on the user's origin.
+
+#### Core Token Payload Structure
+Every JWT access token contains the following standard claims:
+```json
+{
+  "sub": "<user_id_as_string>",
+  "user_id": <user_id_as_integer>,
+  "role": "<role_string>",
+  "username": "<name_or_email>",
+  "tenant_id": <tenant_id_integer_or_null>,
+  "exp": <expiration_timestamp>
+}
+```
+
+#### Role-Specific Examples
+
+**1. Platform Super Admin**
+- **Role**: `"super_admin"`
+- **Tenant**: `null` (Oversees all studios)
+```json
+{
+  "sub": "99",
+  "user_id": 99,
+  "role": "super_admin",
+  "username": "Platform Admin",
+  "tenant_id": null,
+  "exp": 1798530000
+}
+```
+
+**2. Tenant Admin (Creator / Staff)**
+- **Role**: `"admin"`
+- **Tenant**: Bound strictly to their studio's integer ID.
+```json
+{
+  "sub": "5",
+  "user_id": 5,
+  "role": "admin",
+  "username": "Jane Doe",
+  "tenant_id": 1,
+  "exp": 1798530000
+}
+```
+
+**3. Mobile App Subscriber**
+- **Role**: `"subscriber"`
+- **Tenant**: Bound to the specific white-labeled studio app they downloaded.
+```json
+{
+  "sub": "1500",
+  "user_id": 1500,
+  "role": "subscriber",
+  "username": "John Smith",
+  "tenant_id": 1,
+  "exp": 1798535400
+}
+```
+
+**4. Mobile App Guest**
+- **Role**: `"guest"`
+- **Tenant**: Bound to the specific white-labeled studio app they downloaded.
+```json
+{
+  "sub": "8432",
+  "user_id": 8432,
+  "role": "guest",
+  "username": "Guest",
+  "tenant_id": 1,
+  "exp": 1798535400
+}
+```
+
+**Security Implication**: Because the token structure is unified, backend dependencies can easily block unauthorized access. If a mobile `"subscriber"` attempts to hit an admin dashboard API endpoint, the backend intercepts the token, reads `role = "subscriber"`, and instantly rejects the request with `403 Forbidden` before it reaches the controller logic.
 
 ---
 
@@ -139,10 +237,11 @@ If the database is read or dumped, attackers cannot use the stored hash values t
 ```sql
 CREATE TABLE admins (
     id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NULL REFERENCES tenants(id) ON DELETE CASCADE,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NULL,
-    first_name VARCHAR(100) NULL,
-    last_name VARCHAR(100) NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(50) NULL,
     location VARCHAR(255) NULL,
     bio TEXT NULL,
@@ -151,13 +250,23 @@ CREATE TABLE admins (
     twitter_url VARCHAR(255) NULL,
     youtube_url VARCHAR(255) NULL,
     instagram_url VARCHAR(255) NULL,
+    role VARCHAR(30) NOT NULL DEFAULT 'admin',
+    is_owner BOOLEAN NOT NULL DEFAULT FALSE,
     refresh_token TEXT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_admins_email ON admins(email);
+CREATE INDEX idx_admins_tenant_id ON admins(tenant_id);
+CREATE INDEX idx_admins_is_active ON admins(is_active);
 ```
+
+> [!NOTE]
+> **Super Admin vs. Tenant Studio Admin Account Profiles**:
+> - **Platform Super Admin (`role = 'super_admin'`)**: Holds **only** core platform credentials and identity: `email`, `password_hash`, `first_name`, and `last_name`. A Super Admin is unbound to any single studio (`tenant_id = NULL`, `is_owner = FALSE`). All creator profile and studio branding attributes (`phone`, `location`, `bio`, `website`, `avatar_url`, social links) are strictly `NULL`.
+> - **Tenant Studio Admins (`role = 'admin'`)**: Bound to a specific studio (`tenant_id REFERENCES tenants(id)`). The primary creator has `is_owner = TRUE`, while invited team members have `is_owner = FALSE`. Tenant admins can manage personal profile details (`avatar_url`, `bio`, `website`, etc.) via the Settings ➔ Profile screen.
 
 ---
 
@@ -266,24 +375,74 @@ Content-Type: application/json
 #### Response Headers
 
 ```http
-Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=1800
-Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abcdef0123456789abc; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=5184000
+Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=1800
+Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abcdef0123456789abc; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin/auth; Max-Age=5184000
 ```
 
-#### Response Specification (`200 OK`)
+#### Response Specifications (`200 OK`) — Three Distinct Scenarios
+
+##### Scenario 1: Tenant Studio Owner Login (`role: "admin"`, `is_owner: true`)
+The primary creator / organization owner. The returned `admin` object provides full studio ownership attributes:
 
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcl9pZCI6MSwidXNlcm5hbWUiOiJDcmVhdG9yIEFkbWluIiwiZXhwIjoxNzk4NTMwMDAwfQ.abcdef...",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcl9pZCI6MSwidXNlcm5hbWUiOiJvd25lckBhY21lc3R1ZGlvLmNvbSIsImV4cCI6MTc5ODUzMDAwMH0.abcdef...",
   "token_type": "bearer",
   "expires_in": 1800,
   "admin": {
     "id": 1,
-    "email": "creator@example.com",
-    "first_name": "Creator",
+    "email": "owner@acmestudio.com",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "studio_name": "Acme Media Studio",
+    "avatar_url": "https://talent-sea987.b-cdn.net/assets/avatars/avatar_1_1785055000.jpg",
+    "role": "admin",
+    "tenant_id": 1,
+    "is_owner": true
+  }
+}
+```
+
+##### Scenario 2: Tenant Studio Staff Admin Login (`role: "admin"`, `is_owner: false`)
+An invited staff member managing content within the studio. The frontend uses `is_owner = false` to lock out bank payout profiles and staff member administration:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwidXNlcl9pZCI6NSwidXNlcm5hbWUiOiJlZGl0b3JAYWNtZXN0dWRpby5jb20iLCJleHAiOjE3OTg1MzAwMDB9.abcdef...",
+  "token_type": "bearer",
+  "expires_in": 1800,
+  "admin": {
+    "id": 5,
+    "email": "editor@acmestudio.com",
+    "first_name": "Alex",
+    "last_name": "Smith",
+    "studio_name": "Acme Media Studio",
+    "avatar_url": "https://talent-sea987.b-cdn.net/assets/avatars/avatar_5_1785055100.jpg",
+    "role": "admin",
+    "tenant_id": 1,
+    "is_owner": false
+  }
+}
+```
+
+##### Scenario 3: Platform Super Admin Login (`role: "super_admin"`, `is_owner: false`, `tenant_id: null`)
+Platform-wide administrator. Super Admin has **only** email, password, first name, and last name. They have no tenant studio binding (`tenant_id = null`), no studio branding (`studio_name = null`), no personal avatar (`avatar_url = null`), and `is_owner = false`:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5OSIsInVzZXJfaWQiOjk5LCJ1c2VybmFtZSI6InN1cGVyYWRtaW5AcGxhdGZvcm0uY29tIiwiZXhwIjoxNzk4NTMwMDAwfQ.abcdef...",
+  "token_type": "bearer",
+  "expires_in": 1800,
+  "admin": {
+    "id": 99,
+    "email": "superadmin@platform.com",
+    "first_name": "Super",
     "last_name": "Admin",
-    "studio_name": "Creator OTT Studio",
-    "avatar_url": "https://talent-sea987.b-cdn.net/assets/avatars/avatar_1_1785055000.jpg"
+    "studio_name": null,
+    "avatar_url": null,
+    "role": "super_admin",
+    "tenant_id": null,
+    "is_owner": false
   }
 }
 ```
@@ -293,13 +452,16 @@ Set-Cookie: admin_refresh_token=a4f8902c3e451b67d890123456789abcdef0123456789abc
 - `access_token` (string): Signed JWT valid for 30 minutes (`1800` seconds). Transmitted securely via the `admin_access_token` HttpOnly cookie for web browser sessions, and also provided in the response body as a fallback for API tooling (Swagger UI / Postman).
 - `token_type` (string): Fixed value `"bearer"`.
 - `expires_in` (integer): Access token lifespan in seconds (`1800` seconds = 30 minutes).
-- `admin` (object): Core creator identity attributes for dashboard hydration and navigation routing.
-  - `id` (integer): Unique creator admin ID.
+- `admin` (object): Core identity attributes for dashboard hydration and navigation routing.
+  - `id` (integer): Unique admin user ID.
   - `email` (string): Account login email.
-  - `first_name` (string): Creator's first name.
-  - `last_name` (string): Creator's last name.
-  - `studio_name` (string): Public channel / OTT studio brand name.
-  - `avatar_url` (string | null): CDN URL to profile photo asset.
+  - `first_name` (string | null): Admin's first name.
+  - `last_name` (string | null): Admin's last name.
+  - `studio_name` (string | null): Associated Tenant Studio brand name (strictly `null` for Platform Super Admins).
+  - `avatar_url` (string | null): CDN URL to profile photo asset (strictly `null` for Platform Super Admins).
+  - `role` (string): User privilege level: `"admin"` (Tenant Studio Admin) or `"super_admin"` (Platform Super Admin).
+  - `tenant_id` (integer | null): Bound Tenant Studio ID (`null` for Platform Super Admins).
+  - `is_owner` (boolean): `true` if the admin is the creator / owner of the tenant studio; `false` for invited staff members and Super Admins.
 
 _(Note: Both the 30-minute `access_token` and 60-day `refresh_token` are transmitted strictly via secure `Set-Cookie` response headers with `HttpOnly`, ensuring zero vulnerability to JavaScript-based XSS attacks)._
 
@@ -333,8 +495,8 @@ _(No request body is needed; the browser automatically transmits the HttpOnly co
 #### Response Headers
 
 ```http
-Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=1800
-Set-Cookie: admin_refresh_token=b5e9013d4f562c78e90123456789abcdef0123456789abcdef0123456789def; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=5184000
+Set-Cookie: admin_access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=1800
+Set-Cookie: admin_refresh_token=b5e9013d4f562c78e90123456789abcdef0123456789abcdef0123456789def; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin/auth; Max-Age=5184000
 ```
 
 #### Response Specification (`200 OK`)
@@ -364,39 +526,82 @@ _(Alternatively supported via header fallback: `Authorization: Bearer <admin_acc
 #### Processing Logic:
 
 1. Validates caller authentication via `get_current_admin` (extracts from `admin_access_token` cookie or Bearer header).
-2. Reads the creator record from the `admins` table.
-3. Retrieves the associated `branding` studio name.
+2. Reads the admin record from the `admins` table.
+3. Retrieves the associated `tenants` studio name.
 4. Returns the lean `AdminSummaryResponse` (matching the `admin` object returned upon login with 100% symmetry).
 
-#### Response Specification (`200 OK`)
+#### Response Specifications (`200 OK`) — Three Distinct Scenarios
+
+##### Scenario 1: Tenant Studio Owner (`role: "admin"`, `is_owner: true`)
+The primary creator / organization owner. Has full access to content management, analytics, staff admin invitations, bank payout profiles, and studio configuration:
 
 ```json
 {
   "id": 1,
-  "email": "creator@example.com",
-  "first_name": "Creator",
+  "email": "owner@acmestudio.com",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "studio_name": "Acme Media Studio",
+  "avatar_url": "https://talent-sea987.b-cdn.net/assets/avatars/avatar_1_1785055000.jpg",
+  "role": "admin",
+  "tenant_id": 1,
+  "is_owner": true
+}
+```
+
+##### Scenario 2: Tenant Studio Staff Admin (`role: "admin"`, `is_owner: false`)
+An invited staff member managing content (videos, playlists, categories, comments) within the studio. The frontend uses `is_owner = false` to hide/lock bank details, staff administration, and studio deletion controls:
+
+```json
+{
+  "id": 5,
+  "email": "editor@acmestudio.com",
+  "first_name": "Alex",
+  "last_name": "Smith",
+  "studio_name": "Acme Media Studio",
+  "avatar_url": "https://talent-sea987.b-cdn.net/assets/avatars/avatar_5_1785055100.jpg",
+  "role": "admin",
+  "tenant_id": 1,
+  "is_owner": false
+}
+```
+
+##### Scenario 3: Platform Super Admin (`role: "super_admin"`, `is_owner: false`, `tenant_id: null`)
+Platform-wide administrator overseeing all tenant studios, monthly ad revenue reconciliations, and tenant provisioning. Super Admin accounts hold **only** email, password, first name, and last name. They have no tenant studio binding (`tenant_id = null`), no studio branding (`studio_name = null`), no personal avatar (`avatar_url = null`), and `is_owner = false`. Super Admins switch studio context dynamically via the `X-Tenant-Id` header:
+
+```json
+{
+  "id": 99,
+  "email": "superadmin@platform.com",
+  "first_name": "Super",
   "last_name": "Admin",
-  "studio_name": "Creator OTT Studio",
-  "avatar_url": "https://talent-sea987.b-cdn.net/assets/avatars/avatar_1_1785055000.jpg"
+  "studio_name": null,
+  "avatar_url": null,
+  "role": "super_admin",
+  "tenant_id": null,
+  "is_owner": false
 }
 ```
 
 #### Response Fields:
 
-- `id` (integer): Unique creator admin ID.
-- `email` (string): Account login email.
-- `first_name` (string | null): Creator's first name.
-- `last_name` (string | null): Creator's last name.
-- `studio_name` (string | null): Public channel / OTT studio brand name.
-- `avatar_url` (string | null): CDN URL to profile photo asset.
+- `id` (integer): Unique admin user ID.
+- `email` (string): Account login email address.
+- `first_name` (string | null): Admin user's first name.
+- `last_name` (string | null): Admin user's last name.
+- `studio_name` (string | null): Associated Tenant Studio brand name (strictly `null` for Platform Super Admins).
+- `avatar_url` (string | null): CDN URL to personal profile photo asset (strictly `null` for Platform Super Admins).
+- `role` (string): User privilege level: `"admin"` (Tenant Studio Admin) or `"super_admin"` (Platform Super Admin).
+- `tenant_id` (integer | null): Bound Tenant Studio ID (`null` for Platform Super Admins).
+- `is_owner` (boolean): `true` if the admin is the creator / owner of the tenant studio; `false` for invited staff members and Super Admins.
 
 _(Note: Heavy form-editing fields such as `bio`, `website`, `phone`, `location`, and `social_links` are decoupled from global session rehydration and served strictly by `GET /api/v1/admin/profile` when loading the Settings ➔ Profile edit screen)._
 
-#### Why `/api/v1/admin/auth/me` is Essential:
+#### Endpoint Purpose:
 
-1. **SPA Page Refresh & Perfect Symmetry**: When a creator refreshes the page (F5), client-side memory is wiped. The frontend calls `/me` with the access token cookie automatically attached, receiving the exact same `AdminSummaryResponse` structure as returned on `/login`.
-2. **Route Guarding**: If the token has expired, `/me` returns `401 Unauthorized`, prompting the frontend to trigger a silent cookie refresh (`POST /refresh`) or redirect to the login page.
-3. **Zero Redundancy**: Layout and header components receive only the identity metadata they need to render, eliminating payload bloat on every page reload.
+1. **Session Symmetry with Login**: Returns the exact same `AdminSummaryResponse` structure as returned in the login payload, allowing web clients to rehydrate authenticated state on page reload without re-authenticating.
+2. **Session Verification**: Verifies active session token validity; returns `401 Unauthorized` if expired or revoked, signaling client to initiate token refresh or re-login.
+3. **Identity Scoping**: Delivers essential identity, role, and studio context metadata, decoupled from heavy profile editing fields (which are served by `GET /api/v1/admin/profile`).
 
 ---
 
@@ -422,8 +627,8 @@ _(Alternatively supported via header fallback: `Authorization: Bearer <admin_acc
 #### Response Headers
 
 ```http
-Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/admin; Max-Age=0
-Set-Cookie: admin_refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/admin/auth; Max-Age=0
+Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=0
+Set-Cookie: admin_refresh_token=; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin/auth; Max-Age=0
 ```
 
 #### Response Specification (`200 OK`)
@@ -436,241 +641,140 @@ Set-Cookie: admin_refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/api/v
 
 ---
 
-## 5. Creator Provisioning CLI Specification
+## 5. Super Admin Tenant & Creator Onboarding API (`POST /api/v1/admin/tenants`)
 
-Since there is **NO public registration**, platform operators provision new creator accounts via a secure internal CLI script (`app.scripts.create_creator`).
+Creator admin accounts are never registered publicly; they are provisioned by Platform Super Admins via the tenant onboarding endpoint.
 
-### 5.1 CLI Command Syntax & Options
+### 5.1 Request Specification
 
-The command accepts command-line flags or prompts interactively for sensitive fields:
-
-```bash
-# Option A: Direct execution with command-line flags:
-python -m app.scripts.create_creator \
-    --email creator@example.com \
-    --password "SuperSecretPass123!" \
-    --first-name "John" \
-    --last-name "Doe" \
-    --studio-name "John Doe Studio"
-
-# Option B: Secure interactive execution (password hidden without terminal echo):
-python -m app.scripts.create_creator --email creator@example.com --studio-name "John Doe Studio"
-# Prompt: Enter creator password (min 8 chars): [hidden]
-# Prompt: Confirm creator password: [hidden]
+#### Request Headers:
+```http
+POST /api/v1/admin/tenants HTTP/1.1
+Host: api.talentsea.com
+Authorization: Bearer <super_admin_jwt>
+Content-Type: application/json
 ```
 
-#### CLI Options Reference
+#### Request Payload:
+```json
+{
+  "name": "Acme Media Studio",
+  "tagline": "Independent Film & Documentaries",
+  "description": "The premier independent film catalog...",
+  "admin_email": "jane@acmestudio.com",
+  "admin_password": "SuperSecretPass123!",
+  "admin_first_name": "Jane",
+  "admin_last_name": "Doe"
+}
+```
 
-| Argument        | Type   | Required | Default                                                    | Description                                                                                                                                                          |
-| :-------------- | :----- | :------: | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--email`       | String | **YES**  | None                                                       | Creator's primary login email. Case-insensitive, automatically trimmed.                                                                                              |
-| `--password`    | String | **YES**  | Interactive Prompt                                         | Initial login password (minimum 8 characters). If omitted from the command line, prompts interactively using `getpass` to avoid logging secrets in terminal history. |
-| `--first-name`  | String |    NO    | `None`                                                     | Creator's first name.                                                                                                                                                |
-| `--last-name`   | String |    NO    | `None`                                                     | Creator's last name.                                                                                                                                                 |
-| `--studio-name` | String |    NO    | `f"{first_name} {last_name} Studio"` or `"Creator Studio"` | Public channel / OTT studio brand name.                                                                                                                              |
+#### Request Validation Rules:
+- `name` (string, required): Organization / studio display name (max 255 chars). URL-safe `slug` is auto-derived by the backend.
+- `tagline` (string, optional): Studio tagline.
+- `description` (string, optional): Studio description.
+- `admin_email` (string, required): Valid email address for the studio owner account. Must not conflict with existing admins.
+- `admin_password` (string, required): Minimum 8 characters. Hashed server-side via PBKDF2.
+- `admin_first_name` (string, required): Owner's first name.
+- `admin_last_name` (string, required): Owner's last name.
 
 ---
 
-### 5.2 Atomic Provisioning Steps (Complete Eager Provisioning)
+### 5.2 Atomic Database Provisioning Invariant
 
-To maintain strict tenant data consistency in a B2B SaaS environment, every newly onboarded creator is **100% fully initialized** in an **atomic database transaction**:
+When the Super Admin clicks **"Provision Tenant"**, the backend executes an **atomic database transaction**:
 
-1. **Email Conflict Verification**: Checks `Admin.get_or_none(Admin.email == email)`. If an account already exists, execution aborts with `Error: Admin with email <email> already exists`.
+1. **Email & Slug Conflict Verification**: Verifies that `jane@acmestudio.com` does not already exist in `admins` and that the slug is unique in `tenants`.
 2. **Password Validation & Hashing**:
-   - Validates that the password length is at least 8 characters.
-   - Generates 16 bytes of cryptographically secure random salt via `secrets.token_bytes(16)`.
-   - Hashes password using NIST SP 800-132 compliant `PBKDF2-HMAC-SHA256` with 600,000 iterations.
-   - Output string: `pbkdf2_sha256$600000$<salt_hex>$<hash_hex>`.
-3. **Admin User Creation**: Inserts new row into `admins` table:
-   - `email`: `creator@example.com`
+   - Enforces minimum 8-character password length.
+   - Computes NIST SP 800-132 compliant `PBKDF2-HMAC-SHA256` hash (600,000 iterations with cryptographically random salt).
+3. **Tenant Studio Creation**: Inserts the new record into the `tenants` table with `is_active = True`.
+4. **Owner Admin Account Creation**: Inserts new row into `admins` table bound directly to the tenant:
+   - `tenant_id`: `tenant.id`
+   - `role`: `"admin"`
+   - `is_owner`: `True`
+   - `email`: `"jane@acmestudio.com"`
+   - `first_name`: `"Jane"`, `last_name`: `"Doe"`
    - `password_hash`: `<pbkdf2_hash>`
-   - `first_name`: `"John"`
-   - `last_name`: `"Doe"`
-4. **Branding Studio Provisioning (Eager 1:1 Invariant)**: Inserts the studio identity record into `branding` table linked to `user_id`:
-   - `user_id`: `admin.id` (Foreign key to `admins.id`)
-   - `studio_name`: Provided `--studio-name` (or defaults to `f"{first_name} {last_name} Studio"` / `"Creator Studio"`)
-   - `tagline`: `NULL` (creator fills this in via Admin Studio UI)
-   - `description`: `NULL` (creator fills this in via Admin Studio UI)
-   - `banner_url`: `NULL` (uploaded later via `POST /api/v1/admin/branding/banner`)
-   - `logo_url`: `NULL` (uploaded later via `POST /api/v1/admin/branding/logo`)
-5. **Atomic 2-Plan Provisioning**: Inserts the **two mandatory subscription tiers** linked to `user_id`:
-   - **Plan 1 (`plan_type = "with_ads"`)**:
-     - `name`: `"Standard with Ads"`
-     - `description`: `"Access to our full catalog with occasional commercial breaks."`
-     - `base_price`: `99.0` (₹99/month)
-     - `billing_period_value`: `1`
-     - `billing_period_unit`: `"months"`
-   - **Plan 2 (`plan_type = "no_ads"`)**:
-     - `name`: `"Premium Ad-Free"`
-     - `description`: `"Unlimited streaming with zero ads and maximum quality."`
-     - `base_price`: `199.0` (₹199/month)
-     - `billing_period_value`: `1`
-     - `billing_period_unit`: `"months"`
+5. **Atomic 2-Plan Provisioning**: Automatically provisions the two mandatory subscription tiers bound to `tenant.id`:
+   - **Plan 1 (`plan_type = "with_ads"`)**: ₹99/month ("Standard with Ads")
+   - **Plan 2 (`plan_type = "no_ads"`)**: ₹199/month ("Premium Ad-Free")
 
-#### Why Eager Provisioning is the Professional Standard for this Platform:
-
-- **Guaranteed 1:1 Relationship**: An Admin _is_ a Creator Studio. A creator never exists in a "half-born" or orphaned state.
-- **Immediate Mobile App Readiness**: When a mobile subscriber app connects using this `creator_id`, `GET /api/v1/branding` immediately returns the valid studio name instead of `null` or a 404 error.
-- **Query Performance & Cleanliness**: All internal services, analytics pipelines, and reporting scripts can reliably `INNER JOIN` `admins` and `branding` without defensive `LEFT JOIN`s or null-coalescing workarounds.
-
-Once completed, the operator delivers the login credentials to the creator, and the creator logs into the Admin Studio.
+#### Immediate Readiness:
+- The new tenant appears instantly in the Super Admin table with real-time counters (`admins_count: 1`, `videos_count: 0`, `subscribers_count: 0`).
+- The studio owner can immediately log in at `/login`, customize branding themes, upload videos, and invite additional staff members.
+- The Super Admin can toggle tenant active/suspended status at any time (`PATCH /api/v1/admin/tenants/{id}/status`).
 
 ---
 
-## 6. Frontend Integration Architecture (React / Vite SPA)
+## 6. Sequence Diagrams
 
-### 6.1 State Management & Interceptor Architecture
-
-The web application uses an Axios HTTP interceptor with `withCredentials: true` to handle transparent token renewal without ever exposing the refresh token to JavaScript:
-
-```
-                  ┌───────────────────────────────────┐
-                  │ Creator Performs Dashboard Action │
-                  └─────────────────┬─────────────────┘
-                                    │
-                                    ▼
-                      HTTP Request with Access Token
-                                    │
-                  ┌─────────────────┴─────────────────┐
-                  │ Backend Returns Status Code       │
-                  └─────────────────┬─────────────────┘
-                                    │
-                   ┌────────────────┴────────────────┐
-                   │                                 │
-             Status == 200                     Status == 401
-                   │                       (Access Token Expired)
-                   ▼                                 │
-           Return Data to UI                         ▼
-                                         Call POST /auth/refresh
-                                         (Browser sends HttpOnly Cookie)
-                                                     │
-                                        ┌────────────┴────────────┐
-                                        │                         │
-                                  Success (New Token)        Failure (Revoked)
-                                        │                         │
-                                        ▼                         ▼
-                               Update In-Memory Token     Redirect to /login
-                               & Replay Failed Request
-```
-
-### 6.2 Implementation Reference (Axios Client with Dual HttpOnly Cookies)
-
-Because **both** the `admin_access_token` and `admin_refresh_token` are set as `HttpOnly` cookies, the frontend JavaScript client never needs to store tokens in `localStorage` or manually inject `Authorization: Bearer` headers for web browser sessions. Setting `withCredentials: true` ensures the browser natively handles token transmission.
-
-```javascript
-import axios from "axios";
-
-// 1. Create centralized Axios instance with credentials enabled
-const api = axios.create({
-  baseURL: "/api/v1",
-  withCredentials: true, // Guarantees both HttpOnly cookies (access & refresh) are transmitted
-});
-
-// 2. Intercept 401 Unauthorized responses & silently refresh via HttpOnly refresh cookie
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        // Browser automatically attaches HttpOnly 'admin_refresh_token' cookie
-        // Backend responds with rotated 'admin_refresh_token' and fresh 'admin_access_token' cookies
-        await axios.post(
-          "/api/v1/admin/auth/refresh",
-          {},
-          { withCredentials: true },
-        );
-
-        // Replay original request (browser automatically transmits the newly set access cookie)
-        return api(originalRequest);
-      } catch (refreshError) {
-        // Refresh token expired, mismatched, or revoked -> redirect to login
-        window.location.href = "/login";
-      }
-    }
-    return Promise.reject(error);
-  },
-);
-
-export default api;
-```
-
----
-
-## 7. Sequence Diagrams
-
-### 7.1 Admin Login & Silent Refresh Flow
+### 6.1 Admin Login & Silent Refresh Flow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Creator as Creator (Browser)
-    participant SPA as Web Admin Portal (React)
+    actor User as Admin User
+    participant Client as Web Client (Browser)
     participant API as FastAPI Backend (/api/v1/admin/auth)
-    participant DB as SQLite Database
+    participant DB as Database
 
-    Note over Creator,API: Step 1: Creator Login
-    Creator->>SPA: Enters email & password
-    SPA->>API: POST /login { email, password }
+    Note over User,API: Step 1: Admin Login
+    User->>Client: Enters email & password
+    Client->>API: POST /api/v1/admin/auth/login { email, password }
     API->>DB: Query Admin by email
     DB-->>API: Returns Admin record + password_hash
     API->>API: Verify PBKDF2 password match
     API->>API: Generate Access Token (30m) & Refresh Token (60d)
     API->>DB: Store SHA-256(refresh_token) in admins.refresh_token
-    API-->>SPA: Set-Cookie: admin_access_token & admin_refresh_token (HttpOnly) & 200 OK { access_token, admin }
-    SPA->>Creator: Display Admin Dashboard
+    API-->>Client: Set-Cookie: admin_access_token & admin_refresh_token (HttpOnly) & 200 OK { access_token, admin }
+    Client->>User: Display Admin Dashboard
 
-    Note over Creator,API: Step 2: 30 Minutes Later (Access Token Expired)
-    Creator->>SPA: Navigates to Videos page
-    SPA->>API: GET /api/v1/admin/videos (Browser sends expired access cookie)
-    API-->>SPA: 401 Unauthorized ("Authentication token has expired")
+    Note over User,API: Step 2: Access Token Expired (30 Minutes Later)
+    User->>Client: Navigates to Videos page
+    Client->>API: GET /api/v1/admin/videos (Expired access token)
+    API-->>Client: 401 Unauthorized ("Authentication token has expired")
 
-    Note over SPA,API: Step 3: Silent Token Refresh (Axios Interceptor)
-    SPA->>API: POST /refresh (Browser automatically sends HttpOnly refresh Cookie)
+    Note over Client,API: Step 3: Silent Token Refresh
+    Client->>API: POST /api/v1/admin/auth/refresh (Cookie: admin_refresh_token)
     API->>DB: Query Admin by SHA-256(refresh_token)
     DB-->>API: Returns matching Admin
     API->>API: Generate New Access Token (30m) & Rotated Refresh Token
     API->>DB: Update admins.refresh_token = SHA-256(new_refresh_token)
-    API-->>SPA: Set-Cookie: fresh admin_access_token & new admin_refresh_token (HttpOnly) & 200 OK { access_token }
-    SPA->>API: Replay GET /api/v1/admin/videos (Browser sends new access cookie)
-    API-->>SPA: 200 OK (Video List Data)
-    SPA->>Creator: Display Videos seamlessly without interruption
+    API-->>Client: Set-Cookie: fresh admin_access_token & rotated admin_refresh_token (HttpOnly) & 200 OK { access_token }
+    Client->>API: Replay GET /api/v1/admin/videos (Fresh access cookie)
+    API-->>Client: 200 OK (Video List Data)
+    Client->>User: Display Videos seamlessly without interruption
 ```
 
 ---
 
-### 7.2 Session Rehydration (`GET /me`) on Page Reload (F5)
+### 6.2 Session Rehydration (`GET /me`) on Page Reload (F5)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Creator as Creator (Browser)
-    participant SPA as Web Admin Portal (React)
+    actor User as Admin User
+    participant Client as Web Client (Browser)
     participant API as FastAPI Backend (/api/v1/admin/auth)
-    participant DB as SQLite Database
+    participant DB as Database
 
-    Creator->>SPA: Hits browser refresh (F5)
-    SPA->>API: GET /api/v1/admin/auth/me (Browser automatically sends admin_access_token Cookie)
+    User->>Client: Hits browser refresh (F5)
+    Client->>API: GET /api/v1/admin/auth/me (Cookie: admin_access_token)
     API->>API: Validate JWT signature & claims (get_current_admin via Cookie)
     API->>DB: Fetch fresh Admin profile & studio metadata
     DB-->>API: Returns Admin + Studio info
-    API-->>SPA: 200 OK { id, email, first_name, last_name, studio_name }
-    SPA->>SPA: Hydrate user state & studio branding
-    SPA->>Creator: Render authenticated dashboard
+    API-->>Client: 200 OK { id, email, first_name, last_name, studio_name, role, tenant_id, is_owner }
+    Client->>User: Render authenticated dashboard
 ```
 
 ---
 
-## 8. Summary Checklist of Next Implementation Steps
+## 7. Admin Authentication Endpoints Summary
 
-| Step | Component                      | Action Required                                                                                                | Status    |
-| :--- | :----------------------------- | :------------------------------------------------------------------------------------------------------------- | :-------- |
-| 1    | **Database Model**             | Add `password_hash = CharField(max_length=255, null=True)` to `app/models/admin.py`                            | Pending   |
-| 2    | **Security Utils**             | Implement `hash_password(password)` and `verify_password(plain, hashed)` in `app/utils/auth.py`                | Pending   |
-| 3    | **Provisioning CLI**           | Implement `app/scripts/create_creator.py` (atomic creation of Admin with hashed password + Branding + 2 Plans) | Pending   |
-| 4    | **Pydantic Schemas**           | Create `app/schemas/admin/auth_schemas.py` (`AdminLoginRequest`, `AdminTokenResponse`, `AdminProfileResponse`) | Pending   |
-| 5    | **Auth Routes**                | Implement `app/routes/admin/auth_routes.py` (`/login`, `/refresh`, `/me`, `/logout`)                           | Pending   |
-| 6    | **Main Router**                | Register `auth_routes` in `app/main.py` under prefix `/api/v1/admin/auth`                                      | Pending   |
-| 7    | **Two-Tier Plans Refactoring** | Refactor `SubscriptionPlan` model, service, and routes to strictly support `"with_ads"` and `"no_ads"`         | Next Task |
+| Method | Endpoint | Description | Authentication | Request Body / Cookie | Primary Response (`200 OK`) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/admin/auth/login` | Authenticate creator admin or super admin | None (Public) | JSON (`email`, `password`) | `AdminLoginResponse` + 2 `HttpOnly` Cookies |
+| `POST` | `/api/v1/admin/auth/refresh` | Silently renew access token with token rotation | Cookie: `admin_refresh_token` | Empty body | `AdminTokenResponse` + 2 rotated Cookies |
+| `GET` | `/api/v1/admin/auth/me` | Rehydrate identity & studio context for session | Cookie: `admin_access_token` or Bearer Header | None | `AdminSummaryResponse` |
+| `POST` | `/api/v1/admin/auth/logout` | Revoke session in DB & erase auth cookies | Cookie: `admin_access_token` or Bearer Header | None | `{"message": "Successfully logged out"}` + Expired Cookies |
+

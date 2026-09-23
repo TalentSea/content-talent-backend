@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+
+
 class SocialLinksSchema(BaseModel):
     """Nested schema for social media platform links."""
 

@@ -3,7 +3,6 @@ import logging
 from fastapi import HTTPException, status
 
 from app.repositories.admin.comment_repository import CommentRepository
-from app.repositories.admin.profile_repository import ProfileRepository
 from app.repositories.admin.video_repository import VideoRepository
 from app.schemas.admin.comment_schemas import (
     CommentAuthorResponse,
@@ -25,7 +24,6 @@ class CommentService:
 
     def __init__(self):
         self.comment_repo = CommentRepository()
-        self.profile_repo = ProfileRepository()
         self.video_repo = VideoRepository()
 
     def _build_author_response(self, c) -> CommentAuthorResponse:
@@ -37,33 +35,26 @@ class CommentService:
                 avatar_url=c.user.avatar_url,
                 is_creator=False,
             )
-        # For Admin Creator posts where c.user is None
-        creator = c.video.user
+        # Official Tenant Studio author
+        tenant = c.video.tenant
         return CommentAuthorResponse(
-            id=creator.id,
-            name=creator.display_name,
-            avatar_url=creator.display_avatar_url,
+            id=tenant.id,
+            name=tenant.name,
+            avatar_url=tenant.logo_url,
             is_creator=True,
         )
 
     def create_top_level_comment(
-        self, creator_id: int, video_id: int, payload: CommentReplyCreateRequest
+        self, tenant_id: int, video_id: int, payload: CommentReplyCreateRequest
     ) -> CommentItemResponse:
         """
         Posts an official creator top-level comment under a video matching spec doc API 2.
         """
-        video = self.video_repo.get_video_by_id(video_id, creator_id)
+        video = self.video_repo.get_video_by_id(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Video {video_id} not found",
-            )
-
-        creator_user = self.profile_repo.get_profile_by_admin_id(creator_id)
-        if not creator_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Creator account not found",
             )
 
         if not payload.text or not payload.text.strip():
@@ -73,18 +64,13 @@ class CommentService:
             )
 
         comment = self.comment_repo.create_top_level_comment(
-            video, creator_user, payload.text.strip()
+            video, payload.text.strip()
         )
 
         return CommentItemResponse(
             id=comment.id,
             text=comment.text,
-            author=CommentAuthorResponse(
-                id=creator_user.id,
-                name=creator_user.display_name,
-                avatar_url=creator_user.display_avatar_url,
-                is_creator=True,
-            ),
+            author=self._build_author_response(comment),
             video_id=video.id,
             video_title=video.title,
             likes=0,
@@ -96,7 +82,7 @@ class CommentService:
 
     def list_creator_comments(
         self,
-        creator_id: int,
+        tenant_id: int,
         category: str | None = None,
         video_id: int | None = None,
         date: str | None = None,
@@ -110,7 +96,7 @@ class CommentService:
         Retrieves paginated top-level comments across creator's videos matching spec doc API 1.
         """
         comments, total = self.comment_repo.get_all_comments_by_creator(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             search=search,
             video_id=video_id,
             category=category,
@@ -149,7 +135,7 @@ class CommentService:
 
     def get_comment_replies(
         self,
-        creator_id: int,
+        tenant_id: int,
         comment_id: int,
         sort: str | None = "oldest",
         page: int = 1,
@@ -158,7 +144,7 @@ class CommentService:
         """
         Retrieves paginated child replies nested under a parent comment matching spec doc API 2.
         """
-        parent_comment = self.comment_repo.get_comment_by_id(comment_id, creator_id)
+        parent_comment = self.comment_repo.get_comment_by_id(comment_id, tenant_id)
         if not parent_comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -190,37 +176,31 @@ class CommentService:
         )
 
     def create_reply(
-        self, creator_id: int, comment_id: int, payload: CommentReplyCreateRequest
+        self, tenant_id: int, comment_id: int, payload: CommentReplyCreateRequest
     ) -> CommentReplyCreateResponse:
         """
         Posts an official creator reply to a user comment matching spec doc API 3.
         """
-        comment = self.comment_repo.get_comment_by_id(comment_id, creator_id)
+        comment = self.comment_repo.get_comment_by_id(comment_id, tenant_id)
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Comment {comment_id} not found",
             )
 
-        creator_user = self.profile_repo.get_profile_by_admin_id(creator_id)
-        if not creator_user:
+        if not payload.text or not payload.text.strip():
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Creator account not found",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reply text cannot be empty",
             )
 
-        reply = self.comment_repo.create_reply(comment, creator_user, payload.text)
+        reply = self.comment_repo.create_reply(comment, payload.text.strip())
 
         return CommentReplyCreateResponse(
             id=reply.id,
             comment_id=reply.parent.id,  # Guarantees root parent ID is returned
             text=reply.text,
-            author=CommentAuthorResponse(
-                id=creator_user.id,
-                name=creator_user.display_name,
-                avatar_url=creator_user.display_avatar_url,
-                is_creator=True,
-            ),
+            author=self._build_author_response(reply),
             likes=0,
             is_hearted_by_creator=False,
             is_liked=False,
@@ -228,12 +208,12 @@ class CommentService:
         )
 
     def toggle_comment_like(
-        self, creator_id: int, comment_id: int
+        self, tenant_id: int, comment_id: int
     ) -> CommentLikeResponse:
         """
         Toggles creator heart state on comment matching spec doc API 4.
         """
-        comment = self.comment_repo.get_comment_by_id(comment_id, creator_id)
+        comment = self.comment_repo.get_comment_by_id(comment_id, tenant_id)
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -244,11 +224,11 @@ class CommentService:
 
         return CommentLikeResponse(status="success", is_liked=is_hearted, likes=likes)
 
-    def delete_comment(self, creator_id: int, comment_id: int) -> ActionSuccessResponse:
+    def delete_comment(self, tenant_id: int, comment_id: int) -> ActionSuccessResponse:
         """
         Deletes a comment permanently matching spec doc API 5.
         """
-        comment = self.comment_repo.get_comment_by_id(comment_id, creator_id)
+        comment = self.comment_repo.get_comment_by_id(comment_id, tenant_id)
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

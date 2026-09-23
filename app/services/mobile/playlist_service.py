@@ -28,7 +28,7 @@ class MobilePlaylistService:
 
     def list_public_playlists(
         self,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         subscriber_id: int | None = None,
         search: str | None = None,
         sort: str = "newest",
@@ -39,7 +39,7 @@ class MobilePlaylistService:
         Retrieves paginated public creator playlists feed with personalized is_saved bookmark state matching spec API 1.
         """
         results, total = self.repo.list_public_playlists(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             subscriber_id=subscriber_id,
             search=search,
             sort=sort,
@@ -67,7 +67,7 @@ class MobilePlaylistService:
         self,
         playlist_id: int,
         subscriber_id: int | None = None,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> MobilePlaylistDetailsResponse:
@@ -75,7 +75,7 @@ class MobilePlaylistService:
         Retrieves single public playlist header alongside paginated video items matching spec API 2.
         """
         playlist = self.repo.get_public_playlist_by_id(
-            playlist_id, creator_id=creator_id
+            playlist_id, tenant_id=tenant_id
         )
         if not playlist:
             raise HTTPException(
@@ -139,7 +139,7 @@ class MobilePlaylistService:
         self,
         playlist_id: int,
         subscriber_id: int | None,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ) -> MobilePlaylistSaveResponse:
         """
         Toggles save/bookmark state on a public playlist for the authenticated subscriber.
@@ -151,7 +151,7 @@ class MobilePlaylistService:
             )
 
         playlist = self.repo.get_public_playlist_by_id(
-            playlist_id, creator_id=creator_id
+            playlist_id, tenant_id=tenant_id
         )
         if not playlist:
             raise HTTPException(
@@ -165,7 +165,7 @@ class MobilePlaylistService:
     def list_subscriber_saved_playlists(
         self,
         subscriber_id: int | None,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> MobileSavedPlaylistListResponse:
@@ -180,7 +180,7 @@ class MobilePlaylistService:
 
         results, total = self.repo.list_subscriber_saved_playlists(
             subscriber_id=subscriber_id,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             page=page,
             limit=limit,
         )

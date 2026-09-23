@@ -48,11 +48,11 @@ class FeaturedVideoService:
             created_at=video_row.created_at,
         )
 
-    def list_featured_videos(self, creator_id: int) -> list[FeaturedVideoItemResponse]:
+    def list_featured_videos(self, tenant_id: int) -> list[FeaturedVideoItemResponse]:
         """
-        Retrieves featured videos list for creator_id matching spec doc API 3.1.
+        Retrieves featured videos list for tenant_id matching spec doc API 3.1.
         """
-        rows = self.repo.get_featured_videos(creator_id)
+        rows = self.repo.get_featured_videos(tenant_id)
         video_ids = [f_row.video.id for f_row in rows]
         likes_map: dict[int, int] = {}
         if video_ids:
@@ -70,7 +70,7 @@ class FeaturedVideoService:
         ]
 
     def sync_featured_videos(
-        self, creator_id: int, payload: FeaturedVideoSyncRequest
+        self, tenant_id: int, payload: FeaturedVideoSyncRequest
     ) -> FeaturedVideoSyncResponse:
         """
         Full State Sync: Replaces creator's active featured videos in 1 atomic operation matching spec doc API 3.2.
@@ -83,7 +83,7 @@ class FeaturedVideoService:
             )
 
         updated_rows = self.repo.sync_featured_videos(
-            creator_id=creator_id, video_ids=payload.video_ids
+            tenant_id=tenant_id, video_ids=payload.video_ids
         )
         video_ids = [f_row.video.id for f_row in updated_rows]
         likes_map: dict[int, int] = {}
@@ -109,7 +109,7 @@ class FeaturedVideoService:
 
     def get_available_videos_for_featured(
         self,
-        creator_id: int,
+        tenant_id: int,
         search: str | None = None,
         category: str | None = None,
         sort: str | None = "popular",
@@ -120,7 +120,7 @@ class FeaturedVideoService:
         Retrieves paginated available videos picker matching spec doc API 3.3.
         """
         videos, total = self.repo.get_available_videos_for_featured(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             search=search,
             category=category,
             sort=sort,

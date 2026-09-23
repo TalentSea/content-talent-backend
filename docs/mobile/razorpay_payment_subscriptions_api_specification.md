@@ -20,7 +20,7 @@ This document details the complete end-to-end architecture, API contracts, secur
 Authorization: Bearer <subscriber_access_token>
 ```
 
-- **Creator Multi-Tenancy**: The subscriber's active context is bound to their registered creator studio (`creator_id`). Payments and subscriptions are isolated per creator.
+- **Creator Multi-Tenancy**: The subscriber's active context is bound to their registered creator studio (`tenant_id`). Payments and subscriptions are isolated per creator.
 - **Public Webhook**: The Razorpay server webhook (`/api/v1/webhooks/razorpay`) is public but strictly authenticated via HMAC-SHA256 signature verification in the `X-Razorpay-Signature` request header.
 
 ---
@@ -47,9 +47,57 @@ In modern OTT streaming applications, payment completion **must never trust the 
 
 ---
 
-## 3. 🔄 End-to-End 4-Step Payment Workflow
+## 3. 🔄 End-to-End Payment Workflow
 
-### Step 1: Create Order (`Mobile` ➔ `FastAPI` ➔ `Razorpay API`)
+### 3.1 Visual Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Mobile Subscriber
+    participant App as Mobile App (Flutter / React Native)
+    participant SDK as Razorpay Mobile SDK
+    participant API as FastAPI Backend
+    participant DB as PostgreSQL Database
+    participant RZP as Razorpay Gateway
+
+    %% Phase 1: Order Creation
+    User->>App: Select Subscription Plan
+    App->>API: POST /api/v1/mobile/payments/create-order { plan_id }
+    API->>DB: Check active subscription & fetch plan tier
+    API->>RZP: POST https://api.razorpay.com/v1/orders (amount in paise, receipt, notes)
+    RZP-->>API: 200 OK { id: "order_xyz", amount, currency }
+    API->>DB: Insert Payment record (status: "created", razorpay_order_id)
+    API-->>App: 200 OK { order_id, amount, currency, key_id }
+
+    %% Phase 2: Mobile SDK Checkout
+    App->>SDK: Razorpay.open(options: order_id, key_id, amount, prefill)
+    SDK->>User: Display native payment sheet (UPI, Cards, Netbanking)
+    User->>SDK: Authorize payment (UPI PIN / OTP)
+    SDK->>RZP: Process transaction
+    RZP-->>SDK: Payment Success
+    SDK-->>App: Callback: { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+
+    %% Phase 3: Cryptographic Verification
+    App->>API: POST /api/v1/mobile/payments/verify { order_id, payment_id, signature }
+    Note over API: HMAC-SHA256 Verify:<br/>hash(order_id + "|" + payment_id, secret) == signature
+    API->>DB: Atomic transaction:<br/>1. Mark Payment "captured"<br/>2. Create UserSubscription ("active", start_date, end_date)<br/>3. Increment plan active_subscribers
+    API-->>App: 200 OK { status: "success", subscription: {...} }
+    App->>User: Unlock OTT content & display active membership
+
+    %% Phase 4: Fallback Safety Net
+    opt App drops network / user closes app before /verify
+        RZP->>API: POST /api/v1/webhooks/razorpay (payment.captured)
+        Note over API: Verify X-Razorpay-Signature with WEBHOOK_SECRET
+        API->>DB: Idempotent grant: Activate subscription if not already activated
+    end
+```
+
+---
+
+### 3.2 4-Step Payment Workflow Steps
+
+#### Step 1: Create Order (`Mobile` ➔ `FastAPI` ➔ `Razorpay API`)
 
 1. User selects a subscription plan (e.g., ₹2,499.00 for 24 months) on the mobile paywall screen and taps **"Subscribe"**.
 2. Mobile app calls `POST /api/v1/mobile/payments/create-order` with `{ "plan_id": 2 }`.
@@ -408,7 +456,7 @@ To guarantee 0ms entitlement cutoff without performance degradation or write-on-
      ```sql
      SELECT * FROM user_subscriptions 
      WHERE user_id = :user_id 
-       AND creator_id = :creator_id 
+       AND tenant_id = :tenant_id 
        AND status = 'active' 
        AND end_date > NOW();
      ```

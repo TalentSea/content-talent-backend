@@ -14,6 +14,9 @@ from app.database import db_proxy
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user_subscription import UserSubscription
 from app.repositories.mobile.payment_repository import PaymentRepository
+from app.repositories.mobile.subscription_plan_repository import (
+    MobileSubscriptionPlanRepository,
+)
 from app.repositories.mobile.user_subscription_repository import (
     UserSubscriptionRepository,
 )
@@ -64,9 +67,11 @@ class MobilePaymentService:
         self,
         payment_repo: PaymentRepository | None = None,
         subscription_repo: UserSubscriptionRepository | None = None,
+        plan_repo: MobileSubscriptionPlanRepository | None = None,
     ):
         self.payment_repo = payment_repo or PaymentRepository()
         self.subscription_repo = subscription_repo or UserSubscriptionRepository()
+        self.plan_repo = plan_repo or MobileSubscriptionPlanRepository()
 
     def _to_subscription_dto(self, sub: UserSubscription) -> SubscriptionDTO:
         now = datetime.now(timezone.utc)
@@ -96,11 +101,11 @@ class MobilePaymentService:
         Creates a Razorpay order after verifying that the subscriber does not have an active subscription.
         """
         user_id = subscriber_context.get("user_id")
-        creator_id = subscriber_context.get("creator_id")
+        tenant_id = subscriber_context.get("tenant_id")
         settings = get_settings()
 
         # 1. Active Subscription Guard
-        active_sub = self.subscription_repo.get_active_subscription(user_id, creator_id)
+        active_sub = self.subscription_repo.get_active_subscription(user_id, tenant_id)
         if active_sub:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -108,10 +113,7 @@ class MobilePaymentService:
             )
 
         # 2. Fetch Plan Tier
-        plan = SubscriptionPlan.get_or_none(
-            (SubscriptionPlan.id == plan_id)
-            & (SubscriptionPlan.user == creator_id)
-        )
+        plan = self.plan_repo.get_plan_by_id(plan_id, tenant_id)
         if not plan:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -179,7 +181,7 @@ class MobilePaymentService:
         # 5. Insert Transaction Record in Database
         payment = self.payment_repo.create_payment(
             user_id=user_id,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             plan_id=plan.id,
             razorpay_order_id=order_id,
             amount=final_price,
@@ -205,14 +207,14 @@ class MobilePaymentService:
         Verifies cryptographic HMAC-SHA256 signature and idempotently activates subscriber access.
         """
         user_id = subscriber_context.get("user_id")
-        creator_id = subscriber_context.get("creator_id")
+        tenant_id = subscriber_context.get("tenant_id")
         settings = get_settings()
 
         payment = self.payment_repo.get_payment_by_order_id(payload.razorpay_order_id)
         if (
             not payment
             or payment.user_id != user_id
-            or payment.creator_id != creator_id
+            or payment.tenant_id != tenant_id
         ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -270,7 +272,7 @@ class MobilePaymentService:
             # 5. Create Active User Subscription Entitlement
             sub = self.subscription_repo.create_subscription(
                 user_id=user_id,
-                creator_id=creator_id,
+                tenant_id=tenant_id,
                 plan_id=payment.plan_id,
                 payment_id=payment.id,
                 start_date=start_date,
@@ -299,9 +301,9 @@ class MobilePaymentService:
         Retrieves active membership entitlement status for current authenticated subscriber.
         """
         user_id = subscriber_context.get("user_id")
-        creator_id = subscriber_context.get("creator_id")
+        tenant_id = subscriber_context.get("tenant_id")
 
-        active_sub = self.subscription_repo.get_active_subscription(user_id, creator_id)
+        active_sub = self.subscription_repo.get_active_subscription(user_id, tenant_id)
         if not active_sub:
             return SubscriptionStatusResponse(
                 has_active_subscription=False,
@@ -387,7 +389,7 @@ class MobilePaymentService:
                     )
                     self.subscription_repo.create_subscription(
                         user_id=payment.user_id,
-                        creator_id=payment.creator_id,
+                        tenant_id=payment.tenant_id,
                         plan_id=payment.plan_id,
                         payment_id=payment.id,
                         start_date=start_date,

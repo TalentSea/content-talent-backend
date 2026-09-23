@@ -7,13 +7,13 @@ All endpoints in this specification require a valid JWT Bearer access token pass
 ```http
 Authorization: Bearer <creator_access_token>
 ```
-Identity and creator ownership are strictly derived from the validated JWT token context (`get_current_admin`). Under no circumstances is `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities.
+Identity and tenant context are strictly derived from the validated JWT token context (`get_current_admin`). Under no circumstances is `tenant_id` or `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities. For Platform Super Admins, the active tenant context can be selected via the `X-Tenant-Id` header (falling back to the first active tenant if omitted).
 
 ### Architecture Overview
 - **Domain Purpose**: Manages the public-facing **Creator Identity & White-Label OTT App Branding** (Studio Name, Tagline, Description, Hero Banner, and Studio Logo). This is distinct from personal admin account settings (`Settings -> Profile`).
 - **Backend Service**: FastAPI (Python) handles authentication, schema validation, state management, and file upload processing.
-- **Database**: Relational Database (Peewee ORM) stores branding attributes (`studio_name`, `tagline`, `description`, `banner_url`, `logo_url`, `updated_at`).
-- **Cloud Storage Service**: Bunny Storage API stores and serves uploaded branding assets (`assets/branding/logo_{user_id}_{timestamp}.{ext}`, `assets/branding/banner_{user_id}_{timestamp}.{ext}`) via public Storage Pull Zone CDN (`https://talentsea77999.b-cdn.net`).
+- **Database**: Relational Database (Peewee ORM) stores branding attributes directly on the `Tenant` entity (`name` as `studio_name`, `tagline`, `description`, `banner_url`, `logo_url`, `updated_at`). This unified design eliminates the redundant 1:1 `branding` table while preserving complete backward compatibility for frontends.
+- **Cloud Storage Service**: Bunny Storage API stores and serves uploaded branding assets (`assets/branding/logo_tenant_{tenant_id}_{timestamp}.{ext}`, `assets/branding/banner_tenant_{tenant_id}_{timestamp}.{ext}`) via public Storage Pull Zone CDN (`https://talentsea77999.b-cdn.net`).
 
 ---
 

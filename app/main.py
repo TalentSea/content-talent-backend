@@ -25,7 +25,10 @@ from app.routes.admin import (
     admin_playlist_router,
     admin_profile_router,
     admin_subscription_plan_router,
+    admin_tenant_router,
+    admin_user_router,
     admin_video_router,
+    super_admin_monetization_router,
 )
 from app.routes.mobile import (
     mobile_auth_router,
@@ -40,7 +43,7 @@ from app.routes.mobile import (
     mobile_video_router,
 )
 from app.routes.webhook_routes import router as webhook_router
-from app.scripts.create_creator import create_creator
+from app.utils.seeder import seed_default_tenant, seed_super_admin
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +100,8 @@ async def scheduled_subscription_expiration_worker():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    create_creator(
-        email="jakkamadhu046@gmail.com",
-        password="Admin@1234",
-        first_name="Madhu",
-        last_name="Jakka",
-        studio_name="Content Talent",
-    )
+    seed_super_admin()
+    seed_default_tenant()
     publisher_task = asyncio.create_task(scheduled_video_auto_publisher())
     guest_cleanup_task = asyncio.create_task(scheduled_stale_guest_cleanup())
     subscription_expiration_task = asyncio.create_task(
@@ -150,6 +148,9 @@ app.include_router(admin_category_router)
 app.include_router(admin_featured_video_router)
 app.include_router(admin_subscription_plan_router)
 app.include_router(admin_monetization_router)
+app.include_router(admin_tenant_router)
+app.include_router(admin_user_router)
+app.include_router(super_admin_monetization_router)
 
 
 @app.get("/docs", include_in_schema=False)

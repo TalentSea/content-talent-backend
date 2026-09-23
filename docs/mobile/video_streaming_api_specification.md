@@ -48,7 +48,7 @@ The mobile video subsystem strictly enforces Role-Based Access Control (RBAC) ac
 1. **`GET /api/v1/mobile/videos` (Catalog Feed & Search)**:
    - **Guarded by**: `Depends(get_current_subscriber)`
    - **Header**: `Authorization: Bearer <access_token>` (**Required**)
-   - **Multi-Tenant Isolation**: Decodes `current_subscriber["creator_id"]` from JWT claims (< 1ms) and filters catalog queries (`Video.select().where(Video.user == creator_id)`).
+   - **Multi-Tenant Isolation**: Decodes `current_subscriber["tenant_id"]` from JWT claims (< 1ms) and filters catalog queries (`Video.select().where(Video.tenant == tenant_id)`).
    - **Allowed Roles**: Both `guest` AND `subscriber`
    - **Behavior**: Rejects requests missing a Bearer token with `HTTP 401 Unauthorized`. Accepts Guest tokens for catalog browsing, and Subscriber tokens for browsing + personalized progress.
 

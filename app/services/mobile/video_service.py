@@ -74,7 +74,7 @@ class MobileVideoService:
 
     def list_public_videos(
         self,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         category: str | None = None,
         search: str | None = None,
         sort: str = "newest",
@@ -87,7 +87,7 @@ class MobileVideoService:
         Attaches personalized watch progress if subscriber_id is provided.
         """
         videos, total_count = self.repo.list_public_videos(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             category=category,
             search=search,
             sort=sort,
@@ -101,13 +101,13 @@ class MobileVideoService:
         self,
         video_id: int,
         subscriber_id: int | None = None,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ) -> MobileVideoDetailResponse:
         """
         Fetches detailed video metadata and generates presigned HLS streaming URL + MP4 download URLs.
         Dynamically calculates total likes count, is_liked, is_saved, and watch progress.
         """
-        video = self.repo.get_public_video_by_id(video_id, creator_id=creator_id)
+        video = self.repo.get_public_video_by_id(video_id, tenant_id=tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -122,7 +122,7 @@ class MobileVideoService:
         active_sub = None
         if subscriber_id:
             active_sub = self.sub_repo.get_active_subscription(
-                user_id=subscriber_id, creator_id=video.user_id
+                user_id=subscriber_id, tenant_id=video.tenant_id
             )
 
         hls_stream_url: str | None = None
@@ -187,7 +187,7 @@ class MobileVideoService:
                 )
                 if vast_tag:
                     delimiter = "&" if ("?" in vast_tag) else "?"
-                    cust_params = f"cust_params=creator_id%3D{video.user_id}%26video_id%3D{video.id}"
+                    cust_params = f"cust_params=tenant_id%3D{video.tenant_id}%26video_id%3D{video.id}"
                     ad_tag_url = f"{vast_tag}{delimiter}{cust_params}"
             # If plan_type == "no_ads", ad_tag_url remains None (100% ad-free)
 
@@ -234,7 +234,7 @@ class MobileVideoService:
         )
 
     def record_video_view(
-        self, video_id: int, subscriber_id: int, creator_id: int | None = None
+        self, video_id: int, subscriber_id: int, tenant_id: int | None = None
     ) -> MobileViewCountResponse:
         """
         Increments views counter for a published video asset after validating
@@ -244,7 +244,7 @@ class MobileVideoService:
             new_views = self.repo.increment_view_count(
                 video_id=video_id,
                 subscriber_id=subscriber_id,
-                creator_id=creator_id,
+                tenant_id=tenant_id,
             )
         except ValueError as err:
             if str(err) == "WATCH_THRESHOLD_NOT_MET":
@@ -265,13 +265,13 @@ class MobileVideoService:
         self,
         video_id: int,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ) -> MobileVideoLikeResponse:
         """
         Toggles subscriber like state for a published video asset.
         """
         result = self.repo.toggle_video_like(
-            video_id, subscriber_id, creator_id=creator_id
+            video_id, subscriber_id, tenant_id=tenant_id
         )
         if not result:
             raise HTTPException(
@@ -286,13 +286,13 @@ class MobileVideoService:
         self,
         video_id: int,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ) -> MobileVideoSaveResponse:
         """
         Toggles subscriber save/bookmark state for a published video asset.
         """
         is_saved = self.repo.toggle_video_save(
-            video_id, subscriber_id, creator_id=creator_id
+            video_id, subscriber_id, tenant_id=tenant_id
         )
         if is_saved is None:
             raise HTTPException(
@@ -307,7 +307,7 @@ class MobileVideoService:
         video_id: int,
         subscriber_id: int,
         progress_seconds: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ):
         """
         Updates playback watch position from subscriber mobile player heartbeat.
@@ -316,7 +316,7 @@ class MobileVideoService:
             video_id=video_id,
             subscriber_id=subscriber_id,
             progress_seconds=progress_seconds,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
         )
         if not success:
             raise HTTPException(
@@ -327,7 +327,7 @@ class MobileVideoService:
     def list_subscriber_liked_videos(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
@@ -336,7 +336,7 @@ class MobileVideoService:
         """
         videos, total_count = self.repo.list_subscriber_liked_videos(
             subscriber_id=subscriber_id,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             page=page,
             limit=limit,
         )
@@ -347,7 +347,7 @@ class MobileVideoService:
     def list_subscriber_saved_videos(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
@@ -356,7 +356,7 @@ class MobileVideoService:
         """
         videos, total_count = self.repo.list_subscriber_saved_videos(
             subscriber_id=subscriber_id,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             page=page,
             limit=limit,
         )
@@ -367,7 +367,7 @@ class MobileVideoService:
     def list_continue_watching_videos(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 10,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
@@ -376,7 +376,7 @@ class MobileVideoService:
         """
         tuples_list, total_count = self.repo.list_continue_watching_videos(
             subscriber_id=subscriber_id,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             page=page,
             limit=limit,
         )
@@ -390,7 +390,7 @@ class MobileVideoService:
     def list_watch_history(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
@@ -399,7 +399,7 @@ class MobileVideoService:
         """
         tuples_list, total_count = self.repo.list_watch_history(
             subscriber_id=subscriber_id,
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             page=page,
             limit=limit,
         )
@@ -410,20 +410,20 @@ class MobileVideoService:
         ]
         return self._build_paginated_response(items, total_count, page, limit)
 
-    def clear_watch_history(self, subscriber_id: int, creator_id: int | None = None):
+    def clear_watch_history(self, subscriber_id: int, tenant_id: int | None = None):
         """
         Deletes all watch history for calling subscriber.
         """
-        self.repo.clear_watch_history(subscriber_id, creator_id=creator_id)
+        self.repo.clear_watch_history(subscriber_id, tenant_id=tenant_id)
 
     def remove_video_from_watch_history(
-        self, video_id: int, subscriber_id: int, creator_id: int | None = None
+        self, video_id: int, subscriber_id: int, tenant_id: int | None = None
     ):
         """
         Deletes single video watch history record for calling subscriber.
         """
         success = self.repo.remove_video_from_watch_history(
-            video_id=video_id, subscriber_id=subscriber_id, creator_id=creator_id
+            video_id=video_id, subscriber_id=subscriber_id, tenant_id=tenant_id
         )
         if not success:
             raise HTTPException(

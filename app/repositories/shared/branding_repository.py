@@ -1,57 +1,69 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from app.models.branding import Branding
+from app.models.tenant import Tenant
 
 
 class BrandingRepository:
     """
-    Data access repository for Creator Branding records in the database.
+    Data access repository for Tenant Branding and Studio Identity (stored directly on Tenant model).
     """
 
-    def get_by_user_id(self, user_id: int) -> Branding | None:
+    def get_by_tenant_id(self, tenant_id: int) -> Tenant | None:
         """
-        Retrieves the branding record for a creator by admin user_id.
+        Retrieves the tenant record by tenant_id.
         """
-        return Branding.get_or_none(Branding.user_id == user_id)
+        return Tenant.get_or_none(Tenant.id == tenant_id)
 
-    def update_branding_text(self, user_id: int, fields: dict[str, Any]) -> Branding:
+    def get_by_user_id(self, tenant_id: int) -> Tenant | None:
         """
-        Applies partial updates to text fields, creating record with fields if it doesn't exist yet.
+        Backward-compatible alias: in the new architecture, tenant_id is passed.
         """
-        branding = self.get_by_user_id(user_id)
-        if not branding:
-            return Branding.create(user_id=user_id, **fields)
+        return self.get_by_tenant_id(tenant_id)
 
-        for key, value in fields.items():
-            if value is not None and hasattr(branding, key):
-                setattr(branding, key, value)
-        branding.updated_at = datetime.now(timezone.utc)
-        branding.save()
-        return branding
-
-    def update_logo_url(self, user_id: int, logo_url: str) -> Branding:
+    def update_branding_text(self, tenant_id: int, fields: dict[str, Any]) -> Tenant:
         """
-        Updates the logo_url and updated_at timestamp.
+        Applies partial updates to tenant brand text fields.
+        Maps 'studio_name' to 'Tenant.name'.
         """
-        branding = self.get_by_user_id(user_id)
-        if not branding:
-            return Branding.create(user_id=user_id, logo_url=logo_url)
+        tenant = self.get_by_tenant_id(tenant_id)
+        if not tenant:
+            raise ValueError(f"Tenant {tenant_id} not found")
 
-        branding.logo_url = logo_url
-        branding.updated_at = datetime.now(timezone.utc)
-        branding.save()
-        return branding
+        if "studio_name" in fields and fields["studio_name"] is not None:
+            tenant.name = fields["studio_name"].strip()
+        if "tagline" in fields:
+            tenant.tagline = fields["tagline"].strip() if fields["tagline"] else None
+        if "description" in fields:
+            tenant.description = fields["description"].strip() if fields["description"] else None
 
-    def update_banner_url(self, user_id: int, banner_url: str) -> Branding:
+
+        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.save()
+        return tenant
+
+    def update_logo_url(self, tenant_id: int, logo_url: str) -> Tenant:
         """
-        Updates the banner_url and updated_at timestamp.
+        Updates the tenant logo_url and updated_at timestamp.
         """
-        branding = self.get_by_user_id(user_id)
-        if not branding:
-            return Branding.create(user_id=user_id, banner_url=banner_url)
+        tenant = self.get_by_tenant_id(tenant_id)
+        if not tenant:
+            raise ValueError(f"Tenant {tenant_id} not found")
 
-        branding.banner_url = banner_url
-        branding.updated_at = datetime.now(timezone.utc)
-        branding.save()
-        return branding
+        tenant.logo_url = logo_url
+        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.save()
+        return tenant
+
+    def update_banner_url(self, tenant_id: int, banner_url: str) -> Tenant:
+        """
+        Updates the tenant banner_url and updated_at timestamp.
+        """
+        tenant = self.get_by_tenant_id(tenant_id)
+        if not tenant:
+            raise ValueError(f"Tenant {tenant_id} not found")
+
+        tenant.banner_url = banner_url
+        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.save()
+        return tenant

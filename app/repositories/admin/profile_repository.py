@@ -2,9 +2,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import peewee
 from peewee import PeeweeException
 
 from app.models.admin import Admin
+from app.models.tenant import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,7 @@ class ProfileRepository:
         Fetches the admin creator record by primary key ID.
         """
         try:
-            return Admin.get_or_none(Admin.id == admin_id)
+            return Admin.select(Admin, Tenant).join(Tenant, peewee.JOIN.LEFT_OUTER).where(Admin.id == admin_id).first()
         except PeeweeException as e:
             logger.error("Error fetching profile for admin %s: %s", admin_id, e)
             raise
@@ -49,13 +51,15 @@ class ProfileRepository:
         if "website" in update_data:
             admin.website = update_data["website"]
 
-        # Social links mapping
-        if "twitter" in social:
-            admin.twitter_url = social["twitter"]
-        if "youtube" in social:
-            admin.youtube_url = social["youtube"]
-        if "instagram" in social:
-            admin.instagram_url = social["instagram"]
+        # Social links mapping to Tenant
+        if admin.tenant and social:
+            if "twitter" in social:
+                admin.tenant.twitter_url = social["twitter"]
+            if "youtube" in social:
+                admin.tenant.youtube_url = social["youtube"]
+            if "instagram" in social:
+                admin.tenant.instagram_url = social["instagram"]
+            admin.tenant.save()
 
         admin.updated_at = datetime.now(timezone.utc)
         admin.save()

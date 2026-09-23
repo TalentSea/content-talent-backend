@@ -19,9 +19,9 @@ service = MobileFeaturedVideoService()
 def get_mobile_featured_videos(
     current_subscriber: CurrentSubscriber,
 ) -> list[MobileFeaturedVideoResponse]:
-    creator_id = current_subscriber.get("creator_id")
+    tenant_id = current_subscriber.get("tenant_id")
     subscriber_id = current_subscriber.get("user_id")
 
     return service.get_featured_videos(
-        creator_id=creator_id, subscriber_id=subscriber_id
+        tenant_id=tenant_id, subscriber_id=subscriber_id
     )

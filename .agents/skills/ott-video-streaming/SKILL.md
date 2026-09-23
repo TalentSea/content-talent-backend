@@ -37,7 +37,7 @@ A fundamental architectural principle of this platform is the **strict decouplin
    - Has a composite unique constraint: `UNIQUE(video_id, subscriber_id)`.
    - Can be cleared or individual items removed by the subscriber at any time without impacting creator analytics.
 2. **`VideoViewEvent` (Immutable View Telemetry)**:
-   - Records discrete, legitimate view milestones: `(video_id, creator_id, subscriber_id, created_at)`.
+   - Records discrete, legitimate view milestones: `(video_id, tenant_id, subscriber_id, created_at)`.
    - Never deleted when subscribers clear their personal watch history.
    - Powers admin dashboard date-window analytics and anti-spam gating.
 

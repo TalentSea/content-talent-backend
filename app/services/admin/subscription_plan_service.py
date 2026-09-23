@@ -66,23 +66,23 @@ class SubscriptionPlanService:
             updated_at=plan.updated_at,
         )
 
-    def list_plans(self, creator_id: int) -> list[SubscriptionPlanItemResponse]:
+    def list_plans(self, tenant_id: int) -> list[SubscriptionPlanItemResponse]:
         """
         Retrieves the fixed subscription plans for creator studio matching spec doc API 3.1.
         Executes in 1 single fast database query (< 1ms) with zero joins or counts.
         """
-        plans = self.repo.get_plans_by_creator(creator_id)
+        plans = self.repo.get_plans_by_creator(tenant_id)
         return [self._map_to_item_response(p) for p in plans]
 
     def update_plan(
-        self, creator_id: int, plan_id: int, payload: SubscriptionPlanUpdateRequest
+        self, tenant_id: int, plan_id: int, payload: SubscriptionPlanUpdateRequest
     ) -> SubscriptionPlanItemResponse:
         """
         Updates an existing subscription plan tier matching spec doc API 3.2.
         Only custom copy, pricing, and badge text may be modified.
         Features and technical tier parameters remain strictly platform-governed.
         """
-        existing_plan = self.repo.get_plan_by_id(creator_id, plan_id)
+        existing_plan = self.repo.get_plan_by_id(tenant_id, plan_id)
         if not existing_plan:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -90,7 +90,7 @@ class SubscriptionPlanService:
             )
 
         if payload.name and self.repo.plan_name_exists(
-            creator_id, payload.name, exclude_id=plan_id
+            tenant_id, payload.name, exclude_id=plan_id
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -131,5 +131,5 @@ class SubscriptionPlanService:
         if not update_dict:
             return self._map_to_item_response(existing_plan)
 
-        updated_plan = self.repo.update_plan(creator_id, plan_id, update_dict)
+        updated_plan = self.repo.update_plan(tenant_id, plan_id, update_dict)
         return self._map_to_item_response(updated_plan)

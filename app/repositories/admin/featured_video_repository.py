@@ -13,31 +13,32 @@ logger = logging.getLogger(__name__)
 class FeaturedVideoRepository:
     """
     Data access layer for Admin Featured Videos curation matching 3-API State Sync design.
+    Scoping is enforced by Tenant.
     """
 
-    def get_featured_videos(self, creator_id: int) -> list[tuple[FeaturedVideo, Video]]:
+    def get_featured_videos(self, tenant_id: int) -> list[tuple[FeaturedVideo, Video]]:
         """
-        Retrieves all featured video rows for creator_id joined with Video, ordered by position asc.
+        Retrieves all featured video rows for tenant_id joined with Video, ordered by position asc.
         """
         try:
             query = (
                 FeaturedVideo.select(FeaturedVideo, Video)
                 .join(Video)
-                .where(FeaturedVideo.creator == creator_id)
+                .where(FeaturedVideo.tenant == tenant_id)
                 .order_by(FeaturedVideo.position.asc(), FeaturedVideo.created_at.asc())
             )
             return list(query)
         except PeeweeException as e:
             logger.error(
-                "Error fetching featured videos for creator %s: %s", creator_id, e
+                "Error fetching featured videos for tenant %s: %s", tenant_id, e
             )
             return []
 
     def sync_featured_videos(
-        self, creator_id: int, video_ids: list[int]
+        self, tenant_id: int, video_ids: list[int]
     ) -> list[tuple[FeaturedVideo, Video]]:
         """
-        Full State Sync: Replaces all active featured videos for creator_id with new payload in 1 atomic transaction.
+        Full State Sync: Replaces all active featured videos for tenant_id with new payload in 1 atomic transaction.
         Validates ownership, enforces max cap from settings, and bulk inserts new rows.
         """
         try:
@@ -49,12 +50,12 @@ class FeaturedVideoRepository:
             unique_ids = unique_ids[:max_allowed]
 
             with db_proxy.atomic():
-                # 1. Fetch valid videos owned by creator
+                # 1. Fetch valid videos owned by tenant
                 if unique_ids:
                     valid_videos_dict = {
                         v.id: v
                         for v in Video.select().where(
-                            (Video.user == creator_id)
+                            (Video.tenant == tenant_id)
                             & (Video.id.in_(unique_ids))
                             & (
                                 (fn.LOWER(Video.status) == "published")
@@ -70,16 +71,16 @@ class FeaturedVideoRepository:
                 else:
                     ordered_videos = []
 
-                # 2. Clear existing featured records for this creator
+                # 2. Clear existing featured records for this tenant
                 FeaturedVideo.delete().where(
-                    FeaturedVideo.creator == creator_id
+                    FeaturedVideo.tenant == tenant_id
                 ).execute()
 
                 # 3. Bulk insert new rows in 1 single atomic SQL statement
                 if ordered_videos:
                     rows_to_insert = [
                         {
-                            "creator": creator_id,
+                            "tenant": tenant_id,
                             "video": v.id,
                             "position": idx,
                         }
@@ -87,16 +88,16 @@ class FeaturedVideoRepository:
                     ]
                     FeaturedVideo.insert_many(rows_to_insert).execute()
 
-            return self.get_featured_videos(creator_id)
+            return self.get_featured_videos(tenant_id)
         except PeeweeException as e:
             logger.error(
-                "Error synchronizing featured videos for creator %s: %s", creator_id, e
+                "Error synchronizing featured videos for tenant %s: %s", tenant_id, e
             )
             return []
 
     def get_available_videos_for_featured(
         self,
-        creator_id: int,
+        tenant_id: int,
         search: str | None = None,
         category: str | None = None,
         sort: str | None = "popular",
@@ -104,14 +105,14 @@ class FeaturedVideoRepository:
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
-        Executes query returning paginated, filtered, and sorted list of creator videos NOT currently featured.
+        Executes query returning paginated, filtered, and sorted list of tenant videos NOT currently featured.
         """
         try:
             featured_subquery = FeaturedVideo.select(FeaturedVideo.video_id).where(
-                FeaturedVideo.creator_id == creator_id
+                FeaturedVideo.tenant_id == tenant_id
             )
             query = Video.select().where(
-                (Video.user == creator_id)
+                (Video.tenant == tenant_id)
                 & (
                     (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
@@ -141,6 +142,6 @@ class FeaturedVideoRepository:
             return videos, total
         except PeeweeException as e:
             logger.error(
-                "Error fetching available videos for creator %s: %s", creator_id, e
+                "Error fetching available videos for tenant %s: %s", tenant_id, e
             )
             return [], 0

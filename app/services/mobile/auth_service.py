@@ -15,7 +15,7 @@ from app.schemas.mobile.auth_schemas import (
     UserProfileResponse,
 )
 from app.schemas.shared.common_schemas import ActionSuccessResponse
-from app.utils.auth import create_access_token, verify_creator_active
+from app.utils.auth import create_access_token, verify_tenant_active
 from app.utils.idp_verifiers import (
     verify_facebook_access_token,
     verify_google_id_token,
@@ -50,14 +50,14 @@ class AuthService:
 
     def _process_social_user_login(
         self,
-        creator_id: int,
+        tenant_id: int,
         provider: str,
         identity_data: dict[str, Any],
         device_info: str | None = None,
         guest_subscriber_id: int | None = None,
     ) -> AuthTokenResponse:
         """
-        Common subscriber provisioning, account upgrade, and token issuance pipeline bound to creator_id.
+        Common subscriber provisioning, account upgrade, and token issuance pipeline bound to tenant_id.
         """
         provider_id = identity_data.get("sub")
         email = identity_data.get("email")
@@ -70,7 +70,7 @@ class AuthService:
                 detail=f"Social provider {provider} did not return a valid user identity ID",
             )
 
-        verify_creator_active(creator_id)
+        verify_tenant_active(tenant_id)
 
         # 1. If active guest_subscriber_id is provided, upgrade the existing Guest account in-place!
         subscriber = None
@@ -79,7 +79,7 @@ class AuthService:
             if guest_sub and guest_sub.provider == "guest":
                 subscriber = self.repo.upgrade_guest_subscriber(
                     guest_subscriber_id=guest_subscriber_id,
-                    creator_id=creator_id,
+                    tenant_id=tenant_id,
                     provider=provider,
                     provider_id=provider_id,
                     email=email,
@@ -87,14 +87,14 @@ class AuthService:
                     avatar_url=avatar_url,
                 )
 
-        # 2. Otherwise find existing subscriber or create a new subscriber record bound to creator_id
+        # 2. Otherwise find existing subscriber or create a new subscriber record bound to tenant_id
         if not subscriber:
             subscriber = self.repo.find_user_by_provider_or_email(
-                creator_id, provider, provider_id, email
+                tenant_id, provider, provider_id, email
             )
             if not subscriber:
                 subscriber = self.repo.create_social_user(
-                    creator_id=creator_id,
+                    tenant_id=tenant_id,
                     provider=provider,
                     provider_id=provider_id,
                     email=email,
@@ -110,14 +110,14 @@ class AuthService:
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-        # Generate App JWT Access Token containing user_id and creator_id
+        # Generate App JWT Access Token containing user_id and tenant_id
         username_str = subscriber.name
         role_str = subscriber.role or ("subscriber" if subscriber.provider != "guest" else "guest")
         access_token = create_access_token(
             user_id=subscriber.id,
             role=role_str,
             username=username_str,
-            creator_id=subscriber.creator_id,
+            tenant_id=subscriber.tenant_id,
             expires_delta_minutes=expire_minutes,
         )
         refresh_token = self.repo.create_refresh_token_record(
@@ -136,12 +136,12 @@ class AuthService:
 
     def authenticate_guest(self, payload: GuestAuthRequest) -> AuthTokenResponse:
         """
-        Handles Anonymous Guest Session ("Skip Signup") authentication bound to creator_id.
+        Handles Anonymous Guest Session ("Skip Signup") authentication bound to tenant_id.
         """
-        verify_creator_active(payload.creator_id)
+        verify_tenant_active(payload.tenant_id)
 
         subscriber = self.repo.get_or_create_guest_subscriber(
-            creator_id=payload.creator_id, device_id=payload.device_id
+            tenant_id=payload.tenant_id, device_id=payload.device_id
         )
 
         settings = get_settings()
@@ -152,7 +152,7 @@ class AuthService:
             user_id=subscriber.id,
             role="guest",
             username=subscriber.name,
-            creator_id=subscriber.creator_id,
+            tenant_id=subscriber.tenant_id,
             expires_delta_minutes=expire_minutes,
         )
         refresh_token = self.repo.create_refresh_token_record(
@@ -179,7 +179,7 @@ class AuthService:
         """
         identity_data = verify_google_id_token(payload.id_token)
         return self._process_social_user_login(
-            creator_id=payload.creator_id,
+            tenant_id=payload.tenant_id,
             provider="google",
             identity_data=identity_data,
             device_info=payload.device_info,
@@ -194,7 +194,7 @@ class AuthService:
         """
         identity_data = verify_facebook_access_token(payload.access_token)
         return self._process_social_user_login(
-            creator_id=payload.creator_id,
+            tenant_id=payload.tenant_id,
             provider="facebook",
             identity_data=identity_data,
             device_info=payload.device_info,
@@ -219,7 +219,7 @@ class AuthService:
                 detail="Subscriber account is disabled",
             )
 
-        verify_creator_active(subscriber.creator)
+        verify_tenant_active(subscriber.creator)
 
         # Revoke old refresh token (Token Rotation)
         self.repo.revoke_refresh_token(payload.refresh_token)
@@ -235,7 +235,7 @@ class AuthService:
             user_id=subscriber.id,
             role=role_str,
             username=username_str,
-            creator_id=subscriber.creator_id,
+            tenant_id=subscriber.tenant_id,
             expires_delta_minutes=expire_minutes,
         )
         new_refresh_token = self.repo.create_refresh_token_record(

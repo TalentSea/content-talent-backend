@@ -19,7 +19,7 @@ service = SubscriptionPlanService()
     description="Retrieves the 2 fixed subscription plans owned by the creator studio ordered by display_order ascending, enriched with built-in feature lists and live subscriber/revenue metrics.",
 )
 def list_subscription_plans(current_user: CurrentAdmin):
-    return service.list_plans(current_user["user_id"])
+    return service.list_plans(current_user["tenant_id"])
 
 
 @router.put(
@@ -34,4 +34,4 @@ def update_subscription_plan(
     payload: SubscriptionPlanUpdateRequest,
     current_user: CurrentAdmin,
 ):
-    return service.update_plan(current_user["user_id"], plan_id, payload)
+    return service.update_plan(current_user["tenant_id"], plan_id, payload)

@@ -7,6 +7,7 @@ All endpoints require a valid JWT Bearer token passed in the HTTP request header
 ```http
 Authorization: Bearer <creator_access_token>
 ```
+The admin identity (`user_id`) and active studio context (`tenant_id`) are extracted directly from the session context via `get_current_admin`. Playlists are strictly scoped to the active tenant. For Platform Super Admins, the target tenant is resolved via the `X-Tenant-Id` header (falling back to the first active tenant).
 ### Standard HTTP Error Responses
 
 All error responses across all endpoints follow the standard FastAPI JSON error envelope:

@@ -34,9 +34,9 @@ class ProfileService:
             )
 
         social_links = SocialLinksSchema(
-            twitter=admin.twitter_url,
-            youtube=admin.youtube_url,
-            instagram=admin.instagram_url,
+            twitter=admin.tenant.twitter_url if admin.tenant else None,
+            youtube=admin.tenant.youtube_url if admin.tenant else None,
+            instagram=admin.tenant.instagram_url if admin.tenant else None,
         )
 
         return ProfileResponse(
@@ -73,11 +73,11 @@ class ProfileService:
 
         if payload.social_links is not None:
             if payload.social_links.twitter is not None:
-                update_data["twitter_url"] = payload.social_links.twitter
+                update_data.setdefault("social_links", {})["twitter"] = payload.social_links.twitter
             if payload.social_links.youtube is not None:
-                update_data["youtube_url"] = payload.social_links.youtube
+                update_data.setdefault("social_links", {})["youtube"] = payload.social_links.youtube
             if payload.social_links.instagram is not None:
-                update_data["instagram_url"] = payload.social_links.instagram
+                update_data.setdefault("social_links", {})["instagram"] = payload.social_links.instagram
 
         success = self.repo.update_profile(admin_id, update_data)
         if not success:

@@ -9,10 +9,10 @@ from peewee import (
 )
 
 from app.config import get_settings
-from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
 from app.models.subscription_plan import SubscriptionPlan
+from app.models.tenant import Tenant
 
 
 class Payment(BaseModel):
@@ -28,12 +28,13 @@ class Payment(BaseModel):
         backref="payments",
         on_delete="CASCADE",
     )
-    creator = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="creator_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="creator_payments",
         on_delete="CASCADE",
+        index=True,
     )
     plan = ForeignKeyField(
         model=SubscriptionPlan,
@@ -55,9 +56,10 @@ class Payment(BaseModel):
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
+
     class Meta:
         table_name = "payments"
         indexes = (
-            (("creator", "status"), False),
+            (("tenant", "status"), False),
             (("user", "status"), False),
         )

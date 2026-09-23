@@ -1,6 +1,6 @@
 ---
 name: ad-monetization-and-settlements
-description: Technical standards for Creator Ad Monetization, in-stream Google IMA VAST telemetry beacons, 10-second rapid-fire debouncing, dynamic eCPM resolution, 30% white-label platform commission deduction, bank payout profiles, and CLI monthly revenue reconciliation.
+description: Technical standards for Creator Ad Monetization, in-stream Google IMA VAST telemetry beacons, 10-second rapid-fire debouncing, dynamic eCPM resolution, 30% white-label platform commission deduction, bank payout profiles, and Web Admin monthly revenue reconciliation.
 ---
 
 # Creator Ad Monetization & Monthly Revenue Settlement Skill
@@ -111,27 +111,28 @@ Creator bank wire details are managed via `GET / PUT /api/v1/admin/monetization/
 
 ---
 
-## 6. Back-Office Monthly Reconciliation CLI Workflow
+## 6. Back-Office Monthly Reconciliation & Payouts Workflow (Platform Admin Portal)
 
-Platform administrators reconcile monthly advertising revenue using the standalone CLI utility:
+Platform administrators reconcile monthly advertising revenue and disburse bank payments through the **Platform Admin Web Dashboard** and REST API endpoints (100% GUI-driven):
 
-```bash
-# 1. Reconcile by total Google Ad Manager revenue:
-python -m app.scripts.reconcile_monthly_ads --month 2026-09 --revenue 75000.0
+### 1. Execute Monthly Reconciliation
+In the Admin Dashboard (`/admin/monetization/reconciliation`):
+* **Option A (Gross Revenue)**: Enter total monthly Google Ad Manager gross revenue (e.g. `₹75,000.00`).
+* **Option B (Fixed eCPM)**: Enter gross network eCPM (e.g. `₹180.00`).
+* The system calculates platform commission (30%), net creator pool (70%), distributes pro-rata across verified tenant impressions, and locks statements in `"reconciled"` status.
 
-# 2. Reconcile by fixed eCPM rate:
-python -m app.scripts.reconcile_monthly_ads --month 2026-09 --ecpm 180.0
+### 2. Confirm Bank Wire Transfer (Mark Paid with Bank UTR)
+On payout day (28th), platform administrators disburse wire transfers via corporate banking and record the official transaction UTR directly against each creator statement:
+* Updates statement status from `"reconciled"` to `"paid"`.
+* Binds the official bank UTR code directly to the statement.
+* Creator's studio dashboard immediately shows disbursement confirmation and payment timestamp.
 
-# 3. Confirm wire transfer with official bank UTR:
-python -m app.scripts.reconcile_monthly_ads --mark-paid STMT-202609-ADM42-8F9B --utr HDFC20261028994820
-
-# 4. View platform profit ledger:
-python -m app.scripts.reconcile_monthly_ads --history
-```
+### 3. Review Master Platform Audit Ledger
+Platform administrators view company-wide monthly revenue, platform profit retained, total creator pool distributed, and historic settlement statements directly via `/api/v1/admin/monetization/settlements`.
 
 ### Statement ID Invariants (`1 Transaction ➔ 1 Creator`)
-* Every statement ID follows: `STMT-{YYYYMM}-ADM{creator_id}-{hex}`.
-* In the database, `UNIQUE(creator_id, month)` prevents duplicate statements.
+* Every statement ID follows: `STMT-{YYYYMM}-TEN{tenant_id}-{hex}`.
+* In the database, `UNIQUE(tenant_id, month)` prevents duplicate statements.
 * Marking a statement paid links the official bank UTR code 1:1 to that creator's statement.
 
 ---

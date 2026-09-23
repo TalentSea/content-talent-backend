@@ -12,26 +12,38 @@ from peewee import (
 from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
+from app.models.tenant import Tenant
 from app.models.video import Video
 
 
 class Playlist(BaseModel):
     """
-    Container for custom video collections owned by an Admin creator.
+    Container for custom video collections owned by a Tenant.
     """
 
-    user = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="user_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="playlists",
         on_delete="CASCADE",
+        index=True,
+    )
+    created_by = ForeignKeyField(
+        model=Admin,
+        field=Admin.id,
+        column_name="created_by",
+        backref="created_playlists",
+        null=True,
+        on_delete="SET NULL",
     )
     name = CharField(max_length=255)
     description = TextField(null=True)
     thumbnail_url = CharField(max_length=500, null=True)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+
 
     class Meta:
         table_name = "playlists"

@@ -6,17 +6,17 @@ from peewee import (
     ForeignKeyField,
 )
 
-from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.payment import Payment
 from app.models.subscriber import Subscriber
 from app.models.subscription_plan import SubscriptionPlan
+from app.models.tenant import Tenant
 
 
 class UserSubscription(BaseModel):
     """
     Stores active member entitlements and access validity periods
-    for subscribers enrolled under a specific creator studio.
+    for subscribers enrolled under a specific Tenant studio.
     """
 
     user = ForeignKeyField(
@@ -26,12 +26,13 @@ class UserSubscription(BaseModel):
         backref="user_subscriptions",
         on_delete="CASCADE",
     )
-    creator = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="creator_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="creator_subscriptions",
         on_delete="CASCADE",
+        index=True,
     )
     plan = ForeignKeyField(
         model=SubscriptionPlan,
@@ -54,9 +55,10 @@ class UserSubscription(BaseModel):
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
+
     class Meta:
         table_name = "user_subscriptions"
         indexes = (
-            (("user", "creator", "status"), False),
+            (("user", "tenant", "status"), False),
             (("end_date", "status"), False),
         )

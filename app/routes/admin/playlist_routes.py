@@ -28,7 +28,11 @@ def create_playlist(payload: PlaylistCreateRequest, current_user: CurrentAdmin):
     """
     POST /api/v1/admin/playlists — Creates a new playlist container.
     """
-    return playlist_service.create_playlist(current_user["user_id"], payload)
+    return playlist_service.create_playlist(
+        tenant_id=current_user["tenant_id"],
+        payload=payload,
+        created_by=current_user["user_id"],
+    )
 
 
 @router.get(
@@ -49,7 +53,7 @@ def list_playlists(
     GET /api/v1/admin/playlists — Retrieves a paginated list of creator playlists.
     """
     return playlist_service.list_user_playlists(
-        user_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         search=search,
         sort=sort,
         page=page,
@@ -69,7 +73,7 @@ def update_playlist(
     PUT /api/v1/admin/playlists/{playlist_id} — Updates playlist textual metadata (name, description).
     """
     return playlist_service.update_playlist_metadata(
-        current_user["user_id"], playlist_id, payload
+        current_user["tenant_id"], playlist_id, payload
     )
 
 
@@ -85,7 +89,7 @@ def upload_playlist_banner(
     POST /api/v1/admin/playlists/{playlist_id}/thumbnail/upload — Uploads a playlist cover banner image via server proxy.
     """
     return playlist_service.upload_playlist_banner(
-        current_user["user_id"], playlist_id, file=file
+        current_user["tenant_id"], playlist_id, file=file
     )
 
 
@@ -98,7 +102,7 @@ def delete_playlist(playlist_id: int, current_user: CurrentAdmin):
     """
     DELETE /api/v1/admin/playlists/{playlist_id} — Deletes a playlist container from DB.
     """
-    return playlist_service.delete_playlist(current_user["user_id"], playlist_id)
+    return playlist_service.delete_playlist(current_user["tenant_id"], playlist_id)
 
 
 @router.get(
@@ -119,7 +123,7 @@ def get_playlist_videos(
     GET /api/v1/admin/playlists/{playlist_id}/videos — Retrieves a paginated list of videos attached inside a playlist.
     """
     return playlist_service.get_playlist_videos(
-        user_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         playlist_id=playlist_id,
         search=search,
         page=page,
@@ -139,7 +143,7 @@ def add_videos_to_playlist(
     POST /api/v1/admin/playlists/{playlist_id}/videos — Adds an array of video IDs to a playlist.
     """
     return playlist_service.add_videos_to_playlist(
-        current_user["user_id"], playlist_id, payload
+        current_user["tenant_id"], playlist_id, payload
     )
 
 
@@ -155,7 +159,7 @@ def remove_single_video_from_playlist(
     DELETE /api/v1/admin/playlists/{playlist_id}/videos/{video_id} — Removes a single video from a playlist.
     """
     return playlist_service.remove_single_video_from_playlist(
-        current_user["user_id"], playlist_id, video_id
+        current_user["tenant_id"], playlist_id, video_id
     )
 
 
@@ -173,7 +177,7 @@ def bulk_remove_videos_from_playlist(
     DELETE /api/v1/admin/playlists/{playlist_id}/videos — Bulk removes multiple videos from a playlist.
     """
     return playlist_service.bulk_remove_videos_from_playlist(
-        current_user["user_id"], playlist_id, payload
+        current_user["tenant_id"], playlist_id, payload
     )
 
 
@@ -189,7 +193,7 @@ def reorder_playlist_videos(
     PUT /api/v1/admin/playlists/{playlist_id}/videos/reorder — Persists updated sequence positions of videos inside a playlist.
     """
     return playlist_service.reorder_playlist_videos(
-        current_user["user_id"], playlist_id, payload
+        current_user["tenant_id"], playlist_id, payload
     )
 
 
@@ -217,7 +221,7 @@ def get_available_videos_for_playlist(
     GET /api/v1/admin/playlists/{playlist_id}/available_videos — Fetches paginated, filterable available videos for playlist picker UI.
     """
     return playlist_service.get_available_videos(
-        user_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         playlist_id=playlist_id,
         search=search,
         category=category,

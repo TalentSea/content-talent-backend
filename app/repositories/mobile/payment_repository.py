@@ -17,7 +17,7 @@ class PaymentRepository:
     def create_payment(
         self,
         user_id: int,
-        creator_id: int,
+        tenant_id: int,
         plan_id: int,
         razorpay_order_id: str,
         amount: float,
@@ -29,7 +29,7 @@ class PaymentRepository:
         try:
             return Payment.create(
                 user=user_id,
-                creator=creator_id,
+                tenant=tenant_id,
                 plan=plan_id,
                 razorpay_order_id=razorpay_order_id,
                 amount=amount,

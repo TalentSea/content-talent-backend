@@ -14,7 +14,7 @@ class MobileFeaturedVideoRepository:
     """
 
     def get_featured_videos(
-        self, creator_id: int, subscriber_id: int | None = None
+        self, tenant_id: int, subscriber_id: int | None = None
     ) -> list[dict]:
         """
         Retrieves creator featured videos in 1 SINGLE SQL query, enriched with description and subscriber interaction flags.
@@ -57,7 +57,7 @@ class MobileFeaturedVideoRepository:
                 )
                 .join(Video)
                 .where(
-                    (FeaturedVideo.creator == creator_id)
+                    (FeaturedVideo.tenant == tenant_id)
                     & (
                         (fn.LOWER(Video.status) == "published")
                         & (Video.is_playable == True)
@@ -90,7 +90,7 @@ class MobileFeaturedVideoRepository:
         except PeeweeException as e:
             logger.error(
                 "Error fetching mobile featured videos for creator %s: %s",
-                creator_id,
+                tenant_id,
                 e,
             )
             return []

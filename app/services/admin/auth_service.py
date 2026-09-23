@@ -15,7 +15,9 @@ from app.utils.auth import (
     create_refresh_token_string,
     hash_refresh_token,
     verify_password,
+    verify_tenant_active,
 )
+from app.utils.string_utils import format_full_name
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 class AuthService:
     """
     Business logic layer for Creator Admin Authentication, token lifecycle, and session management.
+    Supports both Tenant Admins and Platform Super Admins.
     """
 
     REFRESH_COOKIE_NAME = "admin_refresh_token"
@@ -46,7 +49,7 @@ class AuthService:
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             httponly=True,
             secure=True,
-            samesite="lax",
+            samesite="none",
             path=self.ACCESS_COOKIE_PATH,
         )
 
@@ -59,7 +62,7 @@ class AuthService:
             path=self.ACCESS_COOKIE_PATH,
             httponly=True,
             secure=True,
-            samesite="lax",
+            samesite="none",
         )
 
     def _set_refresh_cookie(self, response: Response, raw_token: str) -> None:
@@ -73,7 +76,7 @@ class AuthService:
             max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
             httponly=True,
             secure=True,
-            samesite="strict",
+            samesite="none",
             path=self.REFRESH_COOKIE_PATH,
         )
 
@@ -86,20 +89,26 @@ class AuthService:
             path=self.REFRESH_COOKIE_PATH,
             httponly=True,
             secure=True,
-            samesite="strict",
+            samesite="none",
         )
 
     def _create_admin_access_token(
-        self, admin_id: int, first_name: str | None, last_name: str | None
+        self,
+        admin_id: int,
+        first_name: str | None,
+        last_name: str | None,
+        role: str = "admin",
+        tenant_id: int | None = None,
     ) -> str:
         """
-        Encodes admin identity into a signed JWT access token with role='admin'.
+        Encodes admin identity into a signed JWT access token with role and tenant_id.
         """
         settings = get_settings()
         return create_access_token(
             user_id=admin_id,
-            role="admin",
-            username=f"{first_name or ''} {last_name or ''}".strip(),
+            role=role,
+            username=format_full_name(first_name, last_name),
+            tenant_id=tenant_id,
             expires_delta_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
         )
 
@@ -118,7 +127,7 @@ class AuthService:
         self, credentials: AdminLoginRequest, response: Response
     ) -> AdminLoginResponse:
         """
-        Authenticates an admin creator with email/password and sets a secure HttpOnly refresh cookie.
+        Authenticates an admin or super admin with email/password and sets a secure HttpOnly refresh cookie.
         """
         admin = self.repo.get_admin_by_email(credentials.email)
         if (
@@ -134,18 +143,37 @@ class AuthService:
         if not getattr(admin, "is_active", True):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Creator account has been deactivated. Please contact platform administration.",
+                detail="Admin account has been deactivated. Please contact platform administration.",
             )
+
+        is_super_admin = admin.role == "super_admin"
+        tenant_id = None
+        if not is_super_admin:
+            if not admin.tenant:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admin account is not assigned to any studio tenant.",
+                )
+            verify_tenant_active(admin.tenant)
+            tenant_id = admin.tenant_id
+            studio_name = admin.tenant.name
+            avatar_url = admin.avatar_url
+            is_owner = admin.is_owner
+        else:
+            tenant_id = None
+            studio_name = None
+            avatar_url = None
+            is_owner = False
 
         settings = get_settings()
 
-        # Eagerly provisioned studio branding
-        branding = self.repo.get_studio_branding(admin.id)
-        studio_name = branding.studio_name if branding else None
-
         # Issue access token & provision cookies
         access_token = self._create_admin_access_token(
-            admin.id, admin.first_name, admin.last_name
+            admin_id=admin.id,
+            first_name=admin.first_name,
+            last_name=admin.last_name,
+            role=admin.role,
+            tenant_id=tenant_id,
         )
         self._set_access_cookie(response, access_token)
         self._rotate_refresh_session(admin.id, response)
@@ -160,7 +188,10 @@ class AuthService:
                 first_name=admin.first_name,
                 last_name=admin.last_name,
                 studio_name=studio_name,
-                avatar_url=admin.avatar_url,
+                avatar_url=avatar_url,
+                role=admin.role,
+                tenant_id=tenant_id,
+                is_owner=is_owner,
             ),
         )
 
@@ -169,7 +200,6 @@ class AuthService:
     ) -> AdminTokenResponse:
         """
         Silently renews an access token and rotates the refresh token using the incoming HttpOnly cookie.
-        If the token does not match (e.g. replaced by newer device login), returns 401 without wiping DB.
         """
         if not cookie_token:
             raise HTTPException(
@@ -181,7 +211,6 @@ class AuthService:
         admin = self.repo.get_admin_by_refresh_token_hash(incoming_hash)
 
         if not admin:
-            # Single active session mismatch: do NOT wipe admins.refresh_token to protect active device
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session expired or active on another device; please re-login",
@@ -190,15 +219,29 @@ class AuthService:
         if not getattr(admin, "is_active", True):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Creator account has been deactivated. Please contact platform administration.",
+                detail="Admin account has been deactivated. Please contact platform administration.",
             )
+
+        tenant_id = None
+        if admin.role != "super_admin":
+            if not admin.tenant:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admin account is not assigned to any studio tenant.",
+                )
+            verify_tenant_active(admin.tenant)
+            tenant_id = admin.tenant_id
 
         settings = get_settings()
 
         # Rotate single-use refresh session & issue fresh access token
         self._rotate_refresh_session(admin.id, response)
         new_access_token = self._create_admin_access_token(
-            admin.id, admin.first_name, admin.last_name
+            admin_id=admin.id,
+            first_name=admin.first_name,
+            last_name=admin.last_name,
+            role=admin.role,
+            tenant_id=tenant_id,
         )
         self._set_access_cookie(response, new_access_token)
 
@@ -210,7 +253,7 @@ class AuthService:
 
     def get_me(self, admin_id: int) -> AdminSummaryResponse:
         """
-        Rehydrates creator identity and studio branding for SPA navbar and session initialization.
+        Rehydrates admin identity and studio tenant info for SPA navbar and session initialization.
         """
         admin = self.repo.get_admin_by_id(admin_id)
         if not admin:
@@ -219,8 +262,11 @@ class AuthService:
                 detail="Admin account not found",
             )
 
-        branding = self.repo.get_studio_branding(admin_id)
-        studio_name = branding.studio_name if branding else None
+        is_super_admin = admin.role == "super_admin"
+        tenant_id = admin.tenant_id if not is_super_admin else None
+        studio_name = admin.tenant.name if (not is_super_admin and admin.tenant) else None
+        avatar_url = admin.avatar_url if not is_super_admin else None
+        is_owner = admin.is_owner if not is_super_admin else False
 
         return AdminSummaryResponse(
             id=admin.id,
@@ -228,7 +274,10 @@ class AuthService:
             first_name=admin.first_name,
             last_name=admin.last_name,
             studio_name=studio_name,
-            avatar_url=admin.avatar_url,
+            avatar_url=avatar_url,
+            role=admin.role,
+            tenant_id=tenant_id,
+            is_owner=is_owner,
         )
 
     def logout(self, admin_id: int, response: Response) -> dict[str, str]:

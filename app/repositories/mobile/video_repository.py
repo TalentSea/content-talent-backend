@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from peewee import IntegrityError, PeeweeException, fn
 
 from app.config import get_settings
-from app.models.admin import Admin
+from app.models.tenant import Tenant
 from app.models.video import Video, VideoLike, VideoSave, VideoViewEvent, WatchHistory
 from app.utils.formatters import parse_duration_seconds
 
@@ -19,7 +19,7 @@ class MobileVideoRepository:
 
     def list_public_videos(
         self,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         category: str | None = None,
         search: str | None = None,
         sort: str = "newest",
@@ -27,19 +27,19 @@ class MobileVideoRepository:
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
-        Retrieves paginated public videos filtered by creator_id, published state, and readiness.
+        Retrieves paginated public videos filtered by tenant_id, published state, and readiness.
         Supports Option 1 Popularity Score (views + 3*likes) and Option 2 (most_liked).
         """
         try:
-            active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
+            active_tenants = Tenant.select(Tenant.id).where(Tenant.is_active == True)
             query = Video.select().where(
                 (fn.LOWER(Video.status) == "published")
                 & (Video.is_playable == True)
-                & (Video.user.in_(active_creators))
+                & (Video.tenant.in_(active_tenants))
             )
 
-            if creator_id is not None:
-                query = query.where(Video.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Video.tenant == tenant_id)
 
             if category:
                 query = query.where(fn.LOWER(Video.category) == category.lower())
@@ -85,13 +85,13 @@ class MobileVideoRepository:
     def list_subscriber_liked_videos(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready videos liked by a specific subscriber ("My Liked Videos").
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             query = (
@@ -104,8 +104,8 @@ class MobileVideoRepository:
                 )
             )
 
-            if creator_id is not None:
-                query = query.where(Video.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Video.tenant == tenant_id)
 
             query = query.order_by(VideoLike.created_at.desc())
 
@@ -121,22 +121,22 @@ class MobileVideoRepository:
             raise
 
     def get_public_video_by_id(
-        self, video_id: int, creator_id: int | None = None
+        self, video_id: int, tenant_id: int | None = None
     ) -> Video | None:
         """
-        Fetches a single published & ready video by primary key ID, optionally filtered by creator_id for tenant isolation.
+        Fetches a single published & ready video by primary key ID, optionally filtered by tenant_id for tenant isolation.
         """
         try:
-            active_creators = Admin.select(Admin.id).where(Admin.is_active == True)
+            active_tenants = Tenant.select(Tenant.id).where(Tenant.is_active == True)
             query = Video.select().where(
                 (Video.id == video_id)
                 & (fn.LOWER(Video.status) == "published")
                 & (Video.is_playable == True)
-                & (Video.user.in_(active_creators))
+                & (Video.tenant.in_(active_tenants))
             )
 
-            if creator_id is not None:
-                query = query.where(Video.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Video.tenant == tenant_id)
 
             return query.first()
         except PeeweeException as e:
@@ -147,7 +147,7 @@ class MobileVideoRepository:
         self,
         video_id: int,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ) -> int | None:
         """
         Validates watch threshold from WatchHistory, enforces anti-spam
@@ -155,7 +155,7 @@ class MobileVideoRepository:
         increments Video.views counter and popularity score.
         All thresholds and debounce windows are configured via environment settings.
         """
-        video = self.get_public_video_by_id(video_id, creator_id=creator_id)
+        video = self.get_public_video_by_id(video_id, tenant_id=tenant_id)
         if not video:
             return None
 
@@ -209,7 +209,7 @@ class MobileVideoRepository:
         # 4. Record legitimate view event and increment counters
         VideoViewEvent.create(
             video=video_id,
-            creator=video.user_id,
+            tenant=video.tenant_id,
             subscriber=subscriber_id,
             created_at=now,
         )
@@ -238,14 +238,14 @@ class MobileVideoRepository:
         )
 
     def toggle_video_like(
-        self, video_id: int, subscriber_id: int, creator_id: int | None = None
+        self, video_id: int, subscriber_id: int, tenant_id: int | None = None
     ) -> tuple[bool, int] | None:
         """
         Toggles subscriber like state for a video asset in DB and updates its stored popularity_score.
         Returns (is_liked: bool, total_likes_count: int) or None if video not found.
         """
         try:
-            video = self.get_public_video_by_id(video_id, creator_id=creator_id)
+            video = self.get_public_video_by_id(video_id, tenant_id=tenant_id)
             if not video:
                 return None
 
@@ -288,14 +288,14 @@ class MobileVideoRepository:
         )
 
     def toggle_video_save(
-        self, video_id: int, subscriber_id: int, creator_id: int | None = None
+        self, video_id: int, subscriber_id: int, tenant_id: int | None = None
     ) -> bool | None:
         """
         Toggles subscriber save/bookmark state for a video asset in DB.
         Returns is_saved: bool or None if video not found.
         """
         try:
-            video = self.get_public_video_by_id(video_id, creator_id=creator_id)
+            video = self.get_public_video_by_id(video_id, tenant_id=tenant_id)
             if not video:
                 return None
 
@@ -321,13 +321,13 @@ class MobileVideoRepository:
     def list_subscriber_saved_videos(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready videos saved by a specific subscriber ("My Watchlist").
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             query = (
@@ -340,8 +340,8 @@ class MobileVideoRepository:
                 )
             )
 
-            if creator_id is not None:
-                query = query.where(Video.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Video.tenant == tenant_id)
 
             query = query.order_by(VideoSave.created_at.desc())
 
@@ -359,15 +359,15 @@ class MobileVideoRepository:
         video_id: int,
         subscriber_id: int,
         progress_seconds: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
     ) -> bool:
         """
-        Validates video exists and belongs to creator_id, calculates duration/completion percentage,
+        Validates video exists and belongs to tenant_id, calculates duration/completion percentage,
         and atomically upserts watch progress in WatchHistory.
         Returns False if video is not found or unauthorized.
         """
         try:
-            video = self.get_public_video_by_id(video_id, creator_id=creator_id)
+            video = self.get_public_video_by_id(video_id, tenant_id=tenant_id)
             if not video:
                 return False
 
@@ -463,13 +463,13 @@ class MobileVideoRepository:
     def list_continue_watching_videos(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 10,
     ) -> tuple[list[tuple[Video, int, float]], int]:
         """
         Retrieves paginated unfinished videos for subscriber 'Continue Watching' carousel.
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             settings = get_settings()
@@ -485,8 +485,8 @@ class MobileVideoRepository:
                 )
             )
 
-            if creator_id is not None:
-                query = query.where(Video.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Video.tenant == tenant_id)
 
             query = query.order_by(WatchHistory.last_watched_at.desc())
 
@@ -503,13 +503,13 @@ class MobileVideoRepository:
     def list_watch_history(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[tuple[Video, int, float]], int]:
         """
         Retrieves paginated watch history for subscriber.
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             query = (
@@ -522,8 +522,8 @@ class MobileVideoRepository:
                 )
             )
 
-            if creator_id is not None:
-                query = query.where(Video.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Video.tenant == tenant_id)
 
             query = query.order_by(WatchHistory.last_watched_at.desc())
 
@@ -537,16 +537,16 @@ class MobileVideoRepository:
             )
             raise
 
-    def clear_watch_history(self, subscriber_id: int, creator_id: int | None = None):
+    def clear_watch_history(self, subscriber_id: int, tenant_id: int | None = None):
         """
-        Deletes all watch history records for a subscriber, scoped by creator_id tenant context.
+        Deletes all watch history records for a subscriber, scoped by tenant_id tenant context.
         """
         try:
             query = WatchHistory.delete().where(
                 WatchHistory.subscriber == subscriber_id
             )
-            if creator_id is not None:
-                creator_videos = Video.select(Video.id).where(Video.user == creator_id)
+            if tenant_id is not None:
+                creator_videos = Video.select(Video.id).where(Video.tenant == tenant_id)
                 query = query.where(WatchHistory.video.in_(creator_videos))
             query.execute()
         except PeeweeException as e:
@@ -556,14 +556,14 @@ class MobileVideoRepository:
             raise
 
     def remove_video_from_watch_history(
-        self, video_id: int, subscriber_id: int, creator_id: int | None = None
+        self, video_id: int, subscriber_id: int, tenant_id: int | None = None
     ) -> bool:
         """
         Deletes a single video watch history record for a subscriber.
         Returns False if video not found or unauthorized.
         """
         try:
-            video = self.get_public_video_by_id(video_id, creator_id=creator_id)
+            video = self.get_public_video_by_id(video_id, tenant_id=tenant_id)
             if not video:
                 return False
 

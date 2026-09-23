@@ -21,6 +21,9 @@ class AdminSummaryResponse(BaseModel):
     last_name: str | None = None
     studio_name: str | None = None
     avatar_url: str | None = None
+    role: str = "admin"
+    tenant_id: int | None = None
+    is_owner: bool = False
 
 
 class AdminLoginResponse(BaseModel):

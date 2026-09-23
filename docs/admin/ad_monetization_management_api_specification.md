@@ -12,7 +12,7 @@ In this enterprise white-labeled OTT model, all white-labeled mobile application
                       [Mobile App (Standard Tier Subscriber)]
                                          │
                                          │ 1. Streams video with platform VAST tag
-                                         │    (&cust_params=creator_id=101&video_id=202)
+                                         │    (&cust_params=tenant_id=101&video_id=202)
                                          ▼
                       [Google IMA SDK renders video ad]
                                          │
@@ -45,7 +45,7 @@ In this enterprise white-labeled OTT model, all white-labeled mobile application
 1. **Dynamic Creator Attribution (`cust_params`):**
    - When the mobile app requests video playback details via `GET /api/v1/mobile/videos/{id}`, the backend dynamically appends creator and video identifiers to the platform VAST tag:
      ```text
-     {settings.GOOGLE_IMA_VAST_TAG_URL}&cust_params=creator_id%3D{video.user_id}%26video_id%3D{video.id}
+     {settings.GOOGLE_IMA_VAST_TAG_URL}&cust_params=tenant_id%3D{video.tenant_id}%26video_id%3D{video.id}
      ```
    - Google Ad Manager logs ad impressions against the specific creator's inventory, allowing reconciliation against Google's monthly publisher reports.
 2. **Discreet White-Label Monetization & eCPM Commission Deduction:**
@@ -79,7 +79,7 @@ In this enterprise white-labeled OTT model, all white-labeled mobile application
    | :--- | :--- | :--- |
    | **Sept 1 – Sept 30** | Viewers watch video ads on mobile apps. Verified impressions stream live into `ad_impression_events`. | Status: `"accruing"` |
    | **Oct 1 – Oct 3** | **Google Finalizes Reporting Statement**: Audits invalid clicks, bot traffic, and programmatic clearing prices. Issues audited monthly revenue report. | Statement generated in Google |
-   | **Oct 1 – Oct 20** | Platform runs monthly reconciliation script to calculate platform profit (30%) and creator net allocations (70%). Statements locked. | Status: `"reconciled"` |
+   | **Oct 1 – Oct 20** | Platform Super Admin triggers monthly reconciliation in the Admin Dashboard to calculate platform commission (30%) and creator net allocations (70%). Statements locked. | Status: `"reconciled"` |
    | **Oct 21 – Oct 25** | **Google Wire Transfer Remittance**: Google sends cleared wire transfer cash directly into TalentSea's master corporate bank account. | Funds cleared in bank |
    | **Oct 28** | **Creator Bank Disbursement**: TalentSea executes batch bank transfers (NEFT/RTGS/IMPS) to creators' registered bank profiles. | Status: `"paid"` + UTR |
 
@@ -88,7 +88,7 @@ In this enterprise white-labeled OTT model, all white-labeled mobile application
    ┌───────────────────────────┐           ┌─────────────────────────┐         ┌──────────────────────────┐      ┌──────────────────────────┐
    │ Viewers stream videos.    │           │ September month closes. │         │ Google Ad Manager wire   │      │ TalentSea initiates bank │
    │ Ad impressions log live.  │ ────────> │ Google finalizes report.│ ──────> │ remittance lands in      │ ───> │ transfers to creator     │
-   │ Raw impressions accrue.   │           │ Reconcile script runs:  │         │ company bank account.    │      │ bank accounts.           │
+   │ Raw impressions accrue.   │           │ Reconcile in Admin GUI: │         │ company bank account.    │      │ bank accounts.           │
    │ Status: "accruing"        │           │ Status: "reconciled"    │         │ Funds verified.          │      │ Status: "paid" + UTR     │
    └───────────────────────────┘           └─────────────────────────┘         └──────────────────────────┘      └──────────────────────────┘
    ```
@@ -114,30 +114,17 @@ In this enterprise white-labeled OTT model, all white-labeled mobile application
 5. **Master Platform Ledger & Monthly Reconciliation Engine:**
    - **Master-Detail Database Architecture:**
      - **Master Table (`ad_platform_monthly_reconciliations`):** Stores company-wide monthly revenue from Google, total platform impressions, platform 30% profit, and total creator pool.
-     - **Detail Table (`ad_monthly_settlements`):** Stores individual creator statements linked to the master reconciliation via `reconciliation_id` (FK). Composite unique constraint `UNIQUE(creator_id, month)` strictly isolates every creator's statements by calendar month.
+     - **Detail Table (`ad_monthly_settlements`):** Stores individual creator statements linked to the master reconciliation via `reconciliation_id` (FK). Composite unique constraint `UNIQUE(tenant_id, month)` strictly isolates every creator's statements by calendar month.
    - **Why This Calculation is Fair (Pro-Rata Revenue Pool Model):**
      - Mirrors the standard streaming pool model used by Spotify, YouTube Music, and OTT networks.
      - Strictly proportional: A creator with 100,000 views earns 10x more than a creator with 10,000 views.
      - Future-proof: `ecpm` is stored on every individual creator row in `ad_monthly_settlements`. While currently applying the blended network rate, the database already supports custom creator rates or category-specific rates in the future with zero schema changes.
-   - **CLI Monthly Reconciliation & Disbursement Tool (`app/scripts/reconcile_monthly_ads.py`):**
-     - Instead of building an unneeded, complex separate Super Admin web portal, monthly settlement reconciliation and bank transfer confirmations are executed via a clean, secure terminal CLI script:
-       ```bash
-       # 1. Monthly Reconciliation Run (Generates statements for all creators)
-       python -m app.scripts.reconcile_monthly_ads --month 2026-09 --revenue 50000
-       # (Or specify gross eCPM directly: --ecpm 100.0)
-
-       # 2. Record Bank Transfer & Mark Paid with Official UTR (On Payout Day 28th)
-       python -m app.scripts.reconcile_monthly_ads --mark-paid STMT-202609-ADM42-8F9B --utr HDFC987654321
-
-       # 3. Company Financial Audit Balance Sheet
-       python -m app.scripts.reconcile_monthly_ads --history
-       ```
-     - **Why a CLI Script is the Optimal Choice:**
-       1. **Zero Frontend Overhead:** No extra web pages, routes, or roles required.
-       2. **High Security:** Financial reconciliation and payout authorizations can only be triggered by an authorized administrator with server/SSH access.
-       3. **Interactive Verification:** Outputs a complete dry-run breakdown table in the terminal and prompts for confirmation (`Confirm statement generation? [y/N]`) before modifying the database.
-       4. **Complete Audit Trail:** Recording the official Bank UTR immediately transitions statement status from `"reconciled"` to `"paid"`, records `settled_at`, and populates `last_payout` across the creator's dashboard.
-       5. **Company Financial Audit (`--history`):** Prints a complete chronological balance sheet showing monthly Google revenue, platform profit (30%), and creator disbursements for company tax/CA accounting.
+   - **GUI-Driven Monthly Reconciliation & Settlement Workflow (100% GUI Driven):**
+     - In alignment with the platform-wide **No-CLI, 100% GUI** standard, monthly settlement reconciliation, statement inspection, and bank transfer confirmations are executed directly through the **Platform Admin Web Dashboard** and REST APIs:
+       1. **Platform Financial Review**: Super Admins view gross Google Ad Manager revenue, calculate net creator pool disbursements, and review statement breakdowns directly in the Admin GUI.
+       2. **Creator Studio Statement Feed (`GET /api/v1/admin/monetization/settlements`)**: Creators inspect their itemized statements, download PDF invoices, and view official bank transfer UTR references directly in their Creator Studio portal.
+       3. **Bank UTR Disbursement Recording**: When bank wire transfers are completed on Payout Day (28th), the official Bank UTR is entered into the dashboard, transitioning the statement status from `"reconciled"` to `"paid"`, recording `settled_at`, and updating `last_payout` KPI cards.
+       4. **Audit Trail**: Every transaction is cryptographically logged in `ad_monthly_settlements` and linked to `ad_platform_monthly_reconciliations`, providing a complete chronological balance sheet for financial audits.
 
    ### Centralized Configuration:
    - Defined in `.env` and `app/config.py`:

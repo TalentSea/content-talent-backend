@@ -37,7 +37,7 @@ def get_dashboard_stats(
     GET /api/v1/admin/dashboard/stats — High-level summary cards.
     """
     return dashboard_service.get_dashboard_stats(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         range_preset=range,
         start_date_str=start_date,
         end_date_str=end_date,
@@ -70,7 +70,7 @@ def get_analytics(
     GET /api/v1/admin/dashboard/analytics — Grouped time-series graph points.
     """
     return dashboard_service.get_analytics(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         range_preset=range,
         start_date_str=start_date,
         end_date_str=end_date,
@@ -101,7 +101,7 @@ def get_subscription_breakdown(
     GET /api/v1/admin/dashboard/subscription-breakdown — Subscriber distribution and period revenue per tier.
     """
     return dashboard_service.get_subscription_breakdown(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         range_preset=range,
         start_date_str=start_date,
         end_date_str=end_date,
@@ -127,7 +127,7 @@ def get_recent_activity(
     GET /api/v1/admin/dashboard/recent-activity — Paginated recent members feed.
     """
     return dashboard_service.get_recent_activity(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         filter_type=filter or "all",
         page=page,
         limit=limit,

@@ -8,7 +8,7 @@ This document details the RESTful API endpoint for Mobile Application subscriber
 
 * **Base Endpoint**: `GET /api/v1/mobile/featured-videos`
 * **Authentication**: **Subscriber Protected** (`Authorization: Bearer <subscriber_access_token>`).
-* **Multi-Tenant Isolation**: The backend extracts `current_subscriber["creator_id"]` from the JWT token and fetches matching `FeaturedVideo` records (`FeaturedVideo.creator == creator_id`), ordered by `position` ascending.
+* **Multi-Tenant Isolation**: The backend extracts `current_subscriber["tenant_id"]` from the JWT token and fetches matching `FeaturedVideo` records (`FeaturedVideo.tenant == tenant_id`), ordered by `position` ascending.
 * **Unconfigured Fallback**: If creator featured videos have not been configured in the database, returns HTTP `200 OK` with an empty array `[]` to enable smooth mobile home screen rendering without crashing.
 
 ---

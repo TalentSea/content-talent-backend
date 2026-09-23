@@ -19,7 +19,7 @@ from app.schemas.admin.monetization_schemas import (
     SettlementItemResponse,
     SettlementsListResponse,
 )
-from app.utils.auth import is_creator_active
+from app.utils.auth import is_tenant_active
 from app.utils.date_utils import get_app_timezone
 
 # Recognized Indian Bank IFSC 4-character prefix lookup dictionary
@@ -79,7 +79,7 @@ class MonetizationService:
     def __init__(self, repo: MonetizationRepository | None = None) -> None:
         self.repo = repo or MonetizationRepository()
 
-    def get_monetization_summary(self, creator_id: int) -> MonetizationSummaryResponse:
+    def get_monetization_summary(self, tenant_id: int) -> MonetizationSummaryResponse:
         """
         Computes active month impressions, dynamic historical eCPM,
         expected payout schedule, and pending/last payout status.
@@ -104,13 +104,13 @@ class MonetizationService:
 
         # 2. Count active month impressions (100% factual ground truth counter)
         impressions_count = self.repo.count_impressions_in_window(
-            creator_id=creator_id, start_dt=first_day_utc, end_dt=now_utc
+            tenant_id=tenant_id, start_dt=first_day_utc, end_dt=now_utc
         )
 
         # 3. Dynamic eCPM Resolution:
         # Check if creator has at least 1 settled past payout. If so, use historical baseline.
         # If new creator, return null (accruing) to avoid any misleading default promises.
-        historical_ecpm = self.repo.get_latest_settled_ecpm(creator_id)
+        historical_ecpm = self.repo.get_latest_settled_ecpm(tenant_id)
         if historical_ecpm is not None and historical_ecpm > 0:
             ecpm: float | None = round(historical_ecpm, 2)
             estimated_earnings: float | None = round(
@@ -133,7 +133,7 @@ class MonetizationService:
         )
 
         # 4. Payout Profile Check
-        profile = self.repo.get_payout_profile(creator_id)
+        profile = self.repo.get_payout_profile(tenant_id)
         payout_profile_configured = bool(
             profile
             and profile.account_number
@@ -142,7 +142,7 @@ class MonetizationService:
         )
 
         # 5. Pending Payout Resolution
-        pending_stmt = self.repo.get_pending_settlement(creator_id)
+        pending_stmt = self.repo.get_pending_settlement(tenant_id)
         pending_payout: PendingPayoutSummary | None = None
         if pending_stmt:
             # If bank details are missing, hold state as pending_bank_details
@@ -163,7 +163,7 @@ class MonetizationService:
             )
 
         # 6. Last Payout Resolution
-        last_stmt = self.repo.get_last_paid_settlement(creator_id)
+        last_stmt = self.repo.get_last_paid_settlement(tenant_id)
         last_payout: LastPayoutSummary | None = None
         if last_stmt:
             settled_at_str = (
@@ -179,7 +179,7 @@ class MonetizationService:
             )
 
         # 7. Lifetime Earnings
-        lifetime_earnings = self.repo.get_lifetime_settled_earnings(creator_id)
+        lifetime_earnings = self.repo.get_lifetime_settled_earnings(tenant_id)
 
         return MonetizationSummaryResponse(
             currency=settings.DEFAULT_CURRENCY,
@@ -192,7 +192,7 @@ class MonetizationService:
 
     def get_monetization_analytics(
         self,
-        creator_id: int,
+        tenant_id: int,
         range_preset: str | None = "30d",
         start_date_str: str | None = None,
         end_date_str: str | None = None,
@@ -260,11 +260,11 @@ class MonetizationService:
         end_dt_utc = end_dt_local.astimezone(timezone.utc)
 
         daily_counts = self.repo.get_daily_impressions(
-            creator_id=creator_id, start_dt=start_dt_utc, end_dt=end_dt_utc
+            tenant_id=tenant_id, start_dt=start_dt_utc, end_dt=end_dt_utc
         )
 
         # Dynamic eCPM baseline
-        baseline_ecpm = self.repo.get_latest_settled_ecpm(creator_id)
+        baseline_ecpm = self.repo.get_latest_settled_ecpm(tenant_id)
 
         # Bucket points chronologically
         data_points: list[MonetizationAnalyticsPoint] = []
@@ -360,12 +360,12 @@ class MonetizationService:
         )
 
     def get_settlement_history(
-        self, creator_id: int, page: int = 1, limit: int = 12
+        self, tenant_id: int, page: int = 1, limit: int = 12
     ) -> SettlementsListResponse:
         """Returns paginated itemized monthly settlement statements."""
         settings = get_settings()
         records, total = self.repo.get_settlements_paginated(
-            creator_id=creator_id, page=page, limit=limit
+            tenant_id=tenant_id, page=page, limit=limit
         )
         total_pages = math.ceil(total / limit) if total > 0 else 1
 
@@ -394,9 +394,9 @@ class MonetizationService:
             total_pages=total_pages,
         )
 
-    def get_payout_profile(self, creator_id: int) -> PayoutProfileResponse:
+    def get_payout_profile(self, tenant_id: int) -> PayoutProfileResponse:
         """Retrieves creator bank payout profile with masked account number."""
-        profile = self.repo.get_payout_profile(creator_id)
+        profile = self.repo.get_payout_profile(tenant_id)
         if not profile:
             return PayoutProfileResponse()
 
@@ -409,7 +409,7 @@ class MonetizationService:
         )
 
     def update_payout_profile(
-        self, creator_id: int, request: PayoutProfileUpdateRequest
+        self, tenant_id: int, request: PayoutProfileUpdateRequest
     ) -> PayoutProfileResponse:
         """
         Registers or updates creator bank payout details.
@@ -434,7 +434,7 @@ class MonetizationService:
         holder_name = request.account_holder_name.strip()
 
         profile = self.repo.upsert_payout_profile(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             account_holder_name=holder_name,
             account_number=clean_account,
             ifsc_code=clean_ifsc,
@@ -442,7 +442,7 @@ class MonetizationService:
         )
 
         # Release all pending statements held for missing bank details
-        self.repo.release_all_pending_bank_statements(creator_id)
+        self.repo.release_all_pending_bank_statements(tenant_id)
 
         return PayoutProfileResponse(
             account_holder_name=profile.account_holder_name,
@@ -477,8 +477,8 @@ class MonetizationService:
                 detail=f"Video asset with ID {video_id} not found.",
             )
 
-        creator_id = video.user_id
-        if not is_creator_active(creator_id):
+        tenant_id = video.tenant_id
+        if not is_tenant_active(tenant_id):
             # Video does not have an active creator owner; ignore quietly
             return
 
@@ -514,5 +514,5 @@ class MonetizationService:
 
         # Append verified impression to the ledger
         self.repo.log_ad_impression(
-            creator_id=creator_id, video_id=video_id, subscriber_id=subscriber_id
+            tenant_id=tenant_id, video_id=video_id, subscriber_id=subscriber_id
         )

@@ -2,16 +2,18 @@ from datetime import datetime, timezone
 
 from peewee import BooleanField, CharField, DateTimeField, ForeignKeyField
 
-from app.models.admin import Admin
 from app.models.base import BaseModel
+from app.models.tenant import Tenant
 
 
 class Subscriber(BaseModel):
     """
-    Stores identity and social authentication state for Mobile Application End-Users bound to a specific Admin Creator.
+    Stores identity and social authentication state for Mobile Application End-Users bound to a specific Tenant.
     """
 
-    creator = ForeignKeyField(Admin, column_name="creator_id", on_delete="CASCADE", index=True)
+    tenant = ForeignKeyField(
+        Tenant, column_name="tenant_id", on_delete="CASCADE", index=True, backref="subscribers"
+    )
     email = CharField(max_length=255, null=True, index=True)
     name = CharField(max_length=255, null=True)
     avatar_url = CharField(max_length=500, null=True)
@@ -25,5 +27,5 @@ class Subscriber(BaseModel):
     class Meta:
         table_name = "subscribers"
         indexes = (
-            (("creator", "provider", "provider_id"), True),
+            (("tenant", "provider", "provider_id"), True),
         )

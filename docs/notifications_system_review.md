@@ -37,7 +37,7 @@ The notification engine introduces **two new database tables** (bringing the pla
 
 ```python
 class Notification(BaseModel):
-    creator = ForeignKeyField(Admin, column_name="creator_id", backref="notifications", on_delete="CASCADE")
+    tenant = ForeignKeyField(Tenant, column_name="tenant_id", backref="notifications", on_delete="CASCADE")
     subscriber = ForeignKeyField(Subscriber, column_name="subscriber_id", backref="notifications", on_delete="CASCADE")
     title = CharField(max_length=255)
     message = TextField()
@@ -60,7 +60,7 @@ class Notification(BaseModel):
 | Field Name | Type | Key / Constraint | Nullable | Default | Description |
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | `id` | `INTEGER` | **PK (Auto Increment)** | NO | Auto | Primary key ID |
-| `creator_id` | `INTEGER` | **FK ➔ `admins.id` (CASCADE)** | NO | None | Creator Studio tenant boundary |
+| `tenant_id` | `INTEGER` | **FK ➔ `tenants.id` (CASCADE)** | NO | None | Creator Studio tenant boundary |
 | `subscriber_id` | `INTEGER` | **FK ➔ `subscribers.id` (CASCADE)** | NO | None | Recipient subscriber or guest |
 | `title` | `VARCHAR(255)` | Standard | NO | None | Short notification headline |
 | `message` | `TEXT` | Standard | NO | None | Message body text |
@@ -260,7 +260,7 @@ All mobile notification endpoints require standard `Authorization: Bearer <acces
                      ▼                                               ▼
         [In-App Database Insert]                           [Push Notification Service]
       • Peewee `insert_many` in batches                  • Background `asyncio` task
-      • Tenant-isolated (`creator_id`)                   • Firebase Cloud Messaging (FCM)
+      • Tenant-isolated (`tenant_id`)                   • Firebase Cloud Messaging (FCM)
       • Sub-50ms bulk execution                          • Auto-deactivates uninstalled tokens
 ```
 

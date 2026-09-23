@@ -51,7 +51,7 @@ Clients MUST NEVER create orders directly with Razorpay. Orders must be initiate
        "notes": {
          "subscriber_id": 12,
          "plan_id": 3,
-         "creator_id": 1
+         "tenant_id": 1
        }
      }
      ```

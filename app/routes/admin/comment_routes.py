@@ -47,7 +47,7 @@ def list_creator_comments(
     GET /api/v1/admin/comments — Retrieves a paginated list of top-level comments with reply_count.
     """
     return comment_service.list_creator_comments(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         search=search,
         video_id=videoId,
         category=category,
@@ -71,7 +71,7 @@ def post_creator_top_level_comment(
     POST /api/v1/admin/videos/{video_id}/comments — Posts an official creator top-level comment matching spec API 2.
     """
     return comment_service.create_top_level_comment(
-        creator_id=current_user["user_id"], video_id=video_id, payload=payload
+        tenant_id=current_user["tenant_id"], video_id=video_id, payload=payload
     )
 
 
@@ -93,7 +93,7 @@ def get_comment_replies(
     GET /api/v1/admin/comments/{comment_id}/replies — Retrieves paginated child replies nested under a top-level comment.
     """
     return comment_service.get_comment_replies(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         comment_id=comment_id,
         sort=sort,
         page=page,
@@ -112,7 +112,7 @@ def post_creator_reply(
     """
     POST /api/v1/admin/comments/{comment_id}/reply — Posts an official creator reply to a user comment.
     """
-    return comment_service.create_reply(current_user["user_id"], comment_id, payload)
+    return comment_service.create_reply(current_user["tenant_id"], comment_id, payload)
 
 
 @router.post(
@@ -124,7 +124,7 @@ def toggle_creator_comment_like(comment_id: int, current_user: CurrentAdmin):
     """
     POST /api/v1/admin/comments/{comment_id}/like — Toggles creator heart/like state on a user comment.
     """
-    return comment_service.toggle_comment_like(current_user["user_id"], comment_id)
+    return comment_service.toggle_comment_like(current_user["tenant_id"], comment_id)
 
 
 @router.delete(
@@ -136,4 +136,4 @@ def delete_comment(comment_id: int, current_user: CurrentAdmin):
     """
     DELETE /api/v1/admin/comments/{comment_id} — Permanently deletes a comment and its replies.
     """
-    return comment_service.delete_comment(current_user["user_id"], comment_id)
+    return comment_service.delete_comment(current_user["tenant_id"], comment_id)

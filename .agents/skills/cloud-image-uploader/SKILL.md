@@ -19,7 +19,7 @@ from app.utils.image_uploader import validate_and_upload_image
 
 cdn_url = validate_and_upload_image(
     file=upload_file,
-    storage_path_without_ext=f"assets/branding/logo_{creator_id}_{timestamp}",
+    storage_path_without_ext=f"assets/branding/logo_{tenant_id}_{timestamp}",
     max_size_mb=settings.MAX_LOGO_SIZE_MB,
     old_file_url=branding.logo_url,
     old_file_storage_folder="assets/branding",

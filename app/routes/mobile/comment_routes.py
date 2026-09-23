@@ -38,7 +38,7 @@ def list_video_comments(
         page=page,
         limit=limit,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -61,7 +61,7 @@ def create_video_comment(
         video_id=video_id,
         subscriber_id=subscriber_id,
         payload=payload,
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -87,7 +87,7 @@ def get_comment_replies(
         page=page,
         limit=limit,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -108,7 +108,7 @@ def create_comment_reply(
         comment_id=id,
         subscriber_id=subscriber_id,
         payload=payload,
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -126,7 +126,7 @@ def toggle_comment_like(id: int, current_subscriber: CurrentSubscriber):
     return comment_service.toggle_comment_like(
         comment_id=id,
         subscriber_id=subscriber_id,
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -144,5 +144,5 @@ def delete_comment(id: int, current_subscriber: CurrentSubscriber):
     return comment_service.delete_comment(
         comment_id=id,
         subscriber_id=subscriber_id,
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )

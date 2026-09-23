@@ -8,7 +8,7 @@ This document details the RESTful API endpoints for Web Admin Creators to config
 
 ### 1.1 Strict Two-Tier Subscription Model
 
-The platform enforces a standardized, multi-tenant **Two-Tier Architecture** provisioned atomically during creator studio onboarding (`create_creator.py`):
+The platform enforces a standardized, multi-tenant **Two-Tier Architecture** provisioned atomically during tenant studio onboarding (via the Platform Super Admin Web Dashboard or `POST /api/v1/admin/tenants`):
 
 1. **Tier 1 (`plan_type = "with_ads"` / `display_order = 1`)**: Standard with Ads tier.
 2. **Tier 2 (`plan_type = "no_ads"` / `display_order = 2`)**: Premium Ad-Free tier.

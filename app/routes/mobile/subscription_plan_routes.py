@@ -16,5 +16,5 @@ service = MobileSubscriptionPlanService()
     description="Retrieves active subscription plans for the mobile paywall checkout screen ordered by display sequence. Accessible by Subscribers and Guest users.",
 )
 def list_mobile_subscription_plans(current_subscriber: CurrentSubscriber):
-    creator_id = current_subscriber.get("creator_id")
-    return service.list_active_plans(creator_id)
+    tenant_id = current_subscriber.get("tenant_id")
+    return service.list_active_plans(tenant_id)

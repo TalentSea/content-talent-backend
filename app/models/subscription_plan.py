@@ -10,22 +10,23 @@ from peewee import (
 )
 
 from app.config import get_settings
-from app.models.admin import Admin
 from app.models.base import BaseModel
+from app.models.tenant import Tenant
 
 
 class SubscriptionPlan(BaseModel):
     """
     Stores subscription plan tiers, pricing parameters, discount offers,
-    and display attributes for a white-labeled creator studio.
+    and display attributes for a white-labeled creator tenant studio.
     """
 
-    user = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="user_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="subscription_plans",
         on_delete="CASCADE",
+        index=True,
     )
     plan_type = CharField(
         max_length=20, null=False, default="with_ads"
@@ -50,7 +51,7 @@ class SubscriptionPlan(BaseModel):
     class Meta:
         table_name = "subscription_plans"
         indexes = (
-            (("user", "display_order"), False),
-            (("user", "plan_type"), False),
-            (("user", "name"), False),
+            (("tenant", "display_order"), False),
+            (("tenant", "plan_type"), False),
+            (("tenant", "name"), False),
         )

@@ -40,16 +40,16 @@ class MobileCommentRepository:
             return [], 0
 
     def get_comment_by_id(
-        self, comment_id: int, creator_id: int | None = None
+        self, comment_id: int, tenant_id: int | None = None
     ) -> Comment | None:
         """
-        Fetches a comment by ID with optional creator_id isolation.
+        Fetches a comment by ID with optional tenant_id isolation.
         """
         try:
             query = Comment.select(Comment, Video).join(Video)
-            if creator_id is not None:
+            if tenant_id is not None:
                 query = query.where(
-                    (Comment.id == comment_id) & (Video.user == creator_id)
+                    (Comment.id == comment_id) & (Video.tenant == tenant_id)
                 )
             else:
                 query = query.where(Comment.id == comment_id)

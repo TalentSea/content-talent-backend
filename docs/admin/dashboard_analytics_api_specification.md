@@ -20,7 +20,7 @@ This document details the RESTful API endpoints for Web Admin Creators to view, 
 Authorization: Bearer <admin_access_token>
 ```
 
-- **Strict Multi-Tenant Isolation**: The authenticated creator's `user_id` is extracted strictly from the JWT context via `CurrentAdmin`. Every metric, revenue calculation, view count, and subscriber listing is filtered by `creator_id` to guarantee zero cross-tenant data leakage.
+- **Strict Multi-Tenant Isolation**: The authenticated creator's `user_id` is extracted strictly from the JWT context via `CurrentAdmin`. Every metric, revenue calculation, view count, and subscriber listing is filtered by `tenant_id` to guarantee zero cross-tenant data leakage.
 
 ### 1.3 Localization & Metric Standards
 

@@ -60,7 +60,7 @@ existing_video_ids = (
 )
 
 query = Video.select().where(
-    (Video.user == creator_id)
+    (Video.tenant == tenant_id)
     & (Video.id.not_in(existing_video_ids))
     & (fn.LOWER(Video.status).in_(["published", "ready"]))
     & (Video.is_playable == True)

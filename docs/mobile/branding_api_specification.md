@@ -8,7 +8,7 @@ This document details the public API endpoint for Mobile Application subscribers
 
 * **Base Endpoint**: `GET /api/v1/mobile/branding`
 * **Authentication**: **Subscriber Protected** (`Authorization: Bearer <subscriber_access_token>`).
-* **Multi-Tenant Isolation**: The backend extracts `current_subscriber["creator_id"]` from the JWT token and fetches the matching `Branding` record (`Branding.user == creator_id`).
+* **Multi-Tenant Isolation**: The backend extracts `current_subscriber["tenant_id"]` from the JWT token and fetches the matching `Branding` record (`Tenant.id == tenant_id`).
 * **Caching Strategy**: HTTP Header `Cache-Control: public, max-age=3600` is returned to enable local mobile client caching for fast cold-boot times (< 50ms).
 * **Unconfigured Fallback**: If creator branding has not been configured in the database, returns HTTP `200 OK` with `null` fields to enable smooth mobile app cold-boot rendering.
 

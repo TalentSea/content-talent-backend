@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class CategoryService:
     """
-    Business logic service for Creator Admin Category management operations.
+    Business logic service for Tenant Category management operations.
     """
 
     def __init__(self):
@@ -46,12 +46,12 @@ class CategoryService:
             updatedAt=cat.updated_at,
         )
 
-    def list_mobile_categories(self, creator_id: int | None = None):
+    def list_mobile_categories(self, tenant_id: int | None = None):
         """
         Retrieves lightweight categories for mobile catalog filter chips.
         """
         settings = get_settings()
-        categories = self.repo.list_public_mobile_categories(creator_id)
+        categories = self.repo.list_public_mobile_categories(tenant_id)
         data = [
             MobileCategoryResponse(
                 id=c.id,
@@ -65,11 +65,14 @@ class CategoryService:
         ]
         return {"data": data}
 
-    def list_categories(self, user_id: int, simple: bool = False):
+    def list_categories(self, tenant_id: int | None = None, simple: bool = False):
         """
-        Retrieves categories for creator. If simple=True, returns lightweight dropdown options.
+        Retrieves categories for tenant. If simple=True, returns lightweight dropdown options.
         """
-        pairs = self.repo.list_categories(user_id, simple=simple)
+        if not tenant_id:
+            return CategoryOptionListResponse(data=[]) if simple else CategoryListResponse(data=[])
+
+        pairs = self.repo.list_categories(tenant_id, simple=simple)
         if simple:
             data = [
                 CategoryOptionResponse(id=cat.id, name=cat.name, slug=cat.slug)
@@ -81,20 +84,22 @@ class CategoryService:
         return CategoryListResponse(data=data)
 
     def create_category(
-        self, user_id: int, req: CategoryCreateRequest
+        self, tenant_id: int, req: CategoryCreateRequest
     ) -> CategoryCreateResponse:
         """
-        Creates a new category container ensuring unique category name per creator.
-        Returns CategoryCreateResponse without thumbnailUrl matching Playlist pattern.
+        Creates a new category container ensuring unique category name per tenant.
         """
-        existing = self.repo.get_category_by_name(req.name, user_id)
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
+        existing = self.repo.get_category_by_name(req.name, tenant_id)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Category with name '{req.name}' already exists",
             )
 
-        cat = self.repo.create_category(user_id, req.model_dump())
+        cat = self.repo.create_category(tenant_id, req.model_dump())
         settings = get_settings()
         return CategoryCreateResponse(
             id=cat.id,
@@ -107,12 +112,15 @@ class CategoryService:
         )
 
     def update_category(
-        self, category_id: int, user_id: int, req: CategoryUpdateRequest
+        self, category_id: int, tenant_id: int, req: CategoryUpdateRequest
     ) -> CategoryResponse:
         """
         Updates fields for an existing category asset.
         """
-        cat = self.repo.get_category_by_id(category_id, user_id)
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
+        cat = self.repo.get_category_by_id(category_id, tenant_id)
         if not cat:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -120,7 +128,7 @@ class CategoryService:
             )
 
         if req.name and req.name.strip().lower() != cat.name.lower():
-            existing = self.repo.get_category_by_name(req.name, user_id)
+            existing = self.repo.get_category_by_name(req.name, tenant_id)
             if existing and existing.id != category_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -128,21 +136,22 @@ class CategoryService:
                 )
 
         updated_cat = self.repo.update_category(
-            category_id, user_id, req.model_dump(exclude_unset=True)
+            category_id, tenant_id, req.model_dump(exclude_unset=True)
         )
-        # Fetch dynamic count
-        pairs = self.repo.list_categories(user_id)
+        pairs = self.repo.list_categories(tenant_id)
         count = next((cnt for c, cnt in pairs if c.id == category_id), 0)
         return self._to_category_response(updated_cat, content_count=count)
 
     def upload_category_thumbnail(
-        self, user_id: int, category_id: int, file: UploadFile
+        self, category_id: int, file: UploadFile, tenant_id: int
     ) -> CategoryThumbnailUploadResponse:
         """
         Uploads and validates a category thumbnail image to Bunny Storage.
-        Cleans up previous thumbnail asset from Bunny Storage.
         """
-        cat = self.repo.get_category_by_id(category_id, user_id)
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
+        cat = self.repo.get_category_by_id(category_id, tenant_id)
         if not cat:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -161,16 +170,19 @@ class CategoryService:
         )
 
         self.repo.update_category(
-            category_id, user_id, {"thumbnail_url": thumbnail_url}
+            category_id, tenant_id, {"thumbnail_url": thumbnail_url}
         )
 
         return CategoryThumbnailUploadResponse(thumbnail_url=thumbnail_url)
 
-    def delete_category(self, category_id: int, user_id: int) -> dict:
+    def delete_category(self, category_id: int, tenant_id: int) -> dict:
         """
         Deletes a category asset and cleans up its thumbnail from Bunny Storage.
         """
-        cat = self.repo.get_category_by_id(category_id, user_id)
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
+        cat = self.repo.get_category_by_id(category_id, tenant_id)
         if not cat:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -189,18 +201,23 @@ class CategoryService:
                     e,
                 )
 
-        self.repo.delete_category(category_id, user_id)
+        self.repo.delete_category(category_id, tenant_id)
         return {"message": "Category deleted successfully"}
 
-    def reorder_categories(self, user_id: int, req: CategoryReorderRequest) -> dict:
+    def reorder_categories(
+        self, req: CategoryReorderRequest, tenant_id: int
+    ) -> dict:
         """
         Updates display_order for category IDs.
         """
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
         if not req.ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="At least one category ID must be provided",
             )
 
-        self.repo.reorder_categories(user_id, req.ids)
+        self.repo.reorder_categories(tenant_id, req.ids)
         return {"message": "Category order updated"}

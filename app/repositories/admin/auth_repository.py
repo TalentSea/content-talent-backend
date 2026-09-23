@@ -4,14 +4,13 @@ from datetime import datetime, timezone
 from peewee import PeeweeException, fn
 
 from app.models.admin import Admin
-from app.models.branding import Branding
 
 logger = logging.getLogger(__name__)
 
 
 class AuthRepository:
     """
-    Data access repository for Creator Admin authentication, session tokens, and studio branding (Peewee ORM).
+    Data access repository for Creator Admin authentication and session tokens (Peewee ORM).
     """
 
     def get_admin_by_email(self, email: str) -> Admin | None:
@@ -42,16 +41,6 @@ class AuthRepository:
             return Admin.get_or_none(Admin.refresh_token == token_hash)
         except PeeweeException as e:
             logger.error("Error querying admin by refresh token hash: %s", e)
-            raise
-
-    def get_studio_branding(self, admin_id: int) -> Branding | None:
-        """
-        Queries the 1:1 Branding studio identity record associated with the admin.
-        """
-        try:
-            return Branding.get_or_none(Branding.user == admin_id)
-        except PeeweeException as e:
-            logger.error("Error querying branding for admin %s: %s", admin_id, e)
             raise
 
     def update_refresh_token_hash(

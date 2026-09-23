@@ -12,15 +12,15 @@ from app.models.ad_monetization import (
 class MonetizationRepository:
     """
     Encapsulates database queries and aggregations for the Ad Monetization,
-    Telemetry Ingestion, and Monthly Revenue Settlement subsystem.
+    Telemetry Ingestion, and Monthly Revenue Settlement subsystem, isolated by Tenant.
     """
 
     def log_ad_impression(
-        self, creator_id: int, video_id: int, subscriber_id: int
+        self, tenant_id: int, video_id: int, subscriber_id: int
     ) -> AdImpressionEvent:
         """Appends an immutable video ad impression beacon record."""
         return AdImpressionEvent.create(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             video_id=video_id,
             subscriber_id=subscriber_id,
             created_at=datetime.now(timezone.utc),
@@ -62,16 +62,16 @@ class MonetizationRepository:
         return int(count or 0)
 
     def count_impressions_in_window(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> int:
         """
-        Counts verified billable ad impressions for a creator within a date window.
-        Utilizes composite index (creator_id, created_at).
+        Counts verified billable ad impressions for a tenant within a date window.
+        Utilizes composite index (tenant_id, created_at).
         """
         count = (
             AdImpressionEvent.select(fn.COUNT(AdImpressionEvent.id))
             .where(
-                AdImpressionEvent.creator == creator_id,
+                AdImpressionEvent.tenant == tenant_id,
                 AdImpressionEvent.created_at >= start_dt,
                 AdImpressionEvent.created_at <= end_dt,
             )
@@ -80,7 +80,7 @@ class MonetizationRepository:
         return int(count or 0)
 
     def get_daily_impressions(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> dict[str, int]:
         """
         Aggregates impressions bucketed by UTC date string 'YYYY-MM-DD'.
@@ -91,7 +91,7 @@ class MonetizationRepository:
                 date_col.alias("d"), fn.COUNT(AdImpressionEvent.id).alias("cnt")
             )
             .where(
-                AdImpressionEvent.creator == creator_id,
+                AdImpressionEvent.tenant == tenant_id,
                 AdImpressionEvent.created_at >= start_dt,
                 AdImpressionEvent.created_at <= end_dt,
             )
@@ -99,15 +99,15 @@ class MonetizationRepository:
         )
         return {str(row.d): int(row.cnt) for row in query}
 
-    def get_latest_settled_ecpm(self, creator_id: int) -> float | None:
+    def get_latest_settled_ecpm(self, tenant_id: int) -> float | None:
         """
-        Retrieves the most recent settled net eCPM rate for this creator.
-        Returns None for brand-new creators with zero settled payout history.
+        Retrieves the most recent settled net eCPM rate for this tenant.
+        Returns None for brand-new tenants with zero settled payout history.
         """
         settlement = (
             AdMonthlySettlement.select(AdMonthlySettlement.ecpm)
             .where(
-                AdMonthlySettlement.creator == creator_id,
+                AdMonthlySettlement.tenant == tenant_id,
                 AdMonthlySettlement.status == "paid",
             )
             .order_by(AdMonthlySettlement.month.desc())
@@ -117,7 +117,7 @@ class MonetizationRepository:
             return float(settlement.ecpm)
         return None
 
-    def get_pending_settlement(self, creator_id: int) -> AdMonthlySettlement | None:
+    def get_pending_settlement(self, tenant_id: int) -> AdMonthlySettlement | None:
         """
         Fetches the latest closed month settlement awaiting disbursement
         (status 'reconciled' or 'pending_bank_details').
@@ -125,14 +125,14 @@ class MonetizationRepository:
         return (
             AdMonthlySettlement.select()
             .where(
-                AdMonthlySettlement.creator == creator_id,
+                AdMonthlySettlement.tenant == tenant_id,
                 AdMonthlySettlement.status.in_(["reconciled", "pending_bank_details"]),
             )
             .order_by(AdMonthlySettlement.month.desc())
             .first()
         )
 
-    def release_all_pending_bank_statements(self, creator_id: int) -> int:
+    def release_all_pending_bank_statements(self, tenant_id: int) -> int:
         """
         Releases ALL statements held in 'pending_bank_details' to 'reconciled'
         when the creator saves their bank payout profile.
@@ -142,32 +142,32 @@ class MonetizationRepository:
         return (
             AdMonthlySettlement.update(status="reconciled", updated_at=now_utc)
             .where(
-                (AdMonthlySettlement.creator == creator_id)
+                (AdMonthlySettlement.tenant == tenant_id)
                 & (AdMonthlySettlement.status == "pending_bank_details")
             )
             .execute()
         )
 
-    def get_last_paid_settlement(self, creator_id: int) -> AdMonthlySettlement | None:
+    def get_last_paid_settlement(self, tenant_id: int) -> AdMonthlySettlement | None:
         """Fetches the latest completed disbursement record with UTR reference."""
         return (
             AdMonthlySettlement.select()
             .where(
-                AdMonthlySettlement.creator == creator_id,
+                AdMonthlySettlement.tenant == tenant_id,
                 AdMonthlySettlement.status == "paid",
             )
             .order_by(AdMonthlySettlement.month.desc())
             .first()
         )
 
-    def get_lifetime_settled_earnings(self, creator_id: int) -> float:
-        """Sums all net payouts disbursed to creator's bank account across all time."""
+    def get_lifetime_settled_earnings(self, tenant_id: int) -> float:
+        """Sums all net payouts disbursed to tenant's bank account across all time."""
         total = (
             AdMonthlySettlement.select(
                 fn.COALESCE(fn.SUM(AdMonthlySettlement.amount), 0.0)
             )
             .where(
-                AdMonthlySettlement.creator == creator_id,
+                AdMonthlySettlement.tenant == tenant_id,
                 AdMonthlySettlement.status == "paid",
             )
             .scalar()
@@ -175,40 +175,40 @@ class MonetizationRepository:
         return round(float(total or 0.0), 2)
 
     def get_settlements_paginated(
-        self, creator_id: int, page: int = 1, limit: int = 12
+        self, tenant_id: int, page: int = 1, limit: int = 12
     ) -> tuple[list[AdMonthlySettlement], int]:
         """
         Fetches paginated settlement statements ordered by billing month descending.
         """
         query = (
             AdMonthlySettlement.select()
-            .where(AdMonthlySettlement.creator == creator_id)
+            .where(AdMonthlySettlement.tenant == tenant_id)
             .order_by(AdMonthlySettlement.month.desc())
         )
         total = query.count()
         items = list(query.paginate(page, limit))
         return items, total
 
-    def get_payout_profile(self, creator_id: int) -> CreatorPayoutProfile | None:
-        """Fetches the 1:1 CreatorPayoutProfile record."""
+    def get_payout_profile(self, tenant_id: int) -> CreatorPayoutProfile | None:
+        """Fetches the 1:1 CreatorPayoutProfile record for the tenant."""
         return (
             CreatorPayoutProfile.select()
-            .where(CreatorPayoutProfile.creator == creator_id)
+            .where(CreatorPayoutProfile.tenant == tenant_id)
             .first()
         )
 
     def upsert_payout_profile(
         self,
-        creator_id: int,
+        tenant_id: int,
         account_holder_name: str,
         account_number: str,
         ifsc_code: str,
         bank_name: str,
     ) -> CreatorPayoutProfile:
-        """Atomically registers or updates creator bank payout details."""
+        """Atomically registers or updates tenant bank payout details."""
         now = datetime.now(timezone.utc)
         profile, _ = CreatorPayoutProfile.get_or_create(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             defaults={
                 "account_holder_name": account_holder_name,
                 "account_number": account_number,

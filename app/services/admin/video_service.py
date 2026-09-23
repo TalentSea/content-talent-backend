@@ -245,7 +245,10 @@ class VideoService:
         )
 
     def initiate_video_upload(
-        self, user_id: int, payload: VideoInitiateRequest
+        self,
+        tenant_id: int,
+        payload: VideoInitiateRequest,
+        created_by: int | None = None,
     ) -> VideoInitiateResponse:
         """
         Reserves a video container on Bunny Stream, prepares local database record in PENDING state,
@@ -309,7 +312,9 @@ class VideoService:
             "alt_thumbnail_urls": alt_thumbnail_urls,
         }
 
-        created_video = self.repo.create_video(video_record_data, user_id)
+        created_video = self.repo.create_video(
+            video_record_data, tenant_id=tenant_id, created_by=created_by
+        )
 
         return VideoInitiateResponse(
             id=created_video.id,
@@ -432,7 +437,7 @@ class VideoService:
 
     def list_user_videos(
         self,
-        user_id: int,
+        tenant_id: int,
         status_filter: str | None = None,
         category: str | None = None,
         search: str | None = None,
@@ -443,7 +448,7 @@ class VideoService:
         limit: int = 20,
     ) -> PaginatedResponse[VideoListItemResponse]:
         """
-        Retrieves a paginated, filterable list of videos owned by creator.
+        Retrieves a paginated, filterable list of videos owned by tenant.
         """
         date_from = None
         date_to = None
@@ -462,7 +467,7 @@ class VideoService:
         self.repo.publish_due_scheduled_videos()
 
         videos, total = self.repo.get_all_videos_by_user(
-            user_id=user_id,
+            tenant_id=tenant_id,
             status=status_filter,
             category=category,
             search=search,
@@ -492,11 +497,11 @@ class VideoService:
             items=items, total=total, page=page, limit=limit
         )
 
-    def get_video_details(self, user_id: int, video_id: int) -> VideoResponse:
+    def get_video_details(self, tenant_id: int, video_id: int) -> VideoResponse:
         """
         Retrieves detailed metadata for a single video. Syncs live encoding status from Bunny Stream if ENCODING.
         """
-        video = self.repo.get_video_by_id(video_id, user_id)
+        video = self.repo.get_video_by_id(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -574,7 +579,7 @@ class VideoService:
         return self._to_video_response(video)
 
     def update_video_metadata(
-        self, user_id: int, video_id: int, payload: VideoUpdateRequest
+        self, tenant_id: int, video_id: int, payload: VideoUpdateRequest
     ) -> VideoUpdateResponse:
         """
         Validates ownership and applies partial textual metadata updates (title, description, category, tags) in DB.
@@ -583,7 +588,7 @@ class VideoService:
         if "tags" in update_data:
             update_data["tags"] = normalize_tags(update_data["tags"])
 
-        video = self.repo.update_video_metadata(video_id, user_id, update_data)
+        video = self.repo.update_video_metadata(video_id, tenant_id, update_data)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -592,12 +597,12 @@ class VideoService:
         return self._to_video_update_response(video)
 
     def upload_thumbnail_image(
-        self, user_id: int, video_id: int, slot: int, file: UploadFile
+        self, tenant_id: int, video_id: int, slot: int, file: UploadFile
     ) -> ActionSuccessResponse:
         """
         Uploads thumbnail binary image for slot 0 (Bunny Stream API) or slot 1/2 (Bunny Storage API) via server proxy.
         """
-        video = self.repo.get_video_by_id(video_id, user_id)
+        video = self.repo.get_video_by_id(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -616,18 +621,18 @@ class VideoService:
             storage_path_without_ext=f"{video.bunny_video_id}/thumb_{slot + 1}",
             max_size_mb=settings.MAX_THUMBNAIL_SIZE_MB,
         )
-        self.repo.update_thumbnail_url(video_id, user_id, slot, new_url)
+        self.repo.update_thumbnail_url(video_id, tenant_id, slot, new_url)
 
         return ActionSuccessResponse(status="success")
 
     def select_main_thumbnail(
-        self, user_id: int, video_id: int, payload: SelectMainThumbnailRequest
+        self, tenant_id: int, video_id: int, payload: SelectMainThumbnailRequest
     ) -> ActionSuccessResponse:
         """
         Executes thumbnail swapping logic between main cover and alt thumbnails in DB.
         """
         video = self.repo.swap_main_thumbnail(
-            video_id, user_id, payload.selected_main_thumbnail
+            video_id, tenant_id, payload.selected_main_thumbnail
         )
         if not video:
             raise HTTPException(
@@ -637,12 +642,12 @@ class VideoService:
         return ActionSuccessResponse(status="success")
 
     def delete_alternative_thumbnail(
-        self, user_id: int, video_id: int, payload: DeleteThumbnailRequest
+        self, tenant_id: int, video_id: int, payload: DeleteThumbnailRequest
     ) -> ActionSuccessResponse:
         """
         Issues HTTP DELETE to Bunny Storage API to remove physical cloud image and updates DB list.
         """
-        video = self.repo.get_video_by_id(video_id, user_id)
+        video = self.repo.get_video_by_id(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -660,7 +665,7 @@ class VideoService:
                 e,
             )
 
-        self.repo.delete_alt_thumbnail_url(video_id, user_id, target_url)
+        self.repo.delete_alt_thumbnail_url(video_id, tenant_id, target_url)
         return ActionSuccessResponse(status="success")
 
     def _purge_cloud_video_assets(self, video) -> None:
@@ -691,11 +696,11 @@ class VideoService:
                         e,
                     )
 
-    def delete_video_asset(self, user_id: int, video_id: int) -> ActionSuccessResponse:
+    def delete_video_asset(self, tenant_id: int, video_id: int) -> ActionSuccessResponse:
         """
         Issues HTTP DELETE to Bunny Stream API to remove cloud video container, deletes all storage thumbnails, and drops video record from DB.
         """
-        video = self.repo.get_video_by_id(video_id, user_id)
+        video = self.repo.get_video_by_id(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -703,28 +708,28 @@ class VideoService:
             )
 
         self._purge_cloud_video_assets(video)
-        self.repo.delete_video(video_id, user_id)
+        self.repo.delete_video(video_id, tenant_id)
         return ActionSuccessResponse(status="success")
 
     def bulk_delete_videos(
-        self, user_id: int, payload: BulkDeleteVideosRequest
+        self, tenant_id: int, payload: BulkDeleteVideosRequest
     ) -> ActionSuccessResponse:
         """
         Bulk deletes multiple video assets by ID array owned by creator along with cloud video containers and storage thumbnails.
         """
-        deleted_videos = self.repo.bulk_delete_videos(payload.video_ids, user_id)
+        deleted_videos = self.repo.bulk_delete_videos(payload.video_ids, tenant_id)
         for video in deleted_videos:
             self._purge_cloud_video_assets(video)
 
         return ActionSuccessResponse(status="success")
 
     def publish_video_immediately(
-        self, user_id: int, video_id: int
+        self, tenant_id: int, video_id: int
     ) -> VideoPublishResponse:
         """
         Publishes a video asset immediately, updating state to 'published' and recording published_at timestamp.
         """
-        video = self.repo.publish_video(video_id, user_id)
+        video = self.repo.publish_video(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -736,13 +741,13 @@ class VideoService:
         )
 
     def unpublish_video(
-        self, user_id: int, video_id: int
+        self, tenant_id: int, video_id: int
     ) -> VideoPublishResponse:
         """
         Unpublishes a video asset, updating state to 'draft', clearing published_at,
         and taking it off mobile feeds immediately.
         """
-        video = self.repo.unpublish_video(video_id, user_id)
+        video = self.repo.unpublish_video(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -754,12 +759,12 @@ class VideoService:
         )
 
     def schedule_video_publication(
-        self, user_id: int, video_id: int, payload: VideoScheduleRequest
+        self, tenant_id: int, video_id: int, payload: VideoScheduleRequest
     ) -> VideoScheduleResponse:
         """
         Schedules a video asset for future publication, parsing local date/time as-is.
         """
-        video = self.repo.get_video_by_id(video_id, user_id)
+        video = self.repo.get_video_by_id(video_id, tenant_id)
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -779,7 +784,7 @@ class VideoService:
                 detail=f"Invalid date or time specification: {e!s}",
             ) from e
 
-        updated_video = self.repo.schedule_video(video_id, user_id, scheduled_dt)
+        updated_video = self.repo.schedule_video(video_id, tenant_id, scheduled_dt)
         return VideoScheduleResponse(
             id=updated_video.id,
             status=updated_video.status,

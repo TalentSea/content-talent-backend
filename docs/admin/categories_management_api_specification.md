@@ -10,7 +10,7 @@ All endpoints in this specification require a valid JWT Bearer access token pass
 Authorization: Bearer <creator_access_token>
 ```
 
-Identity and creator ownership are strictly derived from the validated JWT token (`get_current_admin`). Under no circumstances is `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities.
+Identity and tenant ownership are strictly derived from the validated JWT token (`get_current_admin`). Under no circumstances is `tenant_id` or `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities. For Platform Super Admins, the active tenant studio context is resolved from the `X-Tenant-Id` request header (defaulting to the first active tenant if omitted).
 
 ### Standard HTTP Error Responses
 

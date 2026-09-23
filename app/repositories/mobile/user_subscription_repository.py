@@ -19,7 +19,7 @@ class UserSubscriptionRepository:
     """
 
     def get_active_subscription(
-        self, user_id: int, creator_id: int
+        self, user_id: int, tenant_id: int
     ) -> UserSubscription | None:
         """
         Retrieves the currently active, unexpired subscription for a user under a specific creator.
@@ -33,7 +33,7 @@ class UserSubscriptionRepository:
                 .join(SubscriptionPlan)
                 .where(
                     (UserSubscription.user == user_id)
-                    & (UserSubscription.creator == creator_id)
+                    & (UserSubscription.tenant == tenant_id)
                     & (UserSubscription.status == "active")
                     & (UserSubscription.end_date > now)
                 )
@@ -44,7 +44,7 @@ class UserSubscriptionRepository:
             logger.error(
                 "Error querying active subscription for user %s, creator %s: %s",
                 user_id,
-                creator_id,
+                tenant_id,
                 err,
             )
             return None
@@ -120,7 +120,7 @@ class UserSubscriptionRepository:
     def create_subscription(
         self,
         user_id: int,
-        creator_id: int,
+        tenant_id: int,
         plan_id: int,
         payment_id: int | None,
         start_date: datetime,
@@ -132,7 +132,7 @@ class UserSubscriptionRepository:
         try:
             created = UserSubscription.create(
                 user=user_id,
-                creator=creator_id,
+                tenant=tenant_id,
                 plan=plan_id,
                 payment=payment_id,
                 start_date=start_date,

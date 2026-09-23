@@ -7,11 +7,12 @@ All endpoints (excluding third-party webhooks) require a valid JWT Bearer token 
 ```http
 Authorization: Bearer <creator_access_token>
 ```
-The creator identity (`user_id`) is extracted directly from the authenticated session context on the backend (`Depends(get_current_user)`). No `user_id` parameter is accepted in request bodies or query strings to eliminate **Insecure Direct Object Reference (IDOR)** risks.
+The admin identity (`user_id`), role, and active studio context (`tenant_id`) are extracted directly from the authenticated session context on the backend (`Depends(get_current_admin)`). No `user_id` or `tenant_id` parameter is accepted in request bodies or query strings, completely eliminating **Insecure Direct Object Reference (IDOR)** risks. For Platform Super Admins, the active tenant context can be selected dynamically via the `X-Tenant-Id` HTTP header (falling back to the first active tenant when omitted).
 
 ### Architecture Overview
-- **Backend Service**: FastAPI (Python) handles authentication, state persistence, authorization, and cloud handshakes.
-- **Database**: Relational Database stores video metadata and cloud asset mappings.
+- **Multi-Tenant Scoping**: Every video is strictly bound to `tenant_id` (with an optional `created_by` audit link to the uploading admin user).
+- **Backend Service**: FastAPI (Python) handles authentication, state persistence, tenant authorization, and cloud handshakes.
+- **Database**: Relational Database stores video metadata and cloud asset mappings scoped by `tenant_id`.
 - **Cloud Video Service**: Bunny Stream API handles video containers, encoding, and HLS streaming.
 - **Cloud Storage Service**: Bunny Storage API stores and serves all primary (Slot 0) and alternative (Slots 1 & 2) thumbnails via public Storage Pull Zone.
 ### Standard HTTP Error Responses

@@ -93,8 +93,8 @@ To prevent database bloat from abandoned guest sessions:
 
 ## 6. Creator Studio Tenant Deactivation Guardrail
 
-In a white-label multi-tenant OTT platform, every subscriber session is bound to a specific creator studio (`sub.creator_id`). All deactivation checks are centralized in `verify_creator_active(creator_or_id)` ([app/utils/auth.py](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/utils/auth.py)):
+In a white-label multi-tenant OTT platform, every subscriber session is bound to a specific creator studio (`sub.tenant_id`). All deactivation checks are centralized in `verify_tenant_active(tenant_or_id)` ([app/utils/auth.py](file:///c:/TECHNICS_TRAINING/WhiteLabeledApp/content-talent-backend/app/utils/auth.py)):
 
-1. **Social & Guest Authentication Gate**: When authenticating (`POST /api/v1/auth/guest`, `/google`, `/facebook`), the service invokes `verify_creator_active(creator_id)`. If the studio is suspended, reject immediately with `HTTP 403 Forbidden`.
+1. **Social & Guest Authentication Gate**: When authenticating (`POST /api/v1/auth/guest`, `/google`, `/facebook`), the service invokes `verify_tenant_active(tenant_id)`. If the studio is suspended, reject immediately with `HTTP 403 Forbidden`.
 2. **Session Refresh Gate**: During refresh token exchange (`POST /api/v1/auth/refresh`), invoke `verify_creator_active(subscriber.creator)` before issuing new tokens.
 3. **Centralized Dependency Shield**: `get_current_subscriber` in `app/dependencies.py` enforces `verify_creator_active(sub.creator)`. This shields all downstream mobile APIs (streaming, playlists, categories, comments, payments) in one single check without duplicate database lookups.

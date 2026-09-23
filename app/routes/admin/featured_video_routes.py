@@ -21,10 +21,10 @@ service = FeaturedVideoService()
     response_model=list[FeaturedVideoItemResponse],
     status_code=status.HTTP_200_OK,
     summary="List Featured Videos",
-    description="Retrieves all videos currently featured by the authenticated creator, ordered by position ascending.",
+    description="Retrieves all videos currently featured by the authenticated creator studio, ordered by position ascending.",
 )
 def list_featured_videos(current_user: CurrentAdmin) -> list[FeaturedVideoItemResponse]:
-    return service.list_featured_videos(current_user["user_id"])
+    return service.list_featured_videos(current_user["tenant_id"])
 
 
 @router.put(
@@ -32,13 +32,13 @@ def list_featured_videos(current_user: CurrentAdmin) -> list[FeaturedVideoItemRe
     response_model=FeaturedVideoSyncResponse,
     status_code=status.HTTP_200_OK,
     summary="Full State Sync Featured Videos",
-    description="Replaces and synchronizes the active featured videos list for the creator (Add, Reorder, Delete in 1 API).",
+    description="Replaces and synchronizes the active featured videos list for the tenant studio (Add, Reorder, Delete in 1 API).",
 )
 def sync_featured_videos(
     payload: FeaturedVideoSyncRequest,
     current_user: CurrentAdmin,
 ) -> FeaturedVideoSyncResponse:
-    return service.sync_featured_videos(current_user["user_id"], payload)
+    return service.sync_featured_videos(current_user["tenant_id"], payload)
 
 
 @router.get(
@@ -46,7 +46,7 @@ def sync_featured_videos(
     response_model=PaginatedResponse[FeaturedAvailableVideoResponse],
     status_code=status.HTTP_200_OK,
     summary="Get Available Videos Picker",
-    description="Retrieves paginated list of creator's published videos that are not currently featured (picker modal).",
+    description="Retrieves paginated list of tenant published videos that are not currently featured (picker modal).",
 )
 def get_available_videos_for_featured(
     current_user: CurrentAdmin,
@@ -63,7 +63,7 @@ def get_available_videos_for_featured(
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[FeaturedAvailableVideoResponse]:
     return service.get_available_videos_for_featured(
-        creator_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         search=search,
         category=category,
         sort=sort,

@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from peewee import (
     BigIntegerField,
     CharField,
@@ -12,10 +10,11 @@ from peewee import (
 )
 
 from app.config import get_settings
-from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
+from app.models.tenant import Tenant
 from app.models.video import Video
+from app.utils.date_utils import now_utc
 
 
 class AdImpressionEvent(BaseModel):
@@ -24,11 +23,12 @@ class AdImpressionEvent(BaseModel):
     Enforces high-throughput telemetry counting and fraud prevention debouncing.
     """
 
-    creator = ForeignKeyField(
-        model=Admin,
-        column_name="creator_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        column_name="tenant_id",
         backref="ad_impressions",
         on_delete="CASCADE",
+        index=True,
     )
     video = ForeignKeyField(
         model=Video,
@@ -42,12 +42,12 @@ class AdImpressionEvent(BaseModel):
         backref="ad_impressions",
         on_delete="CASCADE",
     )
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "ad_impression_events"
         indexes = (
-            (("creator", "created_at"), False),
+            (("tenant", "created_at"), False),
             (("video", "created_at"), False),
             (("video", "subscriber", "created_at"), False),
         )
@@ -73,11 +73,11 @@ class AdPlatformMonthlyReconciliation(BaseModel):
     creator_pool_amount = DecimalField(max_digits=12, decimal_places=2, default=0.0)
     creator_net_ecpm = DecimalField(max_digits=10, decimal_places=4, default=0.0)
     creators_count = IntegerField(default=0)
-    currency = CharField(
-        max_length=10, default=lambda: get_settings().DEFAULT_CURRENCY
-    )
-    status = CharField(max_length=20, default="reconciled", index=True)  # draft, reconciled, disbursed
-    reconciled_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    currency = CharField(max_length=10, default=lambda: get_settings().DEFAULT_CURRENCY)
+    status = CharField(
+        max_length=20, default="reconciled", index=True
+    )  # draft, reconciled, disbursed
+    reconciled_at = DateTimeField(null=True)
     notes = TextField(null=True)
 
     class Meta:
@@ -86,7 +86,7 @@ class AdPlatformMonthlyReconciliation(BaseModel):
 
 class AdMonthlySettlement(BaseModel):
     """
-    Itemized monthly payout statement and UTR bank settlement ledger for each creator.
+    Itemized monthly payout statement and UTR bank settlement ledger for each tenant creator.
     Linked to the platform monthly reconciliation run via reconciliation_id.
     """
 
@@ -97,21 +97,24 @@ class AdMonthlySettlement(BaseModel):
         null=True,
         on_delete="CASCADE",
     )
-    creator = ForeignKeyField(
-        model=Admin,
-        column_name="creator_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        column_name="tenant_id",
         backref="ad_settlements",
         on_delete="CASCADE",
+        index=True,
     )
-    statement_id = CharField(max_length=50, unique=True, index=True)  # e.g. "STMT-202609-ADM42-8F9B"
+    statement_id = CharField(
+        max_length=50, unique=True, index=True
+    )  # e.g. "STMT-202609-TEN42-8F9B"
     month = CharField(max_length=7, index=True)  # Format: "YYYY-MM"
     impressions_count = BigIntegerField(default=0)
     ecpm = DecimalField(max_digits=10, decimal_places=4, default=0.0)
     amount = DecimalField(max_digits=12, decimal_places=2, default=0.0)
-    currency = CharField(
-        max_length=10, default=lambda: get_settings().DEFAULT_CURRENCY
-    )
-    status = CharField(max_length=30, default="accruing", index=True)  # accruing, pending_bank_details, reconciled, paid
+    currency = CharField(max_length=10, default=lambda: get_settings().DEFAULT_CURRENCY)
+    status = CharField(
+        max_length=30, default="accruing", index=True
+    )  # accruing, pending_bank_details, reconciled, paid
     scheduled_payout_date = DateField(null=True)
     settled_at = DateTimeField(null=True)
     transaction_reference = CharField(max_length=100, null=True)  # Bank UTR
@@ -126,37 +129,38 @@ class AdMonthlySettlement(BaseModel):
     )
     platform_fee = DecimalField(max_digits=12, decimal_places=2, default=0.0)
 
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "ad_monthly_settlements"
         indexes = (
-            (("creator", "month"), True),  # Exactly one settlement per creator per month
-            (("creator", "status"), False),
+            (("tenant", "month"), True),  # Exactly one settlement per tenant per month
+            (("tenant", "status"), False),
             (("reconciliation",), False),
         )
 
 
 class CreatorPayoutProfile(BaseModel):
     """
-    Bank payout profile for automated creator revenue disbursements.
+    Bank payout profile for automated tenant creator revenue disbursements.
     Bank name is auto-resolved from the IFSC code on write.
     """
 
-    creator = ForeignKeyField(
-        model=Admin,
-        column_name="creator_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        column_name="tenant_id",
         backref="payout_profile",
         unique=True,
         on_delete="CASCADE",
+        index=True,
     )
     account_holder_name = CharField(max_length=100, null=True)
     account_number = CharField(max_length=50, null=True)
     ifsc_code = CharField(max_length=20, null=True)
     bank_name = CharField(max_length=100, null=True)
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-    updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=now_utc)
+    updated_at = DateTimeField(default=now_utc)
 
     class Meta:
         table_name = "creator_payout_profiles"

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.config import get_settings
@@ -36,3 +36,28 @@ def to_app_timezone(dt: datetime | None = None) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc).astimezone(tz)
     return dt.astimezone(tz)
+
+
+def get_date_range_for_month(month_str: str) -> tuple[datetime, datetime]:
+    """
+    Parses a string like 'YYYY-MM' into a start and exclusive end datetime (UTC).
+    Useful for querying monthly database records.
+    """
+    year, month = map(int, month_str.split("-"))
+    start_date = datetime(year, month, 1, tzinfo=timezone.utc)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end_date = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+    return start_date, end_date
+
+
+def get_scheduled_payout_date(month_str: str) -> date:
+    """
+    Calculates the 28th of the next month given a 'YYYY-MM' string.
+    This is the standard scheduled bank payout date for a billing cycle.
+    """
+    year, m = map(int, month_str.split("-"))
+    if m == 12:
+        return date(year + 1, 1, 28)
+    return date(year, m + 1, 28)

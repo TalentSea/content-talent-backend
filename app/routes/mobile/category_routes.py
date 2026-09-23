@@ -17,5 +17,5 @@ category_service = CategoryService()
 )
 def list_mobile_categories(current_subscriber: CurrentSubscriber):
     return category_service.list_mobile_categories(
-        creator_id=current_subscriber.get("creator_id")
+        tenant_id=current_subscriber.get("tenant_id")
     )

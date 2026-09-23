@@ -2,22 +2,23 @@ from datetime import datetime, timezone
 
 from peewee import DateTimeField, ForeignKeyField, IntegerField
 
-from app.models.admin import Admin
 from app.models.base import BaseModel
+from app.models.tenant import Tenant
 from app.models.video import Video
 
 
 class FeaturedVideo(BaseModel):
     """
-    Peewee ORM entity representing creator home screen carousel featured video curation.
+    Peewee ORM entity representing tenant home screen carousel featured video curation.
     """
 
-    creator = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="creator_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="featured_videos",
         on_delete="CASCADE",
+        index=True,
     )
     video = ForeignKeyField(
         model=Video,
@@ -25,6 +26,7 @@ class FeaturedVideo(BaseModel):
         column_name="video_id",
         backref="featured_in",
         on_delete="CASCADE",
+        index=True,
     )
     position = IntegerField(default=0, index=True)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
@@ -32,5 +34,5 @@ class FeaturedVideo(BaseModel):
     class Meta:
         table_name = "featured_videos"
         indexes = (
-            (("creator", "video"), True),  # Unique entry per video per creator studio
+            (("tenant", "video"), True),  # Unique entry per video per tenant studio
         )

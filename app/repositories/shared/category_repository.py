@@ -1,5 +1,4 @@
 import logging
-import re
 from datetime import datetime, timezone
 
 from peewee import PeeweeException, fn
@@ -10,47 +9,42 @@ from app.models.video import Video
 logger = logging.getLogger(__name__)
 
 
-def slugify(text: str) -> str:
-    """Utility helper converting arbitrary text to clean URL-safe slug string."""
-    text = text.lower().strip()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[\s_-]+", "-", text)
-    return text.strip("-")
+from app.utils.string_utils import slugify
 
 
 class CategoryRepository:
     """
-    Data access layer for Creator Admin Category operations (Peewee ORM).
+    Data access layer for Tenant Category operations (Peewee ORM).
     Uses Approach 1 (Dynamic SQL Aggregation for contentCount).
     """
 
     def list_public_mobile_categories(
-        self, creator_id: int | None = None
+        self, tenant_id: int | None = None
     ) -> list[Category]:
         """
         Retrieves all public categories ordered by display_order ascending for mobile catalog filter chips.
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             query = Category.select()
-            if creator_id is not None:
-                query = query.where(Category.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Category.tenant == tenant_id)
             return list(query.order_by(Category.display_order.asc()))
         except PeeweeException as e:
             logger.error("Error querying public mobile categories: %s", e)
             raise
 
     def list_categories(
-        self, user_id: int, simple: bool = False
+        self, tenant_id: int, simple: bool = False
     ) -> list[tuple[Category, int]]:
         """
-        Retrieves all categories owned by user_id. If simple=True, skips Video SQL count queries.
+        Retrieves all categories owned by tenant_id. If simple=True, skips Video SQL count queries.
         Ordered by display_order ascending.
         """
         try:
             categories = list(
                 Category.select()
-                .where(Category.user == user_id)
+                .where(Category.tenant == tenant_id)
                 .order_by(Category.display_order.asc())
             )
             if not categories:
@@ -65,7 +59,7 @@ class CategoryRepository:
                     fn.COUNT(Video.id).alias("v_count"),
                 )
                 .where(
-                    (Video.user == user_id)
+                    (Video.tenant == tenant_id)
                     & (Video.category.is_null(False))
                     & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
@@ -73,37 +67,39 @@ class CategoryRepository:
                 .group_by(fn.LOWER(Video.category))
             )
             counts_map = {row.cat_name: row.v_count for row in video_counts_query}
-            return [(cat, counts_map.get(cat.name.lower().strip(), 0)) for cat in categories]
+            return [
+                (cat, counts_map.get(cat.name.lower().strip(), 0)) for cat in categories
+            ]
         except PeeweeException as e:
-            logger.error("Error querying categories for user %s: %s", user_id, e)
+            logger.error("Error querying categories for tenant %s: %s", tenant_id, e)
             raise
 
-    def get_category_by_id(self, category_id: int, user_id: int) -> Category | None:
+    def get_category_by_id(self, category_id: int, tenant_id: int) -> Category | None:
         """
-        Fetches a category by integer primary key ID ensuring user ownership authorization.
+        Fetches a category by integer primary key ID ensuring tenant ownership authorization.
         """
         try:
             return Category.get_or_none(
-                (Category.id == category_id) & (Category.user == user_id)
+                (Category.id == category_id) & (Category.tenant == tenant_id)
             )
         except PeeweeException as e:
             logger.error("Error fetching category %s: %s", category_id, e)
             raise
 
-    def get_category_by_name(self, name: str, user_id: int) -> Category | None:
+    def get_category_by_name(self, name: str, tenant_id: int) -> Category | None:
         """
-        Fetches a category by name ensuring unique constraints per user.
+        Fetches a category by name ensuring unique constraints per tenant.
         """
         try:
             return Category.get_or_none(
                 (fn.LOWER(Category.name) == name.lower().strip())
-                & (Category.user == user_id)
+                & (Category.tenant == tenant_id)
             )
         except PeeweeException as e:
             logger.error("Error fetching category by name '%s': %s", name, e)
             raise
 
-    def create_category(self, user_id: int, data: dict) -> Category:
+    def create_category(self, tenant_id: int, data: dict) -> Category:
         """
         Creates a new category record. Auto-generates slug and calculates display_order.
         """
@@ -114,7 +110,7 @@ class CategoryRepository:
             # Calculate next display_order
             max_order = (
                 Category.select(fn.MAX(Category.display_order))
-                .where(Category.user == user_id)
+                .where(Category.tenant == tenant_id)
                 .scalar()
                 or 0
             )
@@ -124,7 +120,7 @@ class CategoryRepository:
 
             settings = get_settings()
             return Category.create(
-                user=user_id,
+                tenant=tenant_id,
                 name=name,
                 slug=slug,
                 description=data.get("description"),
@@ -135,17 +131,17 @@ class CategoryRepository:
                 updated_at=datetime.now(timezone.utc),
             )
         except PeeweeException as e:
-            logger.error("Error creating category for user %s: %s", user_id, e)
+            logger.error("Error creating category for tenant %s: %s", tenant_id, e)
             raise
 
     def update_category(
-        self, category_id: int, user_id: int, update_data: dict
+        self, category_id: int, tenant_id: int, update_data: dict
     ) -> Category | None:
         """
         Updates fields of an existing category. Updates slug if name changes.
         """
         try:
-            cat = self.get_category_by_id(category_id, user_id)
+            cat = self.get_category_by_id(category_id, tenant_id)
             if not cat:
                 return None
 
@@ -154,7 +150,7 @@ class CategoryRepository:
                 new_name = update_data["name"].strip()
                 if old_name.lower().strip() != new_name.lower():
                     Video.update(category=new_name).where(
-                        (Video.user == user_id)
+                        (Video.tenant == tenant_id)
                         & (fn.LOWER(Video.category) == old_name.lower().strip())
                     ).execute()
                 cat.name = new_name
@@ -173,18 +169,19 @@ class CategoryRepository:
             logger.error("Error updating category %s: %s", category_id, e)
             raise
 
-    def delete_category(self, category_id: int, user_id: int) -> bool:
+    def delete_category(self, category_id: int, tenant_id: int) -> bool:
         """
         Deletes a category and unassigns videos (setting Video.category = None) so assets remain intact.
         """
         try:
-            cat = self.get_category_by_id(category_id, user_id)
+            cat = self.get_category_by_id(category_id, tenant_id)
             if not cat:
                 return False
 
             # Unlink associated videos safely
             Video.update(category=None).where(
-                (Video.user == user_id) & (fn.LOWER(Video.category) == cat.name.lower().strip())
+                (Video.tenant == tenant_id)
+                & (fn.LOWER(Video.category) == cat.name.lower().strip())
             ).execute()
 
             cat.delete_instance()
@@ -193,16 +190,16 @@ class CategoryRepository:
             logger.error("Error deleting category %s: %s", category_id, e)
             raise
 
-    def reorder_categories(self, user_id: int, category_ids: list[int]) -> bool:
+    def reorder_categories(self, tenant_id: int, category_ids: list[int]) -> bool:
         """
         Atomically updates category display_order values according to array order.
         """
         try:
             for idx, cat_id in enumerate(category_ids):
                 Category.update(display_order=idx + 1).where(
-                    (Category.id == cat_id) & (Category.user == user_id)
+                    (Category.id == cat_id) & (Category.tenant == tenant_id)
                 ).execute()
             return True
         except PeeweeException as e:
-            logger.error("Error reordering categories for user %s: %s", user_id, e)
+            logger.error("Error reordering categories for tenant %s: %s", tenant_id, e)
             raise

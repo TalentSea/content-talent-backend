@@ -15,7 +15,7 @@ This skill establishes standards for building and maintaining Creator Admin Stud
 The Creator Dashboard (`GET /api/v1/admin/dashboard`) provides real-time and windowed telemetry for creator business monitoring.
 
 ### Core Metrics & Data Sources
-* **Total / Windowed Views**: Queried exclusively from the immutable `VideoViewEvent` ledger where `creator == creator_id AND created_at BETWEEN start_date AND end_date`.
+* **Total / Windowed Views**: Queried exclusively from the immutable `VideoViewEvent` ledger where `tenant == tenant_id AND created_at BETWEEN start_date AND end_date`.
 * **Total Subscribers**: Count of subscribers linked to this creator.
 * **Watch Time**: Aggregated seconds streamed across creator assets.
 * **Top Performing Videos**: Ranked by views within the selected date window or by indexed `popularity_score`.

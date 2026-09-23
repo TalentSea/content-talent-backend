@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 class CommentRepository:
     """
-    Data access layer for Admin Comment operations (Peewee ORM).
+    Data access layer for Admin Comment operations (Peewee ORM), scoped to Tenant.
     """
 
     def get_all_comments_by_creator(
         self,
-        creator_id: int,
+        tenant_id: int,
         search: str | None = None,
         video_id: int | None = None,
         category: str | None = None,
@@ -30,13 +30,13 @@ class CommentRepository:
         limit: int = 20,
     ) -> tuple[list[Comment], int]:
         """
-        Retrieves top-level comments for creator's videos with pagination and filtering.
+        Retrieves top-level comments for tenant's videos with pagination and filtering.
         """
         try:
             query = (
                 Comment.select(Comment, Video)
                 .join(Video)
-                .where(Video.user == creator_id)
+                .where(Video.tenant == tenant_id)
                 .where(Comment.parent.is_null(True))
             )
 
@@ -92,18 +92,18 @@ class CommentRepository:
             return comments, total
 
         except PeeweeException as e:
-            logger.error("Error listing comments for creator %s: %s", creator_id, e)
+            logger.error("Error listing comments for tenant %s: %s", tenant_id, e)
             raise
 
-    def get_comment_by_id(self, comment_id: int, creator_id: int) -> Comment | None:
+    def get_comment_by_id(self, comment_id: int, tenant_id: int) -> Comment | None:
         """
-        Fetches a comment by ID, ensuring it belongs to a video owned by creator_id.
+        Fetches a comment by ID, ensuring it belongs to a video owned by tenant_id.
         """
         try:
             return (
                 Comment.select(Comment, Video)
                 .join(Video)
-                .where(Comment.id == comment_id, Video.user == creator_id)
+                .where(Comment.id == comment_id, Video.tenant == tenant_id)
                 .first()
             )
         except PeeweeException as e:
@@ -153,7 +153,7 @@ class CommentRepository:
             return [], 0
 
     def create_top_level_comment(
-        self, video: Video, creator_user: Admin, text: str
+        self, video: Video, text: str, creator_user: Admin | None = None
     ) -> Comment:
         """
         Creates a creator top-level comment under a video (user=None represents Creator Admin).
@@ -166,7 +166,7 @@ class CommentRepository:
         )
 
     def create_reply(
-        self, parent_comment: Comment, creator_user: Admin, text: str
+        self, parent_comment: Comment, text: str, creator_user: Admin | None = None
     ) -> Comment:
         """
         Creates a creator reply nested under the root top-level parent comment (user=None represents Creator Admin).

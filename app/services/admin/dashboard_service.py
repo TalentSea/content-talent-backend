@@ -117,7 +117,7 @@ class DashboardService:
 
     def get_dashboard_stats(
         self,
-        creator_id: int,
+        tenant_id: int,
         range_preset: str | None = "30d",
         start_date_str: str | None = None,
         end_date_str: str | None = None,
@@ -137,8 +137,8 @@ class DashboardService:
         )
 
         # 1. Total Revenue
-        rev_curr = self.repo.get_revenue_in_window(creator_id, curr_start, curr_end)
-        rev_prev = self.repo.get_revenue_in_window(creator_id, prev_start, prev_end)
+        rev_curr = self.repo.get_revenue_in_window(tenant_id, curr_start, curr_end)
+        rev_prev = self.repo.get_revenue_in_window(tenant_id, prev_start, prev_end)
         revenue_metric = GrowthMetric(
             current=round(rev_curr, 2),
             previous=round(rev_prev, 2),
@@ -146,8 +146,8 @@ class DashboardService:
         )
 
         # 2. Total Views
-        views_curr = self.repo.get_views_in_window(creator_id, curr_start, curr_end)
-        views_prev = self.repo.get_views_in_window(creator_id, prev_start, prev_end)
+        views_curr = self.repo.get_views_in_window(tenant_id, curr_start, curr_end)
+        views_prev = self.repo.get_views_in_window(tenant_id, prev_start, prev_end)
         views_metric = GrowthMetric(
             current=views_curr,
             previous=views_prev,
@@ -155,9 +155,9 @@ class DashboardService:
         )
 
         # 3. Total Users (Registered accounts)
-        users_curr = self.repo.get_total_registered_users(creator_id)
+        users_curr = self.repo.get_total_registered_users(tenant_id)
         users_in_win = self.repo.get_user_registrations_in_window(
-            creator_id, curr_start, curr_end
+            tenant_id, curr_start, curr_end
         )
         users_prev = max(users_curr - users_in_win, 0)
         users_metric = GrowthMetric(
@@ -167,9 +167,9 @@ class DashboardService:
         )
 
         # 4. Total Subscribers (Active paying members)
-        subs_curr = self.repo.get_active_subscribers_count(creator_id)
+        subs_curr = self.repo.get_active_subscribers_count(tenant_id)
         subs_in_win = self.repo.get_subscribers_converted_in_window(
-            creator_id, curr_start, curr_end
+            tenant_id, curr_start, curr_end
         )
         subs_prev = max(subs_curr - subs_in_win, 0)
         subs_metric = GrowthMetric(
@@ -179,7 +179,7 @@ class DashboardService:
         )
 
         # 5. Catalog Inventory Breakdown
-        inventory = self.repo.get_content_inventory(creator_id, curr_start)
+        inventory = self.repo.get_content_inventory(tenant_id, curr_start)
         inventory_metric = ContentInventoryBreakdown(**inventory)
 
         return DashboardStatsResponse(
@@ -195,7 +195,7 @@ class DashboardService:
 
     def get_analytics(
         self,
-        creator_id: int,
+        tenant_id: int,
         range_preset: str | None = "6m",
         start_date_str: str | None = None,
         end_date_str: str | None = None,
@@ -326,13 +326,13 @@ class DashboardService:
         data_points: list[AnalyticsDataPoint] = []
         for b_start, b_end, d_str, l_str in buckets:
             u_count = self.repo.get_user_registrations_in_window(
-                creator_id, b_start, b_end
+                tenant_id, b_start, b_end
             )
             s_count = self.repo.get_subscribers_converted_in_window(
-                creator_id, b_start, b_end
+                tenant_id, b_start, b_end
             )
-            rev_val = self.repo.get_revenue_in_window(creator_id, b_start, b_end)
-            v_count = self.repo.get_views_in_window(creator_id, b_start, b_end)
+            rev_val = self.repo.get_revenue_in_window(tenant_id, b_start, b_end)
+            v_count = self.repo.get_views_in_window(tenant_id, b_start, b_end)
 
             data_points.append(
                 AnalyticsDataPoint(
@@ -355,7 +355,7 @@ class DashboardService:
 
     def get_subscription_breakdown(
         self,
-        creator_id: int,
+        tenant_id: int,
         range_preset: str | None = "30d",
         start_date_str: str | None = None,
         end_date_str: str | None = None,
@@ -375,7 +375,7 @@ class DashboardService:
         )
 
         raw_tiers = self.repo.get_subscription_tier_breakdown(
-            creator_id, curr_start, curr_end
+            tenant_id, curr_start, curr_end
         )
 
         total_subscribers = sum(t["subscribers"] for t in raw_tiers)
@@ -417,7 +417,7 @@ class DashboardService:
 
     def get_recent_activity(
         self,
-        creator_id: int,
+        tenant_id: int,
         filter_type: str = "all",
         page: int = 1,
         limit: int = 5,
@@ -436,7 +436,7 @@ class DashboardService:
         limit_val = min(max(int(limit), 1), 20)
 
         raw_items, total = self.repo.get_recent_activity(
-            creator_id=creator_id,
+            tenant_id=tenant_id,
             filter_type=normalized_filter,
             page=page_val,
             limit=limit_val,

@@ -38,7 +38,7 @@ This skill documents architectural guidelines, security controls, and design pat
    - Remains framework-agnostic where possible.
 3. **Repositories Layer (`app/repositories/`)**:
    - Encapsulates all Peewee ORM queries (`Model.select()`, `Model.create()`, `model.save()`).
-   - Enforces multi-tenant isolation by filtering on `creator_id` or `user_id`.
+   - Enforces multi-tenant isolation by filtering on `tenant_id`.
    - Handles pagination logic using `.paginate(page, limit)`.
 4. **Schemas Layer (`app/schemas/`)**:
    - Pure Pydantic v2 request and response contracts.

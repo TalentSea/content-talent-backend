@@ -16,7 +16,7 @@ class MobilePlaylistRepository:
 
     def list_public_playlists(
         self,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         subscriber_id: int | None = None,
         search: str | None = None,
         sort: str = "newest",
@@ -26,13 +26,13 @@ class MobilePlaylistRepository:
         """
         Retrieves paginated public creator playlists with batched count of published & ready videos
         and subscriber bookmark status (is_saved).
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             query = Playlist.select()
 
-            if creator_id is not None:
-                query = query.where(Playlist.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Playlist.tenant == tenant_id)
 
             if search:
                 query = query.where(Playlist.name.contains(search))
@@ -82,15 +82,15 @@ class MobilePlaylistRepository:
             raise
 
     def get_public_playlist_by_id(
-        self, playlist_id: int, creator_id: int | None = None
+        self, playlist_id: int, tenant_id: int | None = None
     ) -> Playlist | None:
         """
-        Fetches a single playlist by primary key ID, optionally filtered by creator_id for tenant isolation.
+        Fetches a single playlist by primary key ID, optionally filtered by tenant_id for tenant isolation.
         """
         try:
             query = Playlist.select().where(Playlist.id == playlist_id)
-            if creator_id is not None:
-                query = query.where(Playlist.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Playlist.tenant == tenant_id)
             return query.first()
         except PeeweeException as e:
             logger.error("Error fetching mobile playlist %s: %s", playlist_id, e)
@@ -232,13 +232,13 @@ class MobilePlaylistRepository:
     def list_subscriber_saved_playlists(
         self,
         subscriber_id: int,
-        creator_id: int | None = None,
+        tenant_id: int | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[tuple[Playlist, int]], int]:
         """
         Retrieves paginated playlists saved by a specific subscriber.
-        Optionally filters by creator_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation.
         """
         try:
             query = (
@@ -246,8 +246,8 @@ class MobilePlaylistRepository:
                 .join(PlaylistSave, on=(Playlist.id == PlaylistSave.playlist))
                 .where(PlaylistSave.subscriber == subscriber_id)
             )
-            if creator_id is not None:
-                query = query.where(Playlist.user == creator_id)
+            if tenant_id is not None:
+                query = query.where(Playlist.tenant == tenant_id)
 
             query = query.order_by(PlaylistSave.created_at.desc())
 

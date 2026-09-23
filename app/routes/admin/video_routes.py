@@ -31,7 +31,11 @@ def initiate_video(payload: VideoInitiateRequest, current_user: CurrentAdmin):
     """
     POST /api/v1/admin/videos/initiate — Initiates a video upload container on Bunny Stream and returns TUS presigned signature.
     """
-    return video_service.initiate_video_upload(current_user["user_id"], payload)
+    return video_service.initiate_video_upload(
+        tenant_id=current_user["tenant_id"],
+        payload=payload,
+        created_by=current_user["user_id"],
+    )
 
 
 @router.get(
@@ -59,10 +63,10 @@ def list_videos(
     limit: int = Query(20, ge=1, le=100),
 ):
     """
-    GET /api/v1/admin/videos — Retrieves a paginated, filterable list of uploaded videos belonging to the authenticated creator.
+    GET /api/v1/admin/videos — Retrieves a paginated, filterable list of uploaded videos belonging to the active tenant.
     """
     return video_service.list_user_videos(
-        user_id=current_user["user_id"],
+        tenant_id=current_user["tenant_id"],
         status_filter=status_filter,
         category=category,
         search=search,
@@ -79,7 +83,7 @@ def get_video_details(video_id: int, current_user: CurrentAdmin):
     """
     GET /api/v1/admin/videos/{video_id} — Retrieves single video details and triggers live encoding status sync if ENCODING.
     """
-    return video_service.get_video_details(current_user["user_id"], video_id)
+    return video_service.get_video_details(current_user["tenant_id"], video_id)
 
 
 @router.patch(
@@ -92,7 +96,7 @@ def update_video_metadata(
     PATCH /api/v1/admin/videos/{video_id} — Updates textual metadata fields (title, description, category, tags).
     """
     return video_service.update_video_metadata(
-        current_user["user_id"], video_id, payload
+        current_user["tenant_id"], video_id, payload
     )
 
 
@@ -111,7 +115,7 @@ def upload_thumbnail(
     POST /api/v1/admin/videos/{video_id}/thumbnails/upload?slot=0 — Uploads cover image binary via server proxy.
     """
     return video_service.upload_thumbnail_image(
-        current_user["user_id"], video_id, slot=slot, file=file
+        current_user["tenant_id"], video_id, slot=slot, file=file
     )
 
 
@@ -127,7 +131,7 @@ def select_main_thumbnail(
     PATCH /api/v1/admin/videos/{video_id}/thumbnails/select-main — Promotes alt thumbnail to primary cover image.
     """
     return video_service.select_main_thumbnail(
-        current_user["user_id"], video_id, payload
+        current_user["tenant_id"], video_id, payload
     )
 
 
@@ -143,7 +147,7 @@ def delete_thumbnail(
     DELETE /api/v1/admin/videos/{video_id}/thumbnails — Deletes alternative backup thumbnail permanently from cloud storage and DB.
     """
     return video_service.delete_alternative_thumbnail(
-        current_user["user_id"], video_id, payload
+        current_user["tenant_id"], video_id, payload
     )
 
 
@@ -154,7 +158,7 @@ def delete_video(video_id: int, current_user: CurrentAdmin):
     """
     DELETE /api/v1/admin/videos/{video_id} — Deletes a single video asset from database and Bunny Stream container.
     """
-    return video_service.delete_video_asset(current_user["user_id"], video_id)
+    return video_service.delete_video_asset(current_user["tenant_id"], video_id)
 
 
 @router.post(
@@ -164,7 +168,7 @@ def bulk_delete_videos(payload: BulkDeleteVideosRequest, current_user: CurrentAd
     """
     POST /api/v1/admin/videos/bulk-delete — Deletes multiple video assets in a single batch operation.
     """
-    return video_service.bulk_delete_videos(current_user["user_id"], payload)
+    return video_service.bulk_delete_videos(current_user["tenant_id"], payload)
 
 
 @router.post(
@@ -176,7 +180,7 @@ def publish_video(video_id: int, current_user: CurrentAdmin):
     """
     POST /api/v1/admin/videos/{video_id}/publish — Publishes a video asset immediately.
     """
-    return video_service.publish_video_immediately(current_user["user_id"], video_id)
+    return video_service.publish_video_immediately(current_user["tenant_id"], video_id)
 
 
 @router.post(
@@ -190,7 +194,7 @@ def unpublish_video(video_id: int, current_user: CurrentAdmin):
     """
     POST /api/v1/admin/videos/{video_id}/unpublish — Reverts a published video back to draft state.
     """
-    return video_service.unpublish_video(current_user["user_id"], video_id)
+    return video_service.unpublish_video(current_user["tenant_id"], video_id)
 
 
 @router.post(
@@ -205,5 +209,5 @@ def schedule_video(
     POST /api/v1/admin/videos/{video_id}/schedule — Schedules a video asset for future publication.
     """
     return video_service.schedule_video_publication(
-        current_user["user_id"], video_id, payload
+        current_user["tenant_id"], video_id, payload
     )

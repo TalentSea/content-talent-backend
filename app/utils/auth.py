@@ -12,12 +12,13 @@ def create_access_token(
     user_id: int,
     role: str = "subscriber",
     username: str = "",
-    creator_id: int | None = None,
+    tenant_id: int | None = None,
     expires_delta_minutes: int | None = None,
 ) -> str:
     """
-    Encodes user_id, role, username, and creator_id into a signed JWT access token.
-    Roles: 'admin' (Web Creator Studio), 'subscriber' (Mobile App), or 'guest' (Mobile App Guest).
+    Encodes user_id, role, username, and tenant_id into a signed JWT access token.
+    Roles: 'super_admin' (Platform Super Admin), 'admin' (Tenant Creator Studio),
+    'subscriber' (Mobile App), or 'guest' (Mobile App Guest).
     """
     settings = get_settings()
     if expires_delta_minutes is None:
@@ -30,7 +31,7 @@ def create_access_token(
         "user_id": user_id,
         "role": role,
         "username": username,
-        "creator_id": creator_id,
+        "tenant_id": tenant_id,
         "exp": expire,
     }
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=settings.JWT_ALGORITHM)
@@ -120,43 +121,42 @@ def verify_password(plain_password: str, password_hash: str | None) -> bool:
     return secrets.compare_digest(computed_hash, expected_hash)
 
 
-def is_creator_active(creator_or_id: object) -> bool:
+def is_tenant_active(tenant_or_id: object) -> bool:
     """
-    Checks if a creator studio exists and is currently active.
+    Checks if a tenant studio exists and is currently active.
     Returns boolean True/False without raising an exception.
-    Accepts either an integer creator_id or an existing Admin Peewee model instance.
+    Accepts either an integer tenant_id or an existing Tenant Peewee model instance.
     """
-    from app.models.admin import Admin
+    from app.models.tenant import Tenant
 
-    if isinstance(creator_or_id, Admin):
-        return bool(getattr(creator_or_id, "is_active", True))
-    if not creator_or_id:
+    if isinstance(tenant_or_id, Tenant):
+        return bool(getattr(tenant_or_id, "is_active", True))
+    if not tenant_or_id:
         return False
-    admin = Admin.get_or_none(Admin.id == creator_or_id)
-    return bool(admin and getattr(admin, "is_active", True))
+    tenant = Tenant.get_or_none(Tenant.id == tenant_or_id)
+    return bool(tenant and getattr(tenant, "is_active", True))
 
 
-def verify_creator_active(creator_or_id: object) -> object:
+def verify_tenant_active(tenant_or_id: object) -> object:
     """
-    Verifies that a creator studio exists and is currently active.
+    Verifies that a tenant studio exists and is currently active.
     Raises HTTPException(403) if deactivated, suspended, or not found.
-    Accepts either an integer creator_id or an existing Admin Peewee model instance.
+    Accepts either an integer tenant_id or an existing Tenant Peewee model instance.
     """
-    from app.models.admin import Admin
+    from app.models.tenant import Tenant
 
-    if isinstance(creator_or_id, Admin):
-        admin = creator_or_id
-    elif creator_or_id:
-        admin = Admin.get_or_none(Admin.id == creator_or_id)
+    if isinstance(tenant_or_id, Tenant):
+        tenant = tenant_or_id
+    elif tenant_or_id:
+        tenant = Tenant.get_or_none(Tenant.id == tenant_or_id)
     else:
-        admin = None
+        tenant = None
 
-    if not admin or not getattr(admin, "is_active", True):
+    if not tenant or not getattr(tenant, "is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Creator studio is currently deactivated or suspended.",
+            detail="Studio tenant is currently deactivated or suspended.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return admin
-
+    return tenant
 

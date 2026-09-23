@@ -13,6 +13,7 @@ from peewee import (
 from app.models.admin import Admin
 from app.models.base import BaseModel
 from app.models.subscriber import Subscriber
+from app.models.tenant import Tenant
 from app.utils.formatters import calculate_completion_percentage
 
 
@@ -39,15 +40,24 @@ class JSONField(TextField):
 
 class Video(BaseModel):
     """
-    Stores metadata for uploaded video entities.
+    Stores metadata for uploaded video entities scoped to a Tenant.
     """
 
-    user = ForeignKeyField(
-        model=Admin,
-        field=Admin.id,
-        column_name="user_id",
+    tenant = ForeignKeyField(
+        model=Tenant,
+        field=Tenant.id,
+        column_name="tenant_id",
         backref="videos",
         on_delete="CASCADE",
+        index=True,
+    )
+    created_by = ForeignKeyField(
+        model=Admin,
+        field=Admin.id,
+        column_name="created_by",
+        backref="created_videos",
+        null=True,
+        on_delete="SET NULL",
     )
     bunny_video_id = CharField(unique=True, max_length=255)
     title = CharField(max_length=255, null=False)
@@ -133,13 +143,17 @@ class WatchHistory(BaseModel):
 class VideoViewEvent(BaseModel):
     """
     Immutable event ledger for every validated playback view by an authenticated subscriber.
-    Powers creator telemetry, time-series charts, and windowed analytics.
+    Powers tenant telemetry, time-series charts, and windowed analytics.
     Permanent and independent of subscriber personal watch history deletions.
     """
 
     video = ForeignKeyField(Video, backref="view_events", on_delete="CASCADE")
-    creator = ForeignKeyField(
-        model=Admin, backref="view_events", on_delete="CASCADE"
+    tenant = ForeignKeyField(
+        model=Tenant,
+        column_name="tenant_id",
+        backref="view_events",
+        on_delete="CASCADE",
+        index=True,
     )
     subscriber = ForeignKeyField(
         Subscriber, backref="view_events", on_delete="CASCADE"
@@ -149,8 +163,7 @@ class VideoViewEvent(BaseModel):
     class Meta:
         table_name = "video_view_events"
         indexes = (
-            (("creator", "created_at"), False),
+            (("tenant", "created_at"), False),
             (("video", "created_at"), False),
             (("video", "subscriber", "created_at"), False),
         )
-

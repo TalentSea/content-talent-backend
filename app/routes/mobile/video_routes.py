@@ -38,7 +38,7 @@ def list_public_videos(
     limit: int = Query(20, ge=1, le=100),
 ):
     return mobile_video_service.list_public_videos(
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         category=category,
         search=search,
         sort=sort,
@@ -62,7 +62,7 @@ def list_continue_watching_videos(
 ):
     return mobile_video_service.list_continue_watching_videos(
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
     )
@@ -82,7 +82,7 @@ def list_watch_history(
 ):
     return mobile_video_service.list_watch_history(
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
     )
@@ -97,7 +97,7 @@ def list_watch_history(
 def clear_watch_history(current_subscriber: CurrentSubscriber):
     mobile_video_service.clear_watch_history(
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
     return {"status": "success", "message": "Watch history cleared successfully"}
 
@@ -114,7 +114,7 @@ def remove_video_from_watch_history(
     mobile_video_service.remove_video_from_watch_history(
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
     return {"status": "success", "message": "Video removed from watch history"}
 
@@ -133,7 +133,7 @@ def list_subscriber_liked_videos(
 ):
     return mobile_video_service.list_subscriber_liked_videos(
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
     )
@@ -153,7 +153,7 @@ def list_subscriber_saved_videos(
 ):
     return mobile_video_service.list_subscriber_saved_videos(
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
     )
@@ -170,7 +170,7 @@ def get_video_details(video_id: int, current_subscriber: CurrentSubscriber):
     return mobile_video_service.get_video_details(
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -194,7 +194,7 @@ def sync_watch_progress(
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
         progress_seconds=payload.progress_seconds,
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -220,7 +220,7 @@ def record_video_view(video_id: int, current_subscriber: CurrentSubscriber):
     return mobile_video_service.record_video_view(
         video_id=video_id,
         subscriber_id=user_id,
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -235,7 +235,7 @@ def toggle_video_like(video_id: int, current_subscriber: CurrentSubscriber):
     return mobile_video_service.toggle_video_like(
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 
@@ -250,7 +250,7 @@ def toggle_video_save(video_id: int, current_subscriber: CurrentSubscriber):
     return mobile_video_service.toggle_video_save(
         video_id=video_id,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
 
 

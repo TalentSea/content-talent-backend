@@ -10,7 +10,7 @@ All mobile requests pass an authenticated JWT session header:
 Authorization: Bearer <subscriber_access_token>
 ```
 
-The FastAPI backend decodes the token in memory (< 1ms) to extract `current_subscriber["creator_id"]`. The category feed is automatically filtered by `creator_id` to guarantee 100% multi-tenant creator isolation.
+The FastAPI backend decodes the token in memory (< 1ms) to extract `current_subscriber["tenant_id"]`. The category feed is automatically filtered by `tenant_id` to guarantee 100% multi-tenant creator isolation.
 
 ### Standard HTTP Error Responses
 
@@ -42,8 +42,8 @@ None.
 
 #### Internal Backend Workflow
 
-1. Extracts `creator_id` from `current_subscriber` JWT session token context.
-2. Queries `Category` table filtering by `Category.user == creator_id`.
+1. Extracts `tenant_id` from `current_subscriber` JWT session token context.
+2. Queries `Category` table filtering by `Category.tenant == tenant_id`.
 3. Orders items by `Category.display_order.asc()`.
 4. Maps lightweight DTO response (`id`, `name`, `slug`, `description`, `thumbnailUrl`, `color`).
 

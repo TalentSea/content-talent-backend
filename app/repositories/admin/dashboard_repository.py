@@ -13,17 +13,17 @@ from app.models.video import Video, VideoViewEvent
 class DashboardRepository:
     """
     Encapsulates high-performance aggregation and reporting queries
-    for the Admin Creator Studio Dashboard & Analytics subsystem.
+    for the Admin Studio Dashboard & Analytics subsystem, isolated by Tenant.
     """
 
     def get_revenue_in_window(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> float:
         """Sums captured payments in ₹ INR within a date window."""
         res = (
             Payment.select(fn.COALESCE(fn.SUM(Payment.amount), 0.0))
             .where(
-                Payment.creator == creator_id,
+                Payment.tenant == tenant_id,
                 Payment.status == "captured",
                 Payment.created_at >= start_dt,
                 Payment.created_at <= end_dt,
@@ -33,7 +33,7 @@ class DashboardRepository:
         return float(res or 0.0)
 
     def get_views_in_window(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> int:
         """
         Counts verified playback views in window via immutable VideoViewEvent ledger.
@@ -41,7 +41,7 @@ class DashboardRepository:
         views = (
             VideoViewEvent.select(fn.COUNT(VideoViewEvent.id))
             .where(
-                VideoViewEvent.creator == creator_id,
+                VideoViewEvent.tenant == tenant_id,
                 VideoViewEvent.created_at >= start_dt,
                 VideoViewEvent.created_at <= end_dt,
             )
@@ -50,13 +50,13 @@ class DashboardRepository:
         return int(views or 0)
 
     def get_user_registrations_in_window(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> int:
         """Counts registered audience accounts (role='subscriber') registered in window."""
         return (
             Subscriber.select()
             .where(
-                Subscriber.creator == creator_id,
+                Subscriber.tenant == tenant_id,
                 Subscriber.role == "subscriber",
                 Subscriber.created_at >= start_dt,
                 Subscriber.created_at <= end_dt,
@@ -64,24 +64,24 @@ class DashboardRepository:
             .count()
         )
 
-    def get_total_registered_users(self, creator_id: int) -> int:
+    def get_total_registered_users(self, tenant_id: int) -> int:
         """Counts total registered audience accounts (excludes anonymous guests)."""
         return (
             Subscriber.select()
             .where(
-                Subscriber.creator == creator_id,
+                Subscriber.tenant == tenant_id,
                 Subscriber.role == "subscriber",
             )
             .count()
         )
 
-    def get_active_subscribers_count(self, creator_id: int) -> int:
+    def get_active_subscribers_count(self, tenant_id: int) -> int:
         """Counts distinct users currently holding an active subscription."""
         now = datetime.now(timezone.utc)
         res = (
             UserSubscription.select(fn.COUNT(fn.DISTINCT(UserSubscription.user)))
             .where(
-                UserSubscription.creator == creator_id,
+                UserSubscription.tenant == tenant_id,
                 UserSubscription.status == "active",
                 UserSubscription.end_date > now,
             )
@@ -90,13 +90,13 @@ class DashboardRepository:
         return int(res or 0)
 
     def get_subscribers_converted_in_window(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> int:
         """Counts new subscription enrollments created within the window."""
         res = (
             UserSubscription.select(fn.COUNT(fn.DISTINCT(UserSubscription.user)))
             .where(
-                UserSubscription.creator == creator_id,
+                UserSubscription.tenant == tenant_id,
                 UserSubscription.status == "active",
                 UserSubscription.created_at >= start_dt,
                 UserSubscription.created_at <= end_dt,
@@ -106,14 +106,14 @@ class DashboardRepository:
         return int(res or 0)
 
     def get_content_inventory(
-        self, creator_id: int, window_start: datetime
+        self, tenant_id: int, window_start: datetime
     ) -> dict[str, int]:
         """Returns inventory counts: total, published, drafts, recently_added."""
-        total = Video.select().where(Video.user == creator_id).count()
+        total = Video.select().where(Video.tenant == tenant_id).count()
         published = (
             Video.select()
             .where(
-                Video.user == creator_id,
+                Video.tenant == tenant_id,
                 fn.LOWER(Video.status) == "published",
                 Video.is_playable == True,
             )
@@ -122,7 +122,7 @@ class DashboardRepository:
         drafts = (
             Video.select()
             .where(
-                Video.user == creator_id,
+                Video.tenant == tenant_id,
                 (fn.LOWER(Video.status) != "published") | (Video.is_playable == False),
             )
             .count()
@@ -130,7 +130,7 @@ class DashboardRepository:
         recently_added = (
             Video.select()
             .where(
-                Video.user == creator_id,
+                Video.tenant == tenant_id,
                 Video.created_at >= window_start,
             )
             .count()
@@ -143,7 +143,7 @@ class DashboardRepository:
         }
 
     def get_subscription_tier_breakdown(
-        self, creator_id: int, start_dt: datetime, end_dt: datetime
+        self, tenant_id: int, start_dt: datetime, end_dt: datetime
     ) -> list[dict[str, Any]]:
         """
         Aggregates active subscriber counts and captured period revenue per subscription plan tier,
@@ -156,7 +156,7 @@ class DashboardRepository:
                 fn.COALESCE(fn.SUM(Payment.amount), 0.0).alias("total_amount"),
             )
             .where(
-                Payment.creator == creator_id,
+                Payment.tenant == tenant_id,
                 Payment.status == "captured",
                 Payment.created_at >= start_dt,
                 Payment.created_at <= end_dt,
@@ -173,7 +173,7 @@ class DashboardRepository:
                 fn.COUNT(fn.DISTINCT(UserSubscription.user)).alias("sub_count"),
             )
             .where(
-                UserSubscription.creator == creator_id,
+                UserSubscription.tenant == tenant_id,
                 UserSubscription.status == "active",
                 UserSubscription.end_date > now,
             )
@@ -181,10 +181,10 @@ class DashboardRepository:
         )
         sub_counts = {row.plan_id: int(row.sub_count) for row in active_counts_query}
 
-        # 3. All plans configured by creator
+        # 3. All plans configured by tenant
         plans = list(
             SubscriptionPlan.select()
-            .where(SubscriptionPlan.user == creator_id)
+            .where(SubscriptionPlan.tenant == tenant_id)
             .order_by(SubscriptionPlan.display_order.asc(), SubscriptionPlan.id.asc())
         )
 
@@ -204,15 +204,15 @@ class DashboardRepository:
         return results
 
     def get_recent_activity(
-        self, creator_id: int, filter_type: str, page: int, limit: int
+        self, tenant_id: int, filter_type: str, page: int, limit: int
     ) -> tuple[list[dict[str, Any]], int]:
         """
-        Retrieves paginated recent members feed.
+        Retrieves paginated recent members feed for a tenant.
         filter_type: 'all' | 'subscribers' | 'users'
         """
         now = datetime.now(timezone.utc)
         active_sub_user_ids = UserSubscription.select(UserSubscription.user).where(
-            UserSubscription.creator == creator_id,
+            UserSubscription.tenant == tenant_id,
             UserSubscription.status == "active",
             UserSubscription.end_date > now,
         )
@@ -230,7 +230,7 @@ class DashboardRepository:
                     SubscriptionPlan, on=(UserSubscription.plan == SubscriptionPlan.id)
                 )
                 .where(
-                    UserSubscription.creator == creator_id,
+                    UserSubscription.tenant == tenant_id,
                     UserSubscription.status == "active",
                     UserSubscription.end_date > now,
                     Subscriber.role == "subscriber",
@@ -262,7 +262,7 @@ class DashboardRepository:
             base_query = (
                 Subscriber.select()
                 .where(
-                    Subscriber.creator == creator_id,
+                    Subscriber.tenant == tenant_id,
                     Subscriber.role == "subscriber",
                     Subscriber.id.not_in(active_sub_user_ids),
                 )
@@ -289,7 +289,7 @@ class DashboardRepository:
             base_query = (
                 Subscriber.select()
                 .where(
-                    Subscriber.creator == creator_id,
+                    Subscriber.tenant == tenant_id,
                     Subscriber.role == "subscriber",
                 )
                 .order_by(Subscriber.created_at.desc())
@@ -308,7 +308,7 @@ class DashboardRepository:
                     )
                     .where(
                         UserSubscription.user.in_(user_ids),
-                        UserSubscription.creator == creator_id,
+                        UserSubscription.tenant == tenant_id,
                         UserSubscription.status == "active",
                         UserSubscription.end_date > now,
                     )

@@ -24,5 +24,5 @@ def get_mobile_branding(
     """
     response.headers["Cache-Control"] = "public, max-age=3600"
     return branding_service.get_public_mobile_branding(
-        creator_id=current_subscriber.get("creator_id")
+        tenant_id=current_subscriber.get("tenant_id")
     )

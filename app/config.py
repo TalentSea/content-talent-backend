@@ -8,25 +8,36 @@ class Settings(BaseSettings):
     Application configuration settings loaded automatically from environment variables (.env).
     """
 
+    # Database Settings
     DATABASE_URL: str
 
+    # Bunny Stream API Credentials
     BUNNY_STREAM_API_KEY: str
     BUNNY_STREAM_LIBRARY_ID: str = "757205"
     BUNNY_STREAM_TOKEN_KEY: str
+
+    # Bunny Storage API Credentials
     BUNNY_STORAGE_PASSWORD: str
     BUNNY_STORAGE_ZONE_NAME: str = "content-talant-storage"
     BUNNY_PULL_ZONE_URL: str = "https://vz-1294f9c9-1b4.b-cdn.net"
     BUNNY_STORAGE_PULL_ZONE_URL: str = "https://ctcdnin.b-cdn.net"
 
-    JWT_SECRET_KEY: str = "jwt_secret_key"
+    JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 60
 
+    # Platform Super Admin Configuration
+    SUPER_ADMIN_EMAIL: str = "superadmin@example.com"
+    SUPER_ADMIN_PASSWORD: str = "SuperAdmin@1234"
+
+    # Media Presigning & Expiration Timers
     BUNNY_TUS_UPLOAD_SIGNATURE_EXPIRE_SECONDS: int = 86400
     BUNNY_HLS_PLAYBACK_URL_EXPIRE_SECONDS: int = 7200
     BUNNY_MP4_DOWNLOAD_URL_EXPIRE_SECONDS: int = 7200
+
+    # Background Tasks & Automation Settings
     AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS: int = 60
     STALE_GUEST_CLEANUP_DAYS: int = 90
     SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS: int = 3600
@@ -36,12 +47,12 @@ class Settings(BaseSettings):
         "166951692335-a6bblebovsn6ftnrs15n9n8bjpo79o5g.apps.googleusercontent.com"
     )
     FACEBOOK_APP_ID: str = "3169763853213963"
-    FACEBOOK_APP_SECRET: str = "bd826b0a4867d0c7033c8f40cc5737dc"
+    FACEBOOK_APP_SECRET: str
 
     # Razorpay Payment Gateway Configuration
     RAZORPAY_KEY_ID: str = "rzp_test_TZdrjdhyuxCuaR"
-    RAZORPAY_KEY_SECRET: str = "PCl2K30lC250OuKh7R2pxtVA"
-    RAZORPAY_WEBHOOK_SECRET: str = "talentsea_webhook_secret_2026"
+    RAZORPAY_KEY_SECRET: str
+    RAZORPAY_WEBHOOK_SECRET: str
 
     # Image Upload Configuration
     ALLOWED_IMAGE_EXTENSIONS: str = "jpg,jpeg,png,webp,svg"

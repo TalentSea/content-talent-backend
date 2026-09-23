@@ -18,13 +18,13 @@ class MobileSubscriptionPlanService:
         self.repo = repo or MobileSubscriptionPlanRepository()
 
     def list_active_plans(
-        self, creator_id: int
+        self, tenant_id: int
     ) -> list[MobileSubscriptionPlanResponse]:
         """
         Retrieves active plans for mobile paywall checkout matching spec doc API 2.1.
         Enriched with dynamic built-in platform features.
         """
-        plans = self.repo.get_active_plans(creator_id)
+        plans = self.repo.get_active_plans(tenant_id)
         return [
             MobileSubscriptionPlanResponse(
                 id=p.id,

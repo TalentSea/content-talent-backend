@@ -28,7 +28,7 @@ def list_public_playlists(
     Requires subscriber/guest Bearer token.
     """
     return playlist_service.list_public_playlists(
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         subscriber_id=current_subscriber.get("user_id"),
         search=search,
         sort=sort,
@@ -55,7 +55,7 @@ def list_subscriber_saved_playlists(
     """
     return playlist_service.list_subscriber_saved_playlists(
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
     )
@@ -79,7 +79,7 @@ def get_playlist_details(
     return playlist_service.get_playlist_details(
         playlist_id=playlist_id,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
         page=page,
         limit=limit,
     )
@@ -102,5 +102,5 @@ def toggle_playlist_save(
     return playlist_service.toggle_playlist_save(
         playlist_id=playlist_id,
         subscriber_id=current_subscriber.get("user_id"),
-        creator_id=current_subscriber.get("creator_id"),
+        tenant_id=current_subscriber.get("tenant_id"),
     )
