@@ -231,6 +231,8 @@ class MobileVideoService:
         captions: list[MobileVideoCaptionResponse] | None = None
         ad_tag_url: str | None = None
 
+        is_short = getattr(video, "video_type", "standard") == "shorts"
+
         if active_sub:
             # 2. Grant Presigned HLS Stream URL to active subscribers
             if video.bunny_video_id and pull_zone_url:
@@ -240,23 +242,24 @@ class MobileVideoService:
                     token_security_key=token_key,
                 )
 
-                # Dynamically Generate Presigned MP4 Download URLs for available resolutions
-                download_urls = []
-                avail_res = (
-                    video.available_resolutions
-                    if isinstance(video.available_resolutions, list)
-                    else []
-                )
-                for res in avail_res:
-                    mp4_url = generate_signed_mp4_url(
-                        bunny_pull_zone_url=pull_zone_url,
-                        bunny_video_id=video.bunny_video_id,
-                        resolution=res,
-                        token_security_key=token_key,
+                # Dynamically Generate Presigned MP4 Download URLs (strictly standard videos only; shorts are streaming-only)
+                if not is_short:
+                    download_urls = []
+                    avail_res = (
+                        video.available_resolutions
+                        if isinstance(video.available_resolutions, list)
+                        else []
                     )
-                    download_urls.append(
-                        MobileVideoDownloadUrlResponse(resolution=res, url=mp4_url)
-                    )
+                    for res in avail_res:
+                        mp4_url = generate_signed_mp4_url(
+                            bunny_pull_zone_url=pull_zone_url,
+                            bunny_video_id=video.bunny_video_id,
+                            resolution=res,
+                            token_security_key=token_key,
+                        )
+                        download_urls.append(
+                            MobileVideoDownloadUrlResponse(resolution=res, url=mp4_url)
+                        )
 
                 # Generate Closed Captions VTT tracks
                 captions = []
@@ -275,12 +278,12 @@ class MobileVideoService:
                                     language=lang_name,
                                     srclang=srclang,
                                     url=vtt_url,
-                                )
+                                    )
                             )
 
-            # 3. Evaluate Ad Tag URL based on subscriber's plan type
+            # 3. Evaluate Ad Tag URL based on subscriber's plan type (shorts are strictly 100% ad-free)
             plan_type = getattr(active_sub.plan, "plan_type", "with_ads")
-            if plan_type == "with_ads":
+            if plan_type == "with_ads" and not is_short:
                 vast_tag = (
                     settings.GOOGLE_IMA_VAST_TAG_URL.strip()
                     if settings.GOOGLE_IMA_VAST_TAG_URL
@@ -290,7 +293,7 @@ class MobileVideoService:
                     delimiter = "&" if ("?" in vast_tag) else "?"
                     cust_params = f"cust_params=tenant_id%3D{video.tenant_id}%26video_id%3D{video.id}"
                     ad_tag_url = f"{vast_tag}{delimiter}{cust_params}"
-            # If plan_type == "no_ads", ad_tag_url remains None (100% ad-free)
+            # If plan_type == "no_ads" or is_short == True, ad_tag_url remains None (100% ad-free)
 
         tags_list = (
             list(video.tags or [])
@@ -318,6 +321,7 @@ class MobileVideoService:
             title=video.title,
             description=video.description,
             category=video.category,
+            video_type=getattr(video, "video_type", "standard") or "standard",
             tags=tags_list,
             duration=duration_secs,
             views_count=video.views or 0,
@@ -333,6 +337,7 @@ class MobileVideoService:
             captions=captions,
             published_at=video.published_at,
         )
+
 
     def record_video_view(
         self, video_id: int, subscriber_id: int, tenant_id: int | None = None

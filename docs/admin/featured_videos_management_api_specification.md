@@ -98,6 +98,7 @@ Content-Type: application/json
 1. Max cap validation (`len(video_ids) <= 10`). Returns `400 Bad Request` if payload exceeds 10 items.
 2. Ownership validation: Excludes invalid or unowned `video_ids` automatically.
 3. Empty list supported: Passing `{"video_ids": []}` clears all featured videos for the creator.
+4. Strictly Standard Videos Only: Only published, playable videos with `video_type == "standard"` can be featured. Vertical short videos (`video_type == "shorts"`) are automatically excluded from the synchronized featured list.
 
 #### Response Envelope (`200 OK`)
 ```json
@@ -141,7 +142,7 @@ Content-Type: application/json
 
 ### 3.3 `GET /api/v1/admin/featured-videos/available` — Get Available Videos Picker
 
-Retrieves a paginated list of creator's published videos that are **not currently featured**, used for populating the "Select Videos to Feature" picker modal.
+Retrieves a paginated list of creator's published videos that are **not currently featured**, used for populating the "Select Videos to Feature" picker modal. Strictly filters `WHERE video_type == "standard"`; short vertical videos (`video_type == "shorts"`) are excluded.
 
 #### Headers
 ```http

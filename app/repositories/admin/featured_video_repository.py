@@ -60,6 +60,7 @@ class FeaturedVideoRepository:
                             & (
                                 (fn.LOWER(Video.status) == "published")
                                 & (Video.is_playable == True)
+                                & (Video.video_type == "standard")
                             )
                         )
                     }
@@ -106,6 +107,7 @@ class FeaturedVideoRepository:
     ) -> tuple[list[Video], int]:
         """
         Executes query returning paginated, filtered, and sorted list of tenant videos NOT currently featured.
+        Strictly excludes short videos.
         """
         try:
             featured_subquery = FeaturedVideo.select(FeaturedVideo.video_id).where(
@@ -116,9 +118,11 @@ class FeaturedVideoRepository:
                 & (
                     (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
+                    & (Video.video_type == "standard")
                 )
                 & (Video.id.not_in(featured_subquery))
             )
+
 
             if search:
                 query = query.where(Video.title.contains(search))

@@ -48,6 +48,7 @@ class MobileVideoDetailResponse(BaseModel):
     title: str
     description: str | None = None
     category: str | None = None
+    video_type: str = "standard"
     tags: list[str] = Field(default_factory=list)
     duration: int = 0
     views_count: int = 0

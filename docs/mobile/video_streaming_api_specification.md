@@ -417,9 +417,11 @@ Authorization: Bearer <access_token>  (Required)
 
 ### 9. `GET /api/v1/mobile/videos/{video_id}` — Video Details & Presigned HLS / MP4 Stream Player
 
-Retrieves complete video metadata. If the authenticated user holds an active subscription under this creator studio, it attaches the **time-bound presigned HLS player URL** (`playlist.m3u8?token=...`), **presigned MP4 download links**, and **closed caption tracks**. 
+Retrieves complete video metadata. If the authenticated user holds an active subscription under this creator studio, it attaches the **time-bound presigned HLS player URL** (`playlist.m3u8?token=...`), **presigned MP4 download links** (for standard videos), and **closed caption tracks**. 
 
 If the user is **unsubscribed or expired**, all protected media assets (`hls_stream_url`, `download_urls`, `captions`, and `ad_tag_url`) are strictly set to `null`, enabling the mobile app to render a high-converting **"Subscribe to Watch"** preview screen while safeguarding proprietary content.
+
+If the requested video is a **vertical Short video (`video_type == "shorts"`)**, the endpoint dynamically enforces shorts guardrails: **`download_urls` is strictly `null`** (shorts are 100% streaming-only) and **`ad_tag_url` is strictly `null`** (shorts are 100% ad-free across all subscription tiers).
 
 #### Request Headers
 ```http
@@ -428,28 +430,33 @@ Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest tok
 
 #### 🛡️ Playback Entitlement & Asset Security Matrix
 
-| Field in Response | 🚫 Unsubscribed / Free User | 🍿 Standard Tier (`with_ads`) | 💎 Premium Tier (`no_ads`) |
-| :--- | :---: | :---: | :---: |
-| **Metadata (`title`, `thumbnail_url`, `description`, etc.)** | ✅ Included | ✅ Included | ✅ Included |
-| **`hls_stream_url`** | ❌ **`null`** (Locked) | ✅ **Presigned HLS URL** | ✅ **Presigned HLS URL** |
-| **`download_urls`** | ❌ **`null`** (Locked) | ✅ **Presigned MP4 URLs** | ✅ **Presigned MP4 URLs** |
-| **`captions`** | ❌ **`null`** (Locked) | ✅ **VTT Caption Tracks** | ✅ **VTT Caption Tracks** |
-| **`ad_tag_url`** | ❌ **`null`** (No Content Stream) | ✅ **VAST / VMAP Ad Tag** | ❌ **`null`** (Ad-Free) |
+| Field in Response | 🚫 Unsubscribed / Free User | 🍿 Standard Tier (`with_ads`) — Standard Video | 💎 Premium Tier (`no_ads`) — Standard Video | ⚡ Any Active Tier — Short Video (`video_type = 'shorts'`) |
+| :--- | :---: | :---: | :---: | :---: |
+| **`video_type`** | `"standard"` or `"shorts"` | `"standard"` | `"standard"` | `"shorts"` |
+| **Metadata (`title`, `thumbnail_url`, etc.)** | ✅ Included | ✅ Included | ✅ Included | ✅ Included |
+| **`hls_stream_url`** | ❌ **`null`** (Locked) | ✅ **Presigned HLS URL** | ✅ **Presigned HLS URL** | ✅ **Presigned HLS URL** |
+| **`download_urls`** | ❌ **`null`** (Locked) | ✅ **Presigned MP4 URLs** | ✅ **Presigned MP4 URLs** | ❌ **`null`** (Streaming-Only) |
+| **`captions`** | ❌ **`null`** (Locked) | ✅ **VTT Caption Tracks** | ✅ **VTT Caption Tracks** | ✅ **VTT Tracks** (if present) |
+| **`ad_tag_url`** | ❌ **`null`** (No Content Stream) | ✅ **VAST / VMAP Ad Tag** | ❌ **`null`** (Ad-Free) | ❌ **`null`** (100% Ad-Free) |
 
 ---
 
-#### 💡 Architectural Rationale: Why Protected Assets & `ad_tag_url` are `null` for Unsubscribed Users
+#### 💡 Architectural Rationale: Protected Assets, Ad Delivery & Shorts Guardrails
 
-1. **Why `captions` is `null`:**
+1. **Why `captions` is `null` for unsubscribed users:**
    - Closed caption (`.vtt`) files contain the full verbatim transcript of the video. Exposing captions to unsubscribed users allows automated scraping and theft of proprietary video scripts and educational course content. Setting `captions: null` protects intellectual property.
 
-2. **Why `download_urls` is `null`:**
+2. **Why `download_urls` is `null` for unsubscribed users:**
    - Offline MP4 downloads are exclusively available to active subscribers. Setting `download_urls: null` ensures no direct raw video files can be retrieved or reverse-engineered by unsubscribed clients.
 
-3. **Why `ad_tag_url` is `null`:**
+3. **Why `ad_tag_url` is `null` for unsubscribed users:**
    - **Google Ad Manager / IAB Policy Compliance:** VAST/VMAP video ads are in-stream formats that require an active content stream. Firing video ads on a locked screen without playable content produces phantom impressions and 0% viewability, which violates Google Ad Manager terms and risks creator/platform account penalization for invalid traffic.
    - **Monetization & Conversion Funnel:** In-stream ads monetize users who selected the lower-priced **Standard (`with_ads`)** subscription. Unsubscribed users should not see third-party commercial ads; their user journey must be 100% focused on subscribing via the high-converting in-app paywall.
    - **Client Performance:** Prevents the mobile client from needlessly initializing the Google IMA SDK container or consuming network bandwidth on preview screens.
+
+4. **Why `download_urls` and `ad_tag_url` are `null` for Short Videos (`video_type == "shorts"`):**
+   - **No Offline MP4 Downloads (`download_urls: null`):** Short vertical videos are designed for immediate, fast-swiping inline streaming. Disabling MP4 downloads conserves Bunny CDN egress and enforces cloud playback fidelity.
+   - **100% Ad-Free Guarantee (`ad_tag_url: null`):** Micro-content reel UX requires instant, zero-latency looping. In-stream VAST video ads are never inserted into shorts, even when the user is subscribed under an ad-supported plan (`with_ads`).
 
 ---
 
@@ -462,6 +469,7 @@ Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest tok
   "title": "Mastering Flutter & FastAPI Microservices",
   "description": "Learn how to build high-performance video streaming mobile apps with adaptive bitrate HLS streaming and offline downloads.",
   "category": "tutorials",
+  "video_type": "standard",
   "tags": ["flutter", "fastapi", "hls", "ott"],
   "duration": 1200,
   "views_count": 14251,
@@ -479,13 +487,14 @@ Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest tok
 }
 ```
 
-##### Response B: Standard Subscriber (`plan_type = "with_ads"`)
+##### Response B: Standard Subscriber (`plan_type = "with_ads"`) — Standard Video
 ```json
 {
   "id": 101,
   "title": "Mastering Flutter & FastAPI Microservices",
   "description": "Learn how to build high-performance video streaming mobile apps with adaptive bitrate HLS streaming and offline downloads.",
   "category": "tutorials",
+  "video_type": "standard",
   "tags": ["flutter", "fastapi", "hls", "ott"],
   "duration": 1200,
   "views_count": 14251,
@@ -514,13 +523,14 @@ Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest tok
 }
 ```
 
-##### Response C: Premium Subscriber (`plan_type = "no_ads"`)
+##### Response C: Premium Subscriber (`plan_type = "no_ads"`) — Standard Video
 ```json
 {
   "id": 101,
   "title": "Mastering Flutter & FastAPI Microservices",
   "description": "Learn how to build high-performance video streaming mobile apps with adaptive bitrate HLS streaming and offline downloads.",
   "category": "tutorials",
+  "video_type": "standard",
   "tags": ["flutter", "fastapi", "hls", "ott"],
   "duration": 1200,
   "views_count": 14251,
@@ -549,21 +559,52 @@ Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest tok
 }
 ```
 
+##### Response D: Active Subscriber Playing a Short Video (`video_type = "shorts"`)
+```json
+{
+  "id": 205,
+  "title": "Quick CSS Tip: Responsive Grids in 30 Seconds",
+  "description": "Master CSS grid auto-fit minmax in under a minute!",
+  "category": "quick-tips",
+  "video_type": "shorts",
+  "tags": ["css", "frontend", "shorts"],
+  "duration": 35,
+  "views_count": 8940,
+  "likes_count": 920,
+  "is_liked": true,
+  "is_saved": false,
+  "last_position_seconds": 0,
+  "progress_percentage": 0.0,
+  "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_205_main.jpg",
+  "hls_stream_url": "https://vz-b9ac573c-27c.b-cdn.net/bunny_vid_1122/playlist.m3u8?token=s1s2s3...&expires=1786195200",
+  "download_urls": null,
+  "captions": null,
+  "ad_tag_url": null,
+  "published_at": "2026-08-10T14:00:00Z"
+}
+```
+
 ---
 
 #### 📱 Mobile App Player Implementation (Client Logic)
 
-Mobile developers (Flutter, React Native, iOS, Android) use a clean entitlement check:
+Mobile developers (Flutter, React Native, iOS, Android) use a clean entitlement check and player routing:
 
 ```dart
 if (video.hls_stream_url != null) {
   // 1. User holds an active subscription
-  if (video.ad_tag_url != null) {
-    // Standard Tier: Initialize Google IMA SDK with VAST/VMAP URL
-    player.playWithAds(video.hls_stream_url, adTag: video.ad_tag_url);
+  if (video.video_type == "shorts") {
+    // ⚡ Short Video: Launch vertical swipe reel player (100% ad-free, streaming-only)
+    player.playVerticalShort(video.hls_stream_url);
   } else {
-    // Premium Tier: Stream directly with zero ads
-    player.playDirect(video.hls_stream_url);
+    // 🎬 Standard Video: Launch landscape 16:9 player
+    if (video.ad_tag_url != null) {
+      // Standard Tier: Initialize Google IMA SDK with VAST/VMAP URL
+      player.playWithAds(video.hls_stream_url, adTag: video.ad_tag_url);
+    } else {
+      // Premium Tier: Stream directly with zero ads
+      player.playDirect(video.hls_stream_url);
+    }
   }
 
   // Attach closed captions if available
