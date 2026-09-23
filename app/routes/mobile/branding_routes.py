@@ -12,16 +12,17 @@ branding_service = BrandingService()
     "",
     response_model=BrandingResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get Mobile Studio Branding Identity",
-    description="Retrieves studio branding identity for mobile subscribers. Accessible by Guests and Subscribers.",
+    summary="Get Mobile Studio Branding Identity & Theme",
+    description="Retrieves studio branding identity, visual assets, and theme color tokens for mobile subscribers. Accessible by Guests and Subscribers.",
 )
 def get_mobile_branding(
     current_subscriber: CurrentSubscriber, response: Response
 ) -> BrandingResponse:
     """
-    Returns public studio branding assets for mobile app rendering.
+    Returns public studio branding assets and theme color palette for mobile app rendering.
     Sets Cache-Control headers to optimize client-side app cold boot speeds.
     """
+
     response.headers["Cache-Control"] = "public, max-age=3600"
     return branding_service.get_public_mobile_branding(
         tenant_id=current_subscriber.get("tenant_id")

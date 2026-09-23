@@ -72,3 +72,17 @@ class BrandingRepository:
         tenant.updated_at = datetime.now(timezone.utc)
         tenant.save()
         return tenant
+
+    def update_theme_colors(self, tenant_id: int, colors: dict[str, Any]) -> Tenant:
+        """
+        Updates the tenant's theme color palette JSON data and saves the updated_at timestamp.
+        """
+        tenant = self.get_by_tenant_id(tenant_id)
+        if not tenant:
+            raise ValueError(f"Tenant {tenant_id} not found")
+
+        tenant.set_theme_colors(colors)
+        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.save()
+        return tenant
+

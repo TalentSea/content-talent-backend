@@ -184,3 +184,78 @@ Content-Type: multipart/form-data
   "banner_url": "https://talentsea77999.b-cdn.net/assets/branding/banner_1_1724220000.jpg"
 }
 ```
+
+---
+
+### 5. `GET /api/v1/admin/branding/theme` — Fetch Studio Theme Colors
+
+Retrieves the active 9 white-label theme color tokens for rendering the **Theme Settings / Color Picker** UI in the Creator Studio web portal. All preset options (Netflix Dark, Cyberpunk, Midnight Blue, etc.) and color pickers are managed client-side by the website.
+
+#### Request Headers
+```http
+Authorization: Bearer <creator_access_token>
+```
+
+#### Request Query Parameters — None
+
+#### Response Specification (`200 OK`)
+```json
+{
+  "primaryColor": "#E50914",
+  "secondaryColor": "#5865F2",
+  "activeStateColor": "#5865F2",
+  "mainBackgroundColor": "#000000",
+  "cardBackgroundColor": "#12121A",
+  "primaryTextColor": "#FFFFFF",
+  "secondaryTextColor": "#9CA3AF",
+  "mutedTextColor": "#6B7280",
+  "buttonTextColor": "#FFFFFF"
+}
+```
+
+---
+
+### 6. `PUT /api/v1/admin/branding/theme` — Update Studio Theme Colors
+
+Updates the white-label theme color tokens when the creator saves a selected preset or custom color palette in the Studio web portal. The web portal submits **only** the 9 theme color properties.
+
+#### Request Headers
+```http
+Authorization: Bearer <creator_access_token>
+Content-Type: application/json
+```
+
+#### Request Body Specification
+All 9 color attributes must be valid hex color codes (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`). Supports partial or full palette submission.
+
+```json
+{
+  "primaryColor": "#E50914",
+  "secondaryColor": "#5865F2",
+  "activeStateColor": "#5865F2",
+  "mainBackgroundColor": "#000000",
+  "cardBackgroundColor": "#12121A",
+  "primaryTextColor": "#FFFFFF",
+  "secondaryTextColor": "#9CA3AF",
+  "mutedTextColor": "#6B7280",
+  "buttonTextColor": "#FFFFFF"
+}
+```
+
+#### Response Specification (`200 OK`)
+Returns the freshly updated authoritative 9 theme color tokens:
+
+```json
+{
+  "primaryColor": "#E50914",
+  "secondaryColor": "#5865F2",
+  "activeStateColor": "#5865F2",
+  "mainBackgroundColor": "#000000",
+  "cardBackgroundColor": "#12121A",
+  "primaryTextColor": "#FFFFFF",
+  "secondaryTextColor": "#9CA3AF",
+  "mutedTextColor": "#6B7280",
+  "buttonTextColor": "#FFFFFF"
+}
+```
+

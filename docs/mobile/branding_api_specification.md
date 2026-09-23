@@ -10,7 +10,7 @@ This document details the public API endpoint for Mobile Application subscribers
 * **Authentication**: **Subscriber Protected** (`Authorization: Bearer <subscriber_access_token>`).
 * **Multi-Tenant Isolation**: The backend extracts `current_subscriber["tenant_id"]` from the JWT token and fetches the matching `Branding` record (`Tenant.id == tenant_id`).
 * **Caching Strategy**: HTTP Header `Cache-Control: public, max-age=3600` is returned to enable local mobile client caching for fast cold-boot times (< 50ms).
-* **Unconfigured Fallback**: If creator branding has not been configured in the database, returns HTTP `200 OK` with `null` fields to enable smooth mobile app cold-boot rendering.
+* **Complete Initial Configuration**: Since tenant identity (`studio_name`, `tagline`, `description`) and default `theme` colors are fully configured upon tenant creation, mobile applications always receive complete brand text and color tokens on initial launch (only `logo_url` and `banner_url` remain `null` until uploaded).
 
 ---
 
@@ -27,19 +27,46 @@ This document details the public API endpoint for Mobile Application subscribers
   "description": "Learn backend clean architecture, OTT video streaming systems, and cloud infrastructure with hands-on projects.",
   "banner_url": "https://talentsea77999.b-cdn.net/assets/branding/banner_1_1787293643.jpg",
   "logo_url": "https://talentsea77999.b-cdn.net/assets/branding/logo_1_1787293643.jpg",
+  "theme": {
+    "primaryColor": "#E50914",
+    "secondaryColor": "#5865F2",
+    "activeStateColor": "#5865F2",
+    "mainBackgroundColor": "#000000",
+    "cardBackgroundColor": "#12121A",
+    "primaryTextColor": "#FFFFFF",
+    "secondaryTextColor": "#9CA3AF",
+    "mutedTextColor": "#6B7280",
+    "buttonTextColor": "#FFFFFF"
+  },
   "updated_at": "2026-08-21T14:30:00Z"
 }
 ```
 
-#### Response Envelope (`200 OK`) — Unconfigured Fallback
+#### Response Envelope (`200 OK`) — Newly Provisioned Studio (Pre-Asset Upload)
+
+When a new tenant studio is provisioned by Platform Super Admins, its brand identity (`studio_name`, `tagline`, `description`) and default `theme` colors are completely configured immediately. The only fields that initially return `null` are `banner_url` and `logo_url` until the creator studio admin uploads them via the Admin Portal:
 
 ```json
 {
-  "studio_name": null,
-  "tagline": null,
-  "description": null,
+  "studio_name": "TechNics Training Studio",
+  "tagline": "Master Modern Software Engineering & Cloud Architecture",
+  "description": "Learn backend clean architecture, OTT video streaming systems, and cloud infrastructure with hands-on projects.",
   "banner_url": null,
   "logo_url": null,
-  "updated_at": null
+  "theme": {
+    "primaryColor": "#E50914",
+    "secondaryColor": "#5865F2",
+    "activeStateColor": "#5865F2",
+    "mainBackgroundColor": "#000000",
+    "cardBackgroundColor": "#12121A",
+    "primaryTextColor": "#FFFFFF",
+    "secondaryTextColor": "#9CA3AF",
+    "mutedTextColor": "#6B7280",
+    "buttonTextColor": "#FFFFFF"
+  },
+  "updated_at": "2026-08-21T14:30:00Z"
 }
 ```
+
+
+

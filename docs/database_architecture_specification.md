@@ -117,11 +117,14 @@ In this multi-tenant SaaS OTT platform:
 | `description`         | `TEXT`         | Standard                |   YES    | `NULL`          | Public channel / studio description               |
 | `logo_url`            | `VARCHAR(500)` | Standard                |   YES    | `NULL`          | Public CDN URL to white-label app logo asset      |
 | `banner_url`          | `VARCHAR(500)` | Standard                |   YES    | `NULL`          | Public CDN URL to hero cover banner asset         |
+| `theme_colors`        | `TEXT`         | Standard                |   YES    | `JSON string`   | JSON serialized 9 white-label theme color tokens  |
 | `is_active`           | `BOOLEAN`      | **INDEX**               |    NO    | `True`          | Master activation toggle for the tenant studio    |
+
 | `deactivation_reason` | `TEXT`         | Standard                |   YES    | `NULL`          | Reason / note recorded when tenant is deactivated |
 | `deactivated_at`      | `DATETIME`     | Standard                |   YES    | `NULL`          | Timestamp of tenant deactivation                  |
 | `created_at`          | `DATETIME`     | Standard                |    NO    | `UTC timestamp` | Tenant provisioning timestamp                     |
 | `updated_at`          | `DATETIME`     | Standard                |    NO    | `UTC timestamp` | Last modification timestamp                       |
+
 
 ---
 

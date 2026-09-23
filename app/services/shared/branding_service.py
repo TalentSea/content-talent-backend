@@ -9,6 +9,8 @@ from app.schemas.shared.branding_schemas import (
     BrandingLogoUploadResponse,
     BrandingResponse,
     BrandingUpdateRequest,
+    ThemeColorsDTO,
+    ThemeColorsUpdateRequest,
 )
 from app.utils.image_uploader import validate_and_upload_image
 
@@ -24,14 +26,45 @@ class BrandingService:
 
     def _to_branding_response(self, tenant) -> BrandingResponse:
         """Helper to map a Tenant ORM instance to a BrandingResponse DTO."""
+        theme_dict = (
+            tenant.get_theme_colors() if tenant else ThemeColorsDTO().model_dump()
+        )
         return BrandingResponse(
             studio_name=tenant.name if tenant else None,
             tagline=tenant.tagline if tenant else None,
             description=tenant.description if tenant else None,
             banner_url=tenant.banner_url if tenant else None,
             logo_url=tenant.logo_url if tenant else None,
+            theme=ThemeColorsDTO(**theme_dict),
             updated_at=tenant.updated_at if tenant else None,
         )
+
+    def get_theme_colors(self, tenant_id: int) -> ThemeColorsDTO:
+        """
+        Retrieves the 9-token white-label studio theme palette for the active tenant.
+        """
+        if not tenant_id:
+            return ThemeColorsDTO()
+        tenant = self.repo.get_by_tenant_id(tenant_id)
+        if not tenant:
+            return ThemeColorsDTO()
+        return ThemeColorsDTO(**tenant.get_theme_colors())
+
+    def update_theme_colors(
+        self, tenant_id: int, payload: ThemeColorsUpdateRequest
+    ) -> ThemeColorsDTO:
+        """
+        Updates the white-label studio theme color tokens from the Admin Web Portal.
+        """
+        if not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active tenant context found to update theme",
+            )
+        update_data = payload.model_dump(exclude_unset=True)
+        updated_tenant = self.repo.update_theme_colors(tenant_id, update_data)
+        return ThemeColorsDTO(**updated_tenant.get_theme_colors())
+
 
     def get_branding(self, tenant_id: int) -> BrandingResponse:
         """

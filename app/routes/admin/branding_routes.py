@@ -6,11 +6,32 @@ from app.schemas.shared.branding_schemas import (
     BrandingLogoUploadResponse,
     BrandingResponse,
     BrandingUpdateRequest,
+    ThemeColorsDTO,
+    ThemeColorsUpdateRequest,
 )
 from app.services.shared.branding_service import BrandingService
 
 router = APIRouter(prefix="/api/v1/admin/branding", tags=["Admin Branding"])
 branding_service = BrandingService()
+
+
+@router.get("/theme", response_model=ThemeColorsDTO, status_code=status.HTTP_200_OK)
+def get_creator_theme(current_user: CurrentAdmin):
+    """
+    GET /api/v1/admin/branding/theme — Retrieves active 9 theme color tokens for rendering Theme Settings / Color Picker.
+    """
+    return branding_service.get_theme_colors(current_user["tenant_id"])
+
+
+@router.put("/theme", response_model=ThemeColorsDTO, status_code=status.HTTP_200_OK)
+def update_creator_theme(
+    payload: ThemeColorsUpdateRequest, current_user: CurrentAdmin
+):
+    """
+    PUT /api/v1/admin/branding/theme — Updates studio theme color tokens when saving Theme tab in Admin Web Portal.
+    """
+    return branding_service.update_theme_colors(current_user["tenant_id"], payload)
+
 
 
 @router.get("", response_model=BrandingResponse, status_code=status.HTTP_200_OK)

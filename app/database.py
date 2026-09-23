@@ -79,3 +79,5 @@ def init_db():
 
     if not db_proxy.is_closed():
         db_proxy.close()
+
+

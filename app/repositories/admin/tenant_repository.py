@@ -76,15 +76,23 @@ class TenantRepository:
         name: str,
         tagline: str | None = None,
         description: str | None = None,
+        theme_colors: dict[str, str] | None = None,
     ) -> Tenant:
         """
-        Creates and persists a new Tenant entity.
+        Creates and persists a new Tenant entity with complete theme colors initialized.
         """
+        import json
+
+        from app.models.tenant import DEFAULT_THEME_COLORS
+
+        initial_theme = json.dumps(theme_colors or DEFAULT_THEME_COLORS)
         return Tenant.create(
             name=name.strip(),
             tagline=tagline.strip() if tagline else None,
             description=description.strip() if description else None,
+            theme_colors=initial_theme,
         )
+
 
     def update_tenant(self, tenant_id: int, fields: dict[str, Any]) -> Tenant:
         """
