@@ -169,12 +169,12 @@ Authorization: Bearer <access_token>  (Required: Accepts Guest token for public 
 | :--- | :--- | :---: | :---: | :--- |
 | `page` | `integer` | No | `1` | Page number for cursor/infinite scrolling (min 1) |
 | `limit` | `integer` | No | `10` | Number of shorts per batch (min 1, max 20, default 10) |
-| `category` | `string` | No | `null` | Filter shorts by category slug (e.g. `comedy`, `tech`, `bts`) |
 | `sort` | `string` | No | `"newest"` | Sorting algorithm: `newest` (recent uploads first), `popular` (weighted engagement: `views + 3*likes`), `most_liked` |
 
-#### 🔒 Content Isolation, Ad-Free & No Downloads Guarantee
+#### 🔒 Content Isolation, Ad-Free, No Downloads & No Categories Guarantee
 - **Shorts Feed (`/videos/shorts`)**: Exclusively returns videos where `video_type = 'shorts'` and `status = 'published'` and `transcoding_status = 'READY'`.
 - **Standard Catalog Feed (`/videos`)**: Exclusively returns standard widescreen/landscape videos (`video_type = 'standard'`), ensuring vertical micro-content never pollutes movie, series, or tutorial carousels.
+- **🚫 No Categories**: Vertical short videos have no category (`category` is strictly `null`). The shorts feed operates purely as an algorithmic/chronological vertical swipe stream (`sort: newest | popular`). Categories are strictly reserved for standard long-form catalog videos.
 - **🚫 100% Ad-Free Experience**: Vertical short videos are strictly ad-free (`ad_tag_url` is omitted). Google IMA VAST video ads are never inserted into the Shorts swipe experience, guaranteeing continuous, uninterrupted looping.
 - **🔒 No Downloads / HLS-Only**: Short videos are strictly for in-app online swipe streaming via adaptive HLS (`hls_stream_url`). Offline MP4 downloads are disabled for shorts to safeguard creator content.
 
@@ -565,7 +565,7 @@ Authorization: Bearer <access_token>  (Required: Accepts subscriber or guest tok
   "id": 205,
   "title": "Quick CSS Tip: Responsive Grids in 30 Seconds",
   "description": "Master CSS grid auto-fit minmax in under a minute!",
-  "category": "quick-tips",
+  "category": null,
   "video_type": "shorts",
   "tags": ["css", "frontend", "shorts"],
   "duration": 35,

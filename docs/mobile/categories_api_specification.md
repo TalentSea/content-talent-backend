@@ -30,6 +30,9 @@ The FastAPI backend decodes the token in memory (< 1ms) to extract `current_subs
 
 Retrieves the list of active categories sorted by creator display order (`display_order` ascending) to render horizontal filter chips (`"All"`, `"Programming 💻"`, `"Design 🎨"`) on the mobile app home screen and explore tabs.
 
+> [!NOTE]
+> **Scope:** Category filter chips strictly apply to standard 16:9 catalog videos (`GET /api/v1/mobile/videos`). Vertical short videos (`GET /api/v1/mobile/videos/shorts`) have no category (`category: null`) and are not filtered by category chips.
+
 #### Request Headers
 
 ```http

@@ -176,16 +176,16 @@ class VideoService:
                 settings.BUNNY_STREAM_TOKEN_KEY,
             )
 
-        v_type = getattr(video, "video_type", "standard") or "standard"
-        alt_thumbs = [] if v_type == "shorts" else list(video.alt_thumbnail_urls or [])
-        download_urls = [] if v_type == "shorts" else self._generate_download_urls(video)
+        is_short = video.is_short
+        alt_thumbs = [] if is_short else list(video.alt_thumbnail_urls or [])
+        download_urls = [] if is_short else self._generate_download_urls(video)
 
         return VideoResponse(
             id=video.id,
             title=video.title,
             description=video.description,
-            category=video.category,
-            video_type=v_type,
+            category=None if is_short else video.category,
+            video_type=video.resolved_video_type,
             tags=list(video.tags or []),
             status=resolve_display_status(video),
             encode_progress=video.encode_progress,
@@ -213,8 +213,8 @@ class VideoService:
         return VideoListItemResponse(
             id=video.id,
             title=video.title,
-            category=video.category,
-            video_type=getattr(video, "video_type", "standard") or "standard",
+            category=None if video.is_short else video.category,
+            video_type=video.resolved_video_type,
             status=resolve_display_status(video),
             encode_progress=video.encode_progress,
             is_playable=video.is_playable,
@@ -235,7 +235,7 @@ class VideoService:
             id=video.id,
             title=video.title,
             description=video.description,
-            category=video.category,
+            category=None if video.is_short else video.category,
             tags=list(video.tags or []),
             status=resolve_display_status(video),
         )
@@ -300,7 +300,7 @@ class VideoService:
             "bunny_video_id": bunny_video_id,
             "title": payload.title,
             "description": payload.description,
-            "category": payload.category,
+            "category": None if payload.video_type == "shorts" else payload.category,
             "video_type": payload.video_type,
             "tags": normalize_tags(payload.tags),
             "status": "processing",
@@ -585,10 +585,21 @@ class VideoService:
     ) -> VideoUpdateResponse:
         """
         Validates ownership and applies partial textual metadata updates (title, description, category, tags) in DB.
+        Shorts strictly have no category.
         """
+        existing_video = self.repo.get_video_by_id(video_id, tenant_id)
+        if not existing_video:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Video asset {video_id} not found",
+            )
+
         update_data = payload.model_dump(exclude_unset=True)
         if "tags" in update_data:
             update_data["tags"] = normalize_tags(update_data["tags"])
+
+        if existing_video.is_short:
+            update_data["category"] = None
 
         video = self.repo.update_video_metadata(video_id, tenant_id, update_data)
         if not video:

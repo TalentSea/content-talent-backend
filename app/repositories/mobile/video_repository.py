@@ -592,14 +592,13 @@ class MobileVideoRepository:
     def list_published_shorts(
         self,
         tenant_id: int,
-        category: str | None = None,
         sort: str = "newest",
         page: int = 1,
         limit: int = 10,
     ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready short videos (video_type == 'shorts') scoped to tenant_id.
-        Eagerly loads tenant for creator branding.
+        Shorts have no category. Eagerly loads tenant for creator branding.
         """
         try:
             query = (
@@ -613,9 +612,6 @@ class MobileVideoRepository:
                     & (Tenant.is_active == True)
                 )
             )
-
-            if category:
-                query = query.where(fn.LOWER(Video.category) == category.lower())
 
             total_count = query.count()
 

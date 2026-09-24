@@ -83,6 +83,16 @@ class Video(BaseModel):
     created_at = DateTimeField(default=now_utc)
     updated_at = DateTimeField(default=now_utc)
 
+    @property
+    def is_short(self) -> bool:
+        """Returns True if the video is a vertical short reel."""
+        return (getattr(self, "video_type", "standard") or "standard") == "shorts"
+
+    @property
+    def resolved_video_type(self) -> str:
+        """Returns normalized video type ('standard' or 'shorts')."""
+        return "shorts" if self.is_short else "standard"
+
     class Meta:
         table_name = "videos"
 

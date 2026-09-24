@@ -174,7 +174,6 @@ def list_subscriber_saved_videos(
 )
 def list_shorts(
     current_subscriber: CurrentSubscriber,
-    category: str | None = Query(None, description="Filter shorts by category slug"),
     sort: str | None = Query(
         "newest",
         description="Sort order: newest, oldest, popular",
@@ -184,7 +183,6 @@ def list_shorts(
 ):
     return mobile_video_service.list_shorts(
         tenant_id=current_subscriber["tenant_id"],
-        category=category,
         sort=sort,
         page=page,
         limit=limit,

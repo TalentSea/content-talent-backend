@@ -162,7 +162,7 @@ Authorization: Bearer <creator_access_token>
 2. If `simple=true`:
    - Queries `Category` table for `id`, `name`, `slug` filtering by `user == user_id`, ordered by `display_order.asc()`. Skips SQL `Video` count join.
 3. If `simple=false` (default):
-   - Executes dynamic SQL `LEFT OUTER JOIN` between `Category` and `Video` tables to aggregate `content_count` on-the-fly:
+   - Executes dynamic SQL aggregation between `Category` and `Video` tables to aggregate `content_count` on-the-fly, strictly counting standard catalog videos (`video_type == "standard"`):
    ```python
    query = Category.select(
        Category,
@@ -171,10 +171,14 @@ Authorization: Bearer <creator_access_token>
        Video, on=(fn.LOWER(Category.name) == fn.LOWER(Video.category)), join_type="LEFT OUTER"
    ).where(
        (Category.user == user_id) &
+       (Video.video_type == "standard") &  # Shorts have no category and are excluded
        (fn.LOWER(Video.status).in_(["published", "ready"])) &
        (Video.is_playable == True)
    ).group_by(Category.id).order_by(Category.display_order.asc())
    ```
+
+> [!NOTE]
+> **Strict Exclusion of Shorts:** Categories exclusively organize standard OTT widescreen catalog videos (`video_type == "standard"`). Vertical short videos (`video_type == "shorts"`) have no category (`category: null`) and are excluded from category aggregations.
 
 #### Response Specification (`200 OK`)
 

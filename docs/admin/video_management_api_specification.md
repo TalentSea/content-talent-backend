@@ -78,7 +78,7 @@ Content-Type: application/json
 
 The video upload session uses a **single unified request body** for all videos. The content format is determined solely by `video_type`:
 * **`"video_type": "standard"`** *(Default)*: Regular widescreen/landscape OTT catalog videos (movies, series, tutorials).
-* **`"video_type": "shorts"`**: Instagram Reels / YouTube Shorts style 9:16 vertical micro-content. (Shorts strictly use one single primary thumbnail: `thumbnail_url`).
+* **`"video_type": "shorts"`**: Instagram Reels / YouTube Shorts style 9:16 vertical micro-content. Shorts strictly use one single primary thumbnail (`thumbnail_url`) and **have no category (`category: null`)**.
 
 All videos support three distinct publishing flows controlled by `publish_intent`:
 
@@ -94,7 +94,7 @@ Video automatically goes live on the platform as soon as Bunny Stream finishes t
   "publish_intent": "publish"
 }
 ```
-*(For a short vertical reel, simply pass `"video_type": "shorts"` with your caption and tags!)*
+*(For a short vertical reel, simply pass `"video_type": "shorts"` with your caption and tags — `category` is automatically omitted!)*
 
 ##### Case 2: Save as Draft (`"draft"`) *(Default)*
 Video stays hidden in `"draft"` status after transcoding. Creators can edit metadata or publish manually later from the Studio table.
@@ -128,7 +128,7 @@ Video enters `"scheduled"` status upon encoding completion. The background worke
 | :--- | :---: | :---: | :--- |
 | `title` | `string` | **Yes** | Video title or short caption (max 255 chars). |
 | `description` | `string` | No | Video synopsis or caption notes. |
-| `category` | `string` | No | Category slug or name. |
+| `category` | `string` | No | Category slug or name (Standard videos only; strictly `null`/ignored for Shorts). |
 | `tags` | `array[string]` | No | Array of keyword tags. |
 | `video_type` | `string` | No | `"standard"` (default for normal catalog videos) or `"shorts"` (for Instagram Reels / YouTube Shorts style vertical videos). |
 | `publish_intent` | `string` | No | `"draft"` (default), `"publish"`, or `"schedule"`. |
@@ -262,7 +262,7 @@ When building the creator upload and curation flow for vertical shorts, the web 
    - **Activate / Publish Draft Short**: `POST /api/v1/admin/videos/{id}/publish` (takes a draft or scheduled short live immediately).
    - **Deactivate / Unpublish Short**: `POST /api/v1/admin/videos/{id}/unpublish` (reverts a live short to draft, immediately hiding it from the mobile Reels feed).
    - **Schedule Draft Short**: `POST /api/v1/admin/videos/{id}/schedule` with `{ "date": "YYYY-MM-DD", "time": "HH:MM" }`.
-   - **Edit Caption / Metadata**: `PATCH /api/v1/admin/videos/{id}` with updated `title`, `description`, `tags`, or `category`.
+   - **Edit Caption / Metadata**: `PATCH /api/v1/admin/videos/{id}` with updated `title`, `description`, or `tags` (`category` cannot be assigned to shorts).
    - **Delete Short**: `DELETE /api/v1/admin/videos/{id}` (purges DB row and drops Bunny Stream video container).
 
 6. **Step 6: Mobile Client Zero-Latency Consumption**
@@ -501,7 +501,7 @@ Authorization: Bearer <creator_access_token>
   "title": "Clean Architecture in 60 Seconds 🚀",
   "description": "Why separating routes, services, and repositories saves months of refactoring.",
   "video_type": "shorts",
-  "category": "tech-tips",
+  "category": null,
   "tags": ["coding", "architecture", "shorts"],
   "status": "published",
   "encode_progress": 100,
@@ -520,18 +520,7 @@ Authorization: Bearer <creator_access_token>
       "url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/captions/en-auto.vtt"
     }
   ],
-  "download_urls": [
-    {
-      "resolution": "1080p",
-      "label": "1080p HD",
-      "url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/play_1080p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
-    },
-    {
-      "resolution": "720p",
-      "label": "720p HD",
-      "url": "https://your-pull-zone.b-cdn.net/bunny_vid_5544/play_720p.mp4?token=a1b2c3d4e5f6...&expires=1719825600"
-    }
-  ],
+  "download_urls": [],
   "published_at": "2026-09-22T16:00:00Z",
   "scheduled_at": null,
   "created_at": "2026-09-22T15:30:00Z"

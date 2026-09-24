@@ -60,6 +60,7 @@ class CategoryRepository:
                 .where(
                     (Video.tenant == tenant_id)
                     & (Video.category.is_null(False))
+                    & (Video.video_type == "standard")
                     & (fn.LOWER(Video.status) == "published")
                     & (Video.is_playable == True)
                 )

@@ -102,7 +102,6 @@ class MobileVideoService:
     def list_shorts(
         self,
         tenant_id: int,
-        category: str | None = None,
         sort: str = "newest",
         page: int = 1,
         limit: int = 10,
@@ -111,12 +110,11 @@ class MobileVideoService:
         """
         Retrieves a paginated list of published & ready short videos for the vertical swipe Reels feed.
         HLS streaming URLs are presigned with time-bound Bunny tokens.
-        100% ad-free, no downloads.
+        100% ad-free, no downloads, no categories.
         Attaches creator studio branding, captions, and personalized engagement status.
         """
         shorts, total_count = self.repo.list_published_shorts(
             tenant_id=tenant_id,
-            category=category,
             sort=sort,
             page=page,
             limit=limit,
@@ -230,8 +228,7 @@ class MobileVideoService:
         download_urls: list[MobileVideoDownloadUrlResponse] | None = None
         captions: list[MobileVideoCaptionResponse] | None = None
         ad_tag_url: str | None = None
-
-        is_short = getattr(video, "video_type", "standard") == "shorts"
+        is_short = video.is_short
 
         if active_sub:
             # 2. Grant Presigned HLS Stream URL to active subscribers
@@ -320,8 +317,8 @@ class MobileVideoService:
             id=video.id,
             title=video.title,
             description=video.description,
-            category=video.category,
-            video_type=getattr(video, "video_type", "standard") or "standard",
+            category=None if is_short else video.category,
+            video_type=video.resolved_video_type,
             tags=tags_list,
             duration=duration_secs,
             views_count=video.views or 0,
