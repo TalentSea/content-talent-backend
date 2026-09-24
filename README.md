@@ -143,7 +143,8 @@ content-talent-backend/
 │   │   │   └── payment_service.py
 │   │   └── shared/               # Shared Services
 │   │       ├── branding_service.py
-│   │       └── category_service.py
+│   │       ├── category_service.py
+│   │       └── email_service.py      # Transactional SMTP email delivery engine (HTML & Plain Text)
 │   └── utils/                    # Cloud Helper Utilities & Cryptography
 │       ├── auth.py               # PBKDF2 password hashing & JWT token encoding/decoding
 │       ├── seeder.py             # Idempotent startup seeder for Platform Super Admin & default tenant
@@ -511,7 +512,7 @@ Technical specifications and architecture documentation:
 
 ### 🏛️ Database Architecture
 
-- [Complete 23-Table Database Schema Specification](docs/database_architecture_specification.md)
+- [Complete 24-Table Database Schema Specification](docs/database_architecture_specification.md)
 
 ### 💻 Admin Web Portal API Specifications
 
@@ -531,7 +532,7 @@ Technical specifications and architecture documentation:
 
 ### 📱 Mobile Application API Specifications
 
-- [Mobile Social Authentication Specification](docs/mobile/social_authentication_api_specification.md)
+- [Mobile Authentication, Email OTP & Profile Specification](docs/mobile/social_authentication_api_specification.md)
 - [Mobile Branding Specification](docs/mobile/branding_api_specification.md)
 - [Mobile Video Streaming Specification](docs/mobile/video_streaming_api_specification.md)
 - [Mobile Categories Specification](docs/mobile/categories_api_specification.md)
