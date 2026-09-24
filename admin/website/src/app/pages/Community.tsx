@@ -545,7 +545,7 @@ export default function Community() {
                   <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                   <Input
                     placeholder="Search comments..."
-                    className="pl-8.5 w-52 sm:w-60 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
+                    className="pl-9 w-52 sm:w-60 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   />

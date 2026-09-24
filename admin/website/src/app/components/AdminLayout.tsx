@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Video, Users, CreditCard, BarChart3, DollarSign,
   MessageSquare, Palette, FolderTree, Settings, Menu, Bell,
   Search, User, LogOut, Camera, Mail, Phone, MapPin, Loader2,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, ShieldCheck, ChevronsUpDown, Check, Building2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -29,7 +29,10 @@ import {
   getStoredAdmin,
   getStoredToken,
   clearStoredAuth,
+  getTenants,
+  ApiTenant,
 } from "../services/apiService";
+import SuperAdminDashboard from "../pages/SuperAdminDashboard";
 
 const navigation = [
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -201,24 +204,17 @@ export default function AdminLayout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Collapsible sidebar state (persisted in localStorage)
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("sidebar_collapsed") === "true";
-    } catch {
-      return false;
-    }
+  const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string; role: string }>(() => {
+    const stored = getStoredAdmin();
+    return {
+      name: stored ? `${stored.first_name || ""} ${stored.last_name || ""}`.trim() || stored.studio_name || stored.email || "" : "",
+      email: stored?.email || "",
+      avatarUrl: stored?.avatar_url || "",
+      role: stored?.role || "",
+    };
   });
 
-  const toggleSidebar = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("sidebar_collapsed", String(next));
-      } catch {}
-      return next;
-    });
-  };
+  const isSuperAdmin = profile.role === "super_admin" || profile.email === "superadmin@gmail.com";
 
   // Static Creator / Studio Branding State
   const [branding, setBranding] = useState<{
@@ -244,14 +240,82 @@ export default function AdminLayout() {
     };
   });
 
-  const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string }>(() => {
-    const stored = getStoredAdmin();
-    return {
-      name: stored ? `${stored.first_name || ""} ${stored.last_name || ""}`.trim() || stored.studio_name || stored.email || "" : "",
-      email: stored?.email || "",
-      avatarUrl: stored?.avatar_url || "",
-    };
+  // Collapsible sidebar state (persisted in localStorage)
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
   });
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const [tenants, setTenants] = useState<ApiTenant[]>([]);
+  const [currentTenant, setCurrentTenant] = useState<ApiTenant | null>(null);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let isMounted = true;
+    getTenants()
+      .then((list) => {
+        if (!isMounted || !list || list.length === 0) return;
+        setTenants(list);
+        const savedTenantId = localStorage.getItem("current_tenant_id");
+        const matched = (savedTenantId ? list.find((t) => String(t.id) === savedTenantId) : null) || list[0];
+        setCurrentTenant(matched);
+        localStorage.setItem("current_tenant_id", String(matched.id));
+        localStorage.setItem("current_tenant_name", matched.name);
+        setBranding((prev) => ({
+          ...prev,
+          studioName: matched.name,
+          logoUrl: matched.logoUrl || prev.logoUrl,
+          tagline: matched.tagline || prev.tagline,
+        }));
+      })
+      .catch((err) => {
+        console.warn("Could not load tenants for super admin:", err);
+      });
+
+    const handleTenantSwitched = (e: any) => {
+      if (e.detail) {
+        setCurrentTenant(e.detail);
+        setBranding((prev) => ({
+          ...prev,
+          studioName: e.detail.name,
+          logoUrl: e.detail.logoUrl || prev.logoUrl,
+          tagline: e.detail.tagline || prev.tagline,
+        }));
+      }
+    };
+    window.addEventListener("tenant_switched", handleTenantSwitched);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("tenant_switched", handleTenantSwitched);
+    };
+  }, [isSuperAdmin]);
+
+  const handleSwitchTenant = (tenant: ApiTenant) => {
+    localStorage.setItem("current_tenant_id", String(tenant.id));
+    localStorage.setItem("current_tenant_name", tenant.name);
+    setCurrentTenant(tenant);
+    setBranding((prev) => ({
+      ...prev,
+      studioName: tenant.name,
+      logoUrl: tenant.logoUrl || "",
+      tagline: tenant.tagline || "",
+    }));
+    window.dispatchEvent(new CustomEvent("tenant_switched", { detail: tenant }));
+    window.location.reload();
+  };
 
   // Fetch creator branding & listen for changes
   useEffect(() => {
@@ -303,6 +367,7 @@ export default function AdminLayout() {
               name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
               email: admin.email || "",
               avatarUrl: admin.avatar_url || "",
+              role: admin.role || "",
             });
           }
           setIsCheckingAuth(false);
@@ -324,6 +389,7 @@ export default function AdminLayout() {
             name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
             email: admin.email || "",
             avatarUrl: admin.avatar_url || "",
+            role: admin.role || "",
           });
         }
         setIsCheckingAuth(false);
@@ -338,6 +404,7 @@ export default function AdminLayout() {
               name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
               email: admin.email || "",
               avatarUrl: admin.avatar_url || "",
+              role: admin.role || "",
             });
           }
           setIsCheckingAuth(false);
@@ -361,35 +428,41 @@ export default function AdminLayout() {
     navigate("/login", { replace: true });
   };
 
-  const NavLinks = ({ onLinkClick }: { onLinkClick?: () => void }) => (
-    <nav className={`space-y-1.5 ${isCollapsed ? "p-2" : "p-3"} flex-1 overflow-y-auto`}>
-      {navigation.map((item) => {
-        const isActive =
-          location.pathname === item.path ||
-          (item.path !== "/" && location.pathname.startsWith(item.path));
-        return (
-          <Link
-            key={item.path}
-            to={item.path}
-            onClick={onLinkClick}
-            title={item.name}
-            className={`flex items-center rounded-xl text-sm font-semibold transition-all duration-150 ${
-              isCollapsed
-                ? "justify-center p-3"
-                : "gap-3 px-3.5 py-2.5"
-            } ${
-              isActive
-                ? "bg-slate-900 text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-          >
-            <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-slate-500"}`} />
-            {!isCollapsed && <span className="truncate">{item.name}</span>}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const NavLinks = ({ onLinkClick }: { onLinkClick?: () => void }) => {
+    const navItems = isSuperAdmin
+      ? [...navigation, { name: "Super Admin Center", path: "/super-admin", icon: ShieldCheck }]
+      : navigation;
+
+    return (
+      <nav className={`space-y-1.5 ${isCollapsed ? "p-2" : "p-3"} flex-1 overflow-y-auto`}>
+        {navItems.map((item) => {
+          const isActive =
+            location.pathname === item.path ||
+            (item.path !== "/" && location.pathname.startsWith(item.path));
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={onLinkClick}
+              title={item.name}
+              className={`flex items-center rounded-xl text-sm font-semibold transition-all duration-150 ${
+                isCollapsed
+                  ? "justify-center p-3"
+                  : "gap-3 px-3.5 py-2.5"
+              } ${
+                isActive
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+            >
+              <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-slate-500"}`} />
+              {!isCollapsed && <span className="truncate">{item.name}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+    );
+  };
 
   if (isCheckingAuth) {
     return (
@@ -407,6 +480,8 @@ export default function AdminLayout() {
     );
   }
 
+
+
   return (
     <div className="min-h-screen bg-[#F8F9FB] text-slate-900 selection:bg-slate-900 selection:text-white">
       <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
@@ -419,7 +494,7 @@ export default function AdminLayout() {
       >
         <div
           className={`flex h-16 items-center border-b border-slate-200 ${
-            isCollapsed ? "justify-center px-2" : "justify-between px-4"
+            isCollapsed ? "justify-center px-2" : "justify-between px-3"
           }`}
         >
           {isCollapsed ? (
@@ -469,42 +544,117 @@ export default function AdminLayout() {
           ) : (
             /* Expanded state: Static Studio Branding + Inner Close Button */
             <>
-              <div className="flex items-center gap-3 flex-1 overflow-hidden min-w-0 select-none">
-                <div
-                  className="h-10 w-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold shadow-xs shrink-0 overflow-hidden"
-                  style={{ borderRadius: "50%" }}
-                >
-                  {branding.logoUrl ? (
-                    <img
-                      src={branding.logoUrl}
-                      alt={branding.studioName}
-                      className="h-full w-full object-cover rounded-full"
-                      style={{ borderRadius: "50%" }}
-                    />
-                  ) : (
-                    <span className="font-bold text-white text-base">
-                      {(branding.studioName || "T").slice(0, 2).toUpperCase()}
+              {isSuperAdmin ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2.5 flex-1 overflow-hidden min-w-0 select-none text-left p-1 -m-1 rounded-xl hover:bg-slate-100/80 transition-colors group cursor-pointer border border-transparent hover:border-slate-200"
+                    >
+                      <div
+                        className="h-10 w-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold shadow-xs shrink-0 overflow-hidden"
+                        style={{ borderRadius: "50%" }}
+                      >
+                        {branding.logoUrl ? (
+                          <img
+                            src={branding.logoUrl}
+                            alt={branding.studioName}
+                            className="h-full w-full object-cover rounded-full"
+                            style={{ borderRadius: "50%" }}
+                          />
+                        ) : (
+                          <span className="font-bold text-white text-base">
+                            {(branding.studioName || "T").slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-base text-slate-900 tracking-tight truncate block leading-tight">
+                            {branding.studioName || "TalentSea"}
+                          </span>
+                          <ChevronsUpDown className="h-4 w-4 text-slate-400 shrink-0 group-hover:text-slate-700" />
+                        </div>
+                        <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider block leading-none mt-0.5">
+                          Switch Tenant
+                        </span>
+                      </div>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64 p-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50">
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1.5 flex items-center justify-between">
+                      <span>Platform Tenants</span>
+                      <span className="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-md font-bold">
+                        {tenants.length} Studios
+                      </span>
+                    </DropdownMenuLabel>
+                    <div className="max-h-60 overflow-y-auto space-y-1 py-1">
+                      {tenants.map((t) => {
+                        const isSelected = String(currentTenant?.id) === String(t.id) || branding.studioName === t.name;
+                        return (
+                          <DropdownMenuItem
+                            key={t.id}
+                            onClick={() => handleSwitchTenant(t)}
+                            className={`flex items-center justify-between p-2 rounded-xl text-xs font-medium cursor-pointer transition-colors ${
+                              isSelected ? "bg-slate-100 font-bold text-slate-900" : "hover:bg-slate-50 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-7 w-7 rounded-lg bg-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                                {t.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0 truncate">
+                                <p className="truncate font-semibold">{t.name}</p>
+                                <p className="text-[10px] text-slate-400 font-mono truncate">{t.slug}</p>
+                              </div>
+                            </div>
+                            {isSelected && <Check className="h-4 w-4 text-emerald-600 shrink-0 ml-2" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      {tenants.length === 0 && (
+                        <div className="p-3 text-center text-xs text-slate-400">Loading tenants...</div>
+                      )}
+                    </div>
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+                    <DropdownMenuItem
+                      onClick={() => navigate("/super-admin")}
+                      className="flex items-center gap-2 p-2 rounded-xl text-xs font-semibold text-slate-900 hover:bg-slate-50 cursor-pointer"
+                    >
+                      <ShieldCheck className="h-4 w-4 text-purple-600" />
+                      Open Super Admin Center
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <div className="flex items-center gap-3 flex-1 overflow-hidden min-w-0 select-none">
+                  <div
+                    className="h-10 w-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold shadow-xs shrink-0 overflow-hidden"
+                    style={{ borderRadius: "50%" }}
+                  >
+                    {branding.logoUrl ? (
+                      <img
+                        src={branding.logoUrl}
+                        alt={branding.studioName}
+                        className="h-full w-full object-cover rounded-full"
+                        style={{ borderRadius: "50%" }}
+                      />
+                    ) : (
+                      <span className="font-bold text-white text-base">
+                        {(branding.studioName || "T").slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-base text-slate-900 tracking-tight truncate block leading-tight">
+                      {branding.studioName || "TalentSea"}
                     </span>
-                  )}
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="font-bold text-base text-slate-900 tracking-tight truncate block leading-tight">
-                    {branding.studioName || "TalentSea"}
-                  </span>
-                  {branding.tagline ? (
-                    <span className="text-xs block text-slate-500 truncate leading-tight mt-0.5 font-medium">
-                      {branding.tagline}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] block font-mono text-slate-400 leading-tight uppercase font-medium">
-                      Studio Admin
-                    </span>
-                  )}
-                </div>
-              </div>
+              )}
 
               {/* Inner Close Button with tooltip */}
-              <div className="relative group/close">
+              <div className="relative group/close shrink-0">
                 <button
                   type="button"
                   onClick={toggleSidebar}
@@ -550,15 +700,10 @@ export default function AdminLayout() {
                     </span>
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="font-bold text-base text-slate-900 tracking-tight truncate block leading-tight">
+                <div className="min-w-0 flex items-center shrink-1">
+                  <span className="font-bold text-base text-slate-900 tracking-tight truncate">
                     {branding.studioName || "TalentSea"}
                   </span>
-                  {branding.tagline && (
-                    <span className="text-xs block text-slate-500 truncate leading-tight mt-0.5 font-medium">
-                      {branding.tagline}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>

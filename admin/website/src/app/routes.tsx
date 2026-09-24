@@ -44,6 +44,8 @@ function RouteErrorBoundary() {
   );
 }
 
+import SuperAdminCenter from "./pages/SuperAdminCenter";
+
 export const router = createBrowserRouter([
   {
     path: "/login",
@@ -64,6 +66,7 @@ export const router = createBrowserRouter([
       { path: "branding", Component: Branding },
       { path: "categories", Component: Categories },
       { path: "settings", Component: Settings },
+      { path: "super-admin", Component: SuperAdminCenter },
     ],
   },
 ]);

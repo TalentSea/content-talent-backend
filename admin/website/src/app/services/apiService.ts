@@ -113,6 +113,36 @@ export interface ApiReply {
   createdAt: string;
 }
 
+export interface ApiAdminUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  role: string;
+  isOwner: boolean;
+  isActive: boolean;
+  avatarUrl?: string | null;
+  createdAt: string;
+}
+
+export interface ApiTenant {
+  id: number;
+  name: string;
+  slug: string;
+  tagline?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  logoUrl?: string | null;
+  deactivationReason?: string | null;
+  deactivatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adminsCount: number;
+  videosCount: number;
+  subscribersCount: number;
+}
+
 export interface ApiSocialLinks {
   twitter?: string;
   youtube?: string;
@@ -259,12 +289,22 @@ function getAuthToken(): string {
   return getStoredToken();
 }
 
+function getTenantIdHeader(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("current_tenant_id");
+}
+
 function getAuthHeaders(): HeadersInit {
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${getAuthToken()}`,
     "ngrok-skip-browser-warning": "true",
   };
+  const tenantId = getTenantIdHeader();
+  if (tenantId) {
+    headers["X-Tenant-Id"] = tenantId;
+  }
+  return headers;
 }
 
 import { apiMonitorStore } from "./apiMonitorService";
@@ -279,6 +319,10 @@ export async function fetchWithAuth(input: string, init?: RequestInit): Promise<
   }
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+  const tenantId = getTenantIdHeader();
+  if (tenantId && !headers.has("X-Tenant-Id")) {
+    headers.set("X-Tenant-Id", tenantId);
   }
   headers.set("ngrok-skip-browser-warning", "true");
 
@@ -406,6 +450,8 @@ function transformVideo(raw: any): ApiVideo {
     category: raw.category || "Uncategorized",
     status: raw.status ? String(raw.status) : "draft",
     publishIntent: raw.publish_intent || raw.publishIntent || undefined,
+    videoType: raw.video_type || raw.videoType || "standard",
+    video_type: raw.video_type || raw.videoType || "standard",
     views: raw.views_count ?? raw.views ?? 0,
     likes: raw.likes_count ?? raw.likes ?? 0,
     duration: raw.duration || "0:00",
@@ -514,6 +560,8 @@ export async function getVideos(params?: {
   sort?: string;
   dateFrom?: string;
   dateTo?: string;
+  video_type?: "standard" | "shorts" | string;
+  videoType?: "standard" | "shorts" | string;
   page?: number;
   limit?: number;
 }): Promise<{ data: ApiVideo[]; pagination?: any }> {
@@ -521,6 +569,7 @@ export async function getVideos(params?: {
     const query = new URLSearchParams();
     if (params?.status) query.append("status", params.status);
     if (params?.category) query.append("category", params.category);
+    if (params?.video_type || params?.videoType) query.append("video_type", (params.video_type || params.videoType)!);
     if (params?.search) query.append("search", params.search);
     if (params?.sort) query.append("sort", params.sort);
     if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
@@ -562,6 +611,8 @@ export async function initiateVideoUpload(data: {
   tags?: string[];
   status?: string;
   filename?: string;
+  video_type?: "standard" | "shorts" | string;
+  videoType?: "standard" | "shorts" | string;
   publish_intent?: "draft" | "publish" | "schedule" | string;
   publishIntent?: "draft" | "publish" | "schedule" | string;
   scheduled_date?: string;
@@ -586,13 +637,18 @@ export async function initiateVideoUpload(data: {
   const schedDate = data.scheduled_date || data.scheduledDate;
   const schedTime = data.scheduled_time || data.scheduledTime;
 
+  const vType = data.video_type || data.videoType || "standard";
   const payload: any = {
     title: data.title,
     description: data.description,
-    category: data.category,
+    video_type: vType,
     tags: data.tags || [],
     publish_intent: intent,
   };
+  // Short videos strictly do not use categories
+  if (vType !== "shorts" && data.category) {
+    payload.category = data.category;
+  }
   if (schedDate) payload.scheduled_date = schedDate;
   if (schedTime) payload.scheduled_time = schedTime;
 
@@ -798,6 +854,91 @@ export async function updateCreatorBranding(data: {
   });
   const json = await handleResponse<any>(res);
   return transformBranding(json);
+}
+
+export type BackgroundStyleType = 'pure_black' | 'dark_slate' | 'clean_white' | 'gradient_dark';
+
+export interface MobileAppTheme {
+  primaryColor: string;
+  activeStateColor: string;
+  buttonTextColor: string;
+  secondaryColor: string;
+  mainBackgroundColor: string;
+  cardBackgroundColor: string;
+  primaryTextColor: string;
+  secondaryTextColor: string;
+  mutedTextColor: string;
+  backgroundStyle: BackgroundStyleType;
+  updatedAt?: string;
+}
+
+const THEME_CACHE_KEY = "mobile_app_theme_cache";
+
+const DEFAULT_MOBILE_THEME: MobileAppTheme = {
+  primaryColor: "#6366F1", // Royal Indigo
+  activeStateColor: "#6366F1",
+  buttonTextColor: "#FFFFFF",
+  secondaryColor: "#EC4899", // Vivid Rose
+  mainBackgroundColor: "#0B0F19",
+  cardBackgroundColor: "#161D2B",
+  primaryTextColor: "#FFFFFF",
+  secondaryTextColor: "#94A3B8",
+  mutedTextColor: "#1E293B",
+  backgroundStyle: "dark_slate", // Midnight Slate
+};
+
+/**
+ * Retrieve mobile app theme branding from backend API.
+ */
+export async function getMobileAppTheme(): Promise<MobileAppTheme> {
+  try {
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/branding/theme`);
+    const data = await handleResponse<any>(res);
+    return {
+      primaryColor: data.primaryColor || data.primary_color || DEFAULT_MOBILE_THEME.primaryColor,
+      secondaryColor: data.secondaryColor || data.secondary_color || DEFAULT_MOBILE_THEME.secondaryColor,
+      activeStateColor: data.activeStateColor || data.active_state_color || DEFAULT_MOBILE_THEME.activeStateColor,
+      mainBackgroundColor: data.mainBackgroundColor || data.main_background_color || DEFAULT_MOBILE_THEME.mainBackgroundColor,
+      cardBackgroundColor: data.cardBackgroundColor || data.card_background_color || DEFAULT_MOBILE_THEME.cardBackgroundColor,
+      primaryTextColor: data.primaryTextColor || data.primary_text_color || DEFAULT_MOBILE_THEME.primaryTextColor,
+      secondaryTextColor: data.secondaryTextColor || data.secondary_text_color || DEFAULT_MOBILE_THEME.secondaryTextColor,
+      mutedTextColor: data.mutedTextColor || data.muted_text_color || DEFAULT_MOBILE_THEME.mutedTextColor,
+      buttonTextColor: data.buttonTextColor || data.button_text_color || DEFAULT_MOBILE_THEME.buttonTextColor,
+      backgroundStyle: data.backgroundStyle || data.background_style || DEFAULT_MOBILE_THEME.backgroundStyle,
+      updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+    };
+  } catch (err) {
+    console.warn("Backend theme endpoint error:", err);
+    try {
+      const raw = localStorage.getItem(THEME_CACHE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return { ...DEFAULT_MOBILE_THEME };
+  }
+}
+
+export async function updateMobileAppTheme(theme: Partial<MobileAppTheme>): Promise<MobileAppTheme> {
+  const payload = {
+    primaryColor: theme.primaryColor,
+    secondaryColor: theme.secondaryColor,
+    activeStateColor: theme.activeStateColor || theme.primaryColor,
+    mainBackgroundColor: theme.mainBackgroundColor,
+    cardBackgroundColor: theme.cardBackgroundColor,
+    primaryTextColor: theme.primaryTextColor,
+    secondaryTextColor: theme.secondaryTextColor,
+    mutedTextColor: theme.mutedTextColor,
+    buttonTextColor: theme.buttonTextColor,
+  };
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/branding/theme`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  const updated = await handleResponse<any>(res);
+  try {
+    localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(updated));
+  } catch {}
+  window.dispatchEvent(new CustomEvent("mobile_theme_updated", { detail: updated }));
+  return updated;
 }
 
 export async function uploadCreatorLogo(file: File): Promise<{ logoUrl: string }> {
@@ -2110,5 +2251,422 @@ export async function updatePayoutSettings(
   return handleResponse<ApiPayoutProfile>(res);
 }
 
+// ── Tenant User Management Endpoints ────────────────────────────────────────
+
+export interface TenantUser {
+  id: number;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  is_active?: boolean;
+  isActive?: boolean;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export async function getTenantUsers(): Promise<TenantUser[]> {
+  try {
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users`);
+    const json = await handleResponse<any>(res);
+    const rawList = Array.isArray(json) ? json : json.data || json.items || json.users || [];
+    return rawList.map((u: any) => ({
+      id: u.id ?? u.user_id,
+      email: u.email,
+      first_name: u.first_name || u.firstName || "",
+      last_name: u.last_name || u.lastName || "",
+      is_active: u.is_active ?? u.isActive ?? true,
+      isActive: u.is_active ?? u.isActive ?? true,
+      created_at: u.created_at || u.createdAt || "",
+    }));
+  } catch (err) {
+    console.warn("[API Service] Failed to fetch tenant users:", err);
+    throw err;
+  }
+}
+
+export async function createTenantUser(payload: {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+}): Promise<TenantUser> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const json = await handleResponse<any>(res);
+  const u = json.data || json.user || json;
+  return {
+    id: u.id ?? u.user_id,
+    email: u.email,
+    first_name: u.first_name || u.firstName || "",
+    last_name: u.last_name || u.lastName || "",
+    is_active: u.is_active ?? u.isActive ?? true,
+    isActive: u.is_active ?? u.isActive ?? true,
+    created_at: u.created_at || u.createdAt || new Date().toISOString(),
+  };
+}
+
+export async function deleteTenantUser(userId: number): Promise<void> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users/${userId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) {
+    await handleResponse<any>(res);
+  }
+}
+
+export async function toggleTenantUserActive(
+  userId: number,
+  currentStatus: boolean
+): Promise<{ success: boolean; is_active: boolean; isActive: boolean }> {
+  const newStatus = !currentStatus;
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users/${userId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_active: newStatus }),
+  });
+  const json = await handleResponse<any>(res);
+  const updatedStatus = json.is_active ?? json.isActive ?? newStatus;
+  return {
+    success: json.success ?? true,
+    is_active: updatedStatus,
+    isActive: updatedStatus,
+  };
+}
+
+// ── Short Videos (Shorts) Management Endpoints ──────────────────────────────
+
+export interface ApiShortVideo {
+  id: number;
+  title: string;
+  description?: string;
+  category?: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+  duration: string;
+  durationSeconds: number;
+  aspectRatio: string;
+  width: number;
+  height: number;
+  views: number;
+  likes: number;
+  status: "Published" | "Draft" | "Scheduled";
+  tags: string[];
+  createdAt: string;
+  date?: string;
+}
+
+export async function getShortVideos(): Promise<ApiShortVideo[]> {
+  try {
+    const res = await getVideos({ video_type: "shorts", limit: 100 });
+    if (res && res.data) {
+      const mapped = await Promise.all(
+        res.data.map(async (v) => {
+          let item = v;
+          const statusLower = (v.status || "").toLowerCase();
+          if (["pending", "processing", "encoding", "uploading"].includes(statusLower)) {
+            try {
+              const detailed = await getVideoDetails(v.id);
+              if (detailed) {
+                item = detailed;
+              }
+            } catch {
+              // Ignore individual sync error, fallback to list item
+            }
+          }
+          const rawDate = item.date || item.createdAt || (item as any).created_at || (item as any).published_at;
+          const formattedDate = rawDate
+            ? (typeof rawDate === "string" && rawDate.includes("T") ? rawDate.split("T")[0] : String(rawDate).slice(0, 10))
+            : new Date().toISOString().split("T")[0];
+
+          return {
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            category: "Shorts",
+            videoUrl: item.playbackUrl || item.videoUrl || "",
+            thumbnailUrl: item.mainThumbnailUrl || item.thumbnailUrl || "",
+            duration: item.duration || "0:30",
+            durationSeconds: 30,
+            aspectRatio: "9:16",
+            width: 1080,
+            height: 1920,
+            views: item.views || 0,
+            likes: item.likes || 0,
+            status: (item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase() : "Draft") as any,
+            tags: item.tags || [],
+            createdAt: item.createdAt || new Date().toISOString(),
+            date: formattedDate,
+          };
+        })
+      );
+      return mapped;
+    }
+  } catch (err) {
+    console.warn("Failed to fetch shorts from backend API:", err);
+  }
+  return [];
+}
+
+export async function deleteShortVideo(id: number): Promise<{ success: boolean; message?: string }> {
+  return await deleteVideo(id);
+}
+
+export async function toggleShortVideoLike(id: number): Promise<{ likes: number; liked: boolean }> {
+  return { likes: 0, liked: true };
+}
 
 
+
+
+// ── Admin Users API ──────────────────────────────────────────────────────────
+
+export async function getAdminUsers(): Promise<ApiAdminUser[]> {
+  try {
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users`);
+    const json = await handleResponse<any>(res);
+    return (json || []).map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      firstName: u.first_name || u.firstName,
+      lastName: u.last_name || u.lastName,
+      phone: u.phone,
+      role: u.role,
+      isOwner: u.is_owner || u.isOwner,
+      isActive: u.is_active || u.isActive,
+      avatarUrl: u.avatar_url || u.avatarUrl,
+      createdAt: u.created_at || u.createdAt,
+    }));
+  } catch (err) {
+    console.warn("getAdminUsers failed", err);
+    throw err;
+  }
+}
+
+export async function addAdminUser(data: {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}): Promise<ApiAdminUser> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users`, {
+    method: "POST",
+    body: JSON.stringify({
+      email: data.email,
+      password: data.password,
+      first_name: data.firstName,
+      last_name: data.lastName,
+    }),
+  });
+  const u = await handleResponse<any>(res);
+  return {
+    id: u.id,
+    email: u.email,
+    firstName: u.first_name || u.firstName,
+    lastName: u.last_name || u.lastName,
+    phone: u.phone,
+    role: u.role,
+    isOwner: u.is_owner || u.isOwner,
+    isActive: u.is_active || u.isActive,
+    avatarUrl: u.avatar_url || u.avatarUrl,
+    createdAt: u.created_at || u.createdAt,
+  };
+}
+
+export async function updateAdminUserStatus(id: number, isActive: boolean): Promise<ApiAdminUser> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/users/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_active: isActive }),
+  });
+  const u = await handleResponse<any>(res);
+  return {
+    id: u.id,
+    email: u.email,
+    firstName: u.first_name || u.firstName,
+    lastName: u.last_name || u.lastName,
+    phone: u.phone,
+    role: u.role,
+    isOwner: u.is_owner || u.isOwner,
+    isActive: u.is_active || u.isActive,
+    avatarUrl: u.avatar_url || u.avatarUrl,
+    createdAt: u.created_at || u.createdAt,
+  };
+}
+
+// ── Super Admin Tenants API ──────────────────────────────────────────────────
+
+export async function getTenants(mode: "compact" | "detailed" = "detailed"): Promise<ApiTenant[]> {
+  try {
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/tenants?mode=${mode}`);
+    const json = await handleResponse<any>(res);
+    const items = json.items || json.data || json || [];
+    return items.map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      tagline: t.tagline,
+      description: t.description,
+      isActive: t.is_active || t.isActive,
+      logoUrl: t.logo_url || t.logoUrl,
+      deactivationReason: t.deactivation_reason || t.deactivationReason,
+      deactivatedAt: t.deactivated_at || t.deactivatedAt,
+      createdAt: t.created_at || t.createdAt,
+      updatedAt: t.updated_at || t.updatedAt,
+      adminsCount: t.admins_count || t.adminsCount || 0,
+      videosCount: t.videos_count || t.videosCount || 0,
+      subscribersCount: t.subscribers_count || t.subscribersCount || 0,
+    }));
+  } catch (err) {
+    console.warn("getTenants failed", err);
+    throw err;
+  }
+}
+
+export async function createTenant(data: {
+  name: string;
+  adminEmail: string;
+  adminPassword: string;
+  adminFirstName: string;
+  adminLastName: string;
+  description?: string;
+  tagline?: string;
+}): Promise<any> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/tenants`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: data.name,
+      admin_email: data.adminEmail,
+      admin_password: data.adminPassword,
+      admin_first_name: data.adminFirstName,
+      admin_last_name: data.adminLastName,
+      description: data.description,
+      tagline: data.tagline,
+    }),
+  });
+  return await handleResponse<any>(res);
+}
+
+export async function updateTenantStatus(id: number, isActive: boolean, reason?: string): Promise<any> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/tenants/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_active: isActive, deactivation_reason: reason }),
+  });
+  return await handleResponse<any>(res);
+}
+
+// ── Super Admin Ad Reconciliation & Monthly Settlements ─────────────────────
+
+export interface TenantStatementDraft {
+  tenant_id: number;
+  tenant_name: string;
+  impressions_count: number;
+  net_ecpm: number;
+  net_amount: number;
+  gross_revenue: number;
+  platform_fee: number;
+}
+
+export interface TenantStatementPublished {
+  tenant_id: number;
+  tenant_name: string;
+  statement_id: string;
+  impressions_count: number;
+  net_ecpm: number;
+  net_amount: number;
+  gross_revenue: number;
+  platform_fee: number;
+  status: string;
+  scheduled_payout_date?: string;
+}
+
+export interface PlatformReconciliationDraftResponse {
+  id: number;
+  month: string;
+  total_google_revenue: number;
+  total_impressions: number;
+  gross_ecpm: number;
+  platform_commission_pct: number;
+  platform_profit: number;
+  creator_pool_amount: number;
+  creator_net_ecpm: number;
+  creators_count: number;
+  currency: string;
+  status: string;
+  notes?: string;
+  statements: TenantStatementDraft[];
+}
+
+export interface PublishReconciliationResponse {
+  id: number;
+  month: string;
+  total_google_revenue: number;
+  status: string;
+  currency: string;
+  creator_pool_amount: number;
+  platform_profit: number;
+  reconciled_at: string;
+  statements: TenantStatementPublished[];
+}
+
+export interface SettledStatementResponse {
+  statement_id: string;
+  tenant_id: number;
+  month: string;
+  amount: number;
+  currency: string;
+  status: string;
+  transaction_reference: string;
+  settled_at: string;
+}
+
+export interface ReconciliationListItem {
+  id: number;
+  month: string;
+  total_google_revenue: number;
+  platform_profit: number;
+  creator_pool_amount: number;
+  currency: string;
+  status: string;
+  reconciled_at?: string;
+}
+
+export async function generateReconciliationDraft(data: {
+  month: string;
+  gross_revenue: number;
+  notes?: string;
+}): Promise<PlatformReconciliationDraftResponse> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/monetization/reconciliations`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return await handleResponse<PlatformReconciliationDraftResponse>(res);
+}
+
+export async function publishReconciliation(month: string): Promise<PublishReconciliationResponse> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/monetization/reconciliations/${month}/publish`, {
+    method: "POST",
+  });
+  return await handleResponse<PublishReconciliationResponse>(res);
+}
+
+export async function markStatementPaid(statementId: string, data: {
+  transaction_reference: string;
+  invoice_url?: string;
+}): Promise<SettledStatementResponse> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/monetization/settlements/${statementId}/mark-paid`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return await handleResponse<SettledStatementResponse>(res);
+}
+
+export async function getReconciliationLedger(page = 1, limit = 12): Promise<{
+  items: ReconciliationListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/monetization/reconciliations?page=${page}&limit=${limit}`);
+  return await handleResponse<any>(res);
+}

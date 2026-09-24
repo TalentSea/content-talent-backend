@@ -20,8 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "../components/ui/hover-card";
+import { ColorPicker } from "../components/ui/color-picker";
 import {
-  Upload, Save, Play, CheckCircle, Video, Star, ImagePlus, Check, Plus, Trash2, Search, ChevronUp, ChevronDown, Eye, Loader2
+  Upload, Save, Play, CheckCircle, Video, Star, ImagePlus, Check, Plus, Trash2, Search, ChevronUp, ChevronDown, Eye, Loader2,
+  Smartphone, Palette, RotateCcw, Sparkles, Layers, Wifi, Battery, Signal, Home, Compass, Film, User, Bell
 } from "lucide-react";
 import {
   getCreatorBranding,
@@ -34,6 +38,10 @@ import {
   reorderFeaturedVideos,
   deleteFeaturedVideo,
   getAvailableVideosForFeatured,
+  getMobileAppTheme,
+  updateMobileAppTheme,
+  MobileAppTheme,
+  BackgroundStyleType,
   ApiVideo,
   ApiFeaturedVideoItem,
   ApiAvailableFeaturedVideo,
@@ -47,6 +55,122 @@ interface FeaturedBannerItem {
   duration: string;
   thumbnailUrl: string;
   description: string;
+}
+
+function getContrastTextColor(hex: string): string {
+  const cleanHex = hex.replace("#", "");
+  if (cleanHex.length !== 6) return "#FFFFFF";
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.65 ? "#0F172A" : "#FFFFFF";
+}
+
+const PRIMARY_COLOR_PRESETS = [
+  { name: "Royal Indigo", hex: "#6366F1" },
+  { name: "Electric Blue", hex: "#2563EB" },
+  { name: "Sky Cyan", hex: "#06B6D4" },
+  { name: "Emerald", hex: "#10B981" },
+  { name: "Crimson Red", hex: "#EF4444" },
+  { name: "Sunset Amber", hex: "#F59E0B" },
+  { name: "Deep Violet", hex: "#8B5CF6" },
+  { name: "Obsidian Slate", hex: "#0F172A" },
+];
+
+const ACCENT_COLOR_PRESETS = [
+  { name: "Vivid Rose", hex: "#EC4899" },
+  { name: "Neon Orange", hex: "#F97316" },
+  { name: "Golden Amber", hex: "#FBBF24" },
+  { name: "Lime Glow", hex: "#84CC16" },
+  { name: "Cyan Spark", hex: "#38BDF8" },
+  { name: "Electric Purple", hex: "#A855F7" },
+  { name: "Coral Pink", hex: "#FB7185" },
+  { name: "Pure White", hex: "#FFFFFF" },
+];
+
+const BACKGROUND_STYLES: {
+  value: BackgroundStyleType;
+  label: string;
+  badge: string;
+  description: string;
+  bgHex: string;
+  cardBg: string;
+  textColor: string;
+  subtextColor: string;
+  borderColor: string;
+}[] = [
+  {
+    value: "dark_slate",
+    label: "Midnight Slate (Modern Dark)",
+    badge: "Recommended",
+    description: "Deep charcoal slate with elevated contrast cards. Standard for premium mobile streaming apps.",
+    bgHex: "#0B0F19",
+    cardBg: "#161D2B",
+    textColor: "#FFFFFF",
+    subtextColor: "#94A3B8",
+    borderColor: "#1E293B",
+  },
+  {
+    value: "pure_black",
+    label: "Pure Black (OLED Cinema)",
+    badge: "OLED Pitch",
+    description: "True pitch black (#000000). Maximum video contrast, edge-to-edge immersion, and OLED battery savings.",
+    bgHex: "#000000",
+    cardBg: "#121212",
+    textColor: "#FFFFFF",
+    subtextColor: "#A1A1AA",
+    borderColor: "#27272A",
+  },
+  {
+    value: "clean_white",
+    label: "Clean White (Light Editorial)",
+    badge: "Light Mode",
+    description: "Crisp white canvas (#FFFFFF) with gentle card borders. Ideal for lifestyle and editorial creators.",
+    bgHex: "#FFFFFF",
+    cardBg: "#F8FAFC",
+    textColor: "#0F172A",
+    subtextColor: "#64748B",
+    borderColor: "#E2E8F0",
+  },
+  {
+    value: "gradient_dark",
+    label: "Dark Gradient (Subtle Studio Mesh)",
+    badge: "Studio Glow",
+    description: "Multi-stop radial dark gradient from deep navy slate to obsidian. Luxury high-end creator look.",
+    bgHex: "#0F172A",
+    cardBg: "#1E293B",
+    textColor: "#FFFFFF",
+    subtextColor: "#94A3B8",
+    borderColor: "#334155",
+  },
+];
+
+const THEME_PRESETS: Record<string, {
+  primaryColor: string;
+  secondaryColor: string;
+  activeStateColor: string;
+  mainBackgroundColor: string;
+  cardBackgroundColor: string;
+  primaryTextColor: string;
+  secondaryTextColor: string;
+  mutedTextColor: string;
+  buttonTextColor: string;
+}> = {
+  "Cinematic Black": { primaryColor: "#E50914", secondaryColor: "#FFD700", activeStateColor: "#E50914", mainBackgroundColor: "#000000", cardBackgroundColor: "#121212", primaryTextColor: "#FFFFFF", secondaryTextColor: "#A0A0AB", mutedTextColor: "#52525B", buttonTextColor: "#FFFFFF" },
+  "Midnight Blue": { primaryColor: "#6366F1", secondaryColor: "#EC4899", activeStateColor: "#6366F1", mainBackgroundColor: "#0B0C10", cardBackgroundColor: "#1F2833", primaryTextColor: "#FFFFFF", secondaryTextColor: "#C5C6C7", mutedTextColor: "#666666", buttonTextColor: "#FFFFFF" },
+  "Cyber Punk / Anime": { primaryColor: "#00E5FF", secondaryColor: "#FF6D00", activeStateColor: "#00E5FF", mainBackgroundColor: "#0D1117", cardBackgroundColor: "#161B22", primaryTextColor: "#F5F5F5", secondaryTextColor: "#B3B3B3", mutedTextColor: "#707070", buttonTextColor: "#000000" },
+  "Clean White": { primaryColor: "#0F172A", secondaryColor: "#3B82F6", activeStateColor: "#0F172A", mainBackgroundColor: "#FFFFFF", cardBackgroundColor: "#F8FAFC", primaryTextColor: "#0F172A", secondaryTextColor: "#64748B", mutedTextColor: "#94A3B8", buttonTextColor: "#FFFFFF" }
+};
+
+function getContrastYIQ(hexcolor: string): string {
+  const hex = hexcolor.replace("#", "");
+  if (hex.length !== 6) return "#FFFFFF";
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128) ? "#000000" : "#FFFFFF";
 }
 
 export default function Branding() {
@@ -84,6 +208,70 @@ export default function Branding() {
     title: "",
     url: "",
   });
+
+  const [themeMode, setThemeMode] = useState<"preset" | "manual">("preset");
+  const [selectedPreset, setSelectedPreset] = useState("Cinematic Black");
+  const [manualBrandColor, setManualBrandColor] = useState("#E50914");
+  const [manualAccentColor, setManualAccentColor] = useState("#FFD700");
+  const [manualBgColor, setManualBgColor] = useState("#000000");
+  const [contrastMode, setContrastMode] = useState<"dark" | "light">("dark");
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [saveThemeSuccess, setSaveThemeSuccess] = useState(false);
+  const [themeError, setThemeError] = useState<string | null>(null);
+
+  const currentThemeAttributes = themeMode === "preset"
+    ? THEME_PRESETS[selectedPreset] || THEME_PRESETS["Cinematic Black"]
+    : {
+        primaryColor: manualBrandColor,
+        secondaryColor: manualAccentColor,
+        activeStateColor: manualBrandColor,
+        mainBackgroundColor: manualBgColor,
+        cardBackgroundColor: contrastMode === "dark" ? "#121212" : "#F8FAFC",
+        primaryTextColor: contrastMode === "dark" ? "#FFFFFF" : "#0F172A",
+        secondaryTextColor: contrastMode === "dark" ? "#A0A0AB" : "#64748B",
+        mutedTextColor: contrastMode === "dark" ? "#52525B" : "#94A3B8",
+        buttonTextColor: getContrastYIQ(manualBrandColor),
+      };
+
+  // Load mobile theme configuration from backend API
+  useEffect(() => {
+    getMobileAppTheme()
+      .then((theme) => {
+        if (theme) {
+          if (theme.primaryColor) setManualBrandColor(theme.primaryColor);
+          if (theme.secondaryColor) setManualAccentColor(theme.secondaryColor);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load mobile theme from API:", err);
+      });
+  }, []);
+
+  const handleSaveTheme = async () => {
+    setThemeError(null);
+    setIsSavingTheme(true);
+    try {
+      await updateMobileAppTheme({
+        ...currentThemeAttributes,
+        backgroundStyle: themeMode === "preset" ? "dark_slate" : (contrastMode === "dark" ? "pure_black" : "clean_white"),
+      });
+      setSaveThemeSuccess(true);
+      setTimeout(() => {
+        setSaveThemeSuccess(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error("Failed to save mobile app theme:", err);
+      setThemeError(err?.message || "Failed to save mobile app theme.");
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
+  const handleResetThemeDefaults = () => {
+    setPrimaryColor("#6366F1");
+    setAccentColor("#EC4899");
+    setBackgroundStyle("dark_slate");
+  };
 
   // Hidden File Inputs
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -602,7 +790,8 @@ export default function Branding() {
       </div>
 
       {/* Main Content Sections */}
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+        <div className="xl:col-span-8 space-y-6">
         {/* Creator Studio & App Identity Card */}
         <Card className="border border-slate-200/80 bg-white shadow-xs rounded-2xl">
           <CardHeader className="border-b border-slate-100 pb-4">
@@ -838,6 +1027,226 @@ export default function Branding() {
           </CardContent>
         </Card>
 
+        {/* Mobile App Appearance & Theme Card */}
+        <Card className="border border-slate-200/80 bg-white shadow-xs rounded-2xl">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Smartphone className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold text-slate-900">Mobile App Appearance & Theme</CardTitle>
+                   {/* <Badge variant="outline" className="text-xs px-2.5 py-0.5 border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold">
+                      iOS & Android
+                    </Badge>*/}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Customize brand colors, accent badges, and background styles for your white-labeled mobile applications.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetThemeDefaults}
+                  disabled={isSavingTheme}
+                  className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border-slate-200 h-9 rounded-xl font-medium"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
+                  Reset Defaults
+                </Button>
+                <Button
+                  onClick={handleSaveTheme}
+                  disabled={isSavingTheme}
+                  className={`gap-2 font-semibold text-sm h-9 px-4 transition-all duration-200 rounded-xl shadow-xs ${
+                    saveThemeSuccess
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      : "bg-slate-900 hover:bg-slate-800 text-white"
+                  }`}
+                >
+                  {isSavingTheme ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : saveThemeSuccess ? (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save Mobile Theme
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            {themeError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center gap-2 font-medium">
+                <span>⚠️ {themeError}</span>
+              </div>
+            )}
+
+            <div className="space-y-7">
+              {/* Controls Column */}
+              <div className="space-y-7">
+                {/* Theme Mode Toggle */}
+                <div className="flex items-center p-1 bg-slate-100/80 rounded-xl w-fit">
+                  <button
+                    onClick={() => setThemeMode("preset")}
+                    className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${themeMode === "preset" ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-900"}`}
+                  >
+                    Theme Presets
+                  </button>
+                  <button
+                    onClick={() => setThemeMode("manual")}
+                    className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${themeMode === "manual" ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-900"}`}
+                  >
+                    Manual Config
+                  </button>
+                </div>
+
+                {themeMode === "preset" ? (
+                  <div className="space-y-3">
+                    <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">Select a Theme Package</Label>
+                    <p className="text-xs text-slate-500 mt-0.5">Loads a pre-tested set of colors matching a specific niche.</p>
+                    <Select value={selectedPreset} onValueChange={setSelectedPreset}>
+                      <SelectTrigger className="w-full h-11 bg-white border-slate-200 rounded-xl focus:border-slate-900">
+                        <SelectValue placeholder="Select preset" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white rounded-xl shadow-xl border-slate-200 z-50">
+                        {Object.keys(THEME_PRESETS).map(preset => (
+                          <SelectItem key={preset} value={preset} className="py-2.5 cursor-pointer font-medium">{preset}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-7">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      {/* 1. Brand Color */}
+                      <div className="space-y-3 flex flex-col h-full">
+                        <Label className="text-sm font-bold text-slate-900">Brand Color</Label>
+                        <p className="text-xs text-slate-500 mt-0.5">Main buttons & icons.</p>
+                        <div className="flex items-center gap-3 p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                          <HoverCard openDelay={0} closeDelay={300}>
+                            <HoverCardTrigger asChild>
+                              <div
+                                className="w-10 h-10 rounded-full border-2 border-slate-200 shadow-sm cursor-pointer transition-transform hover:scale-110 shrink-0"
+                                style={{ backgroundColor: manualBrandColor }}
+                              />
+                            </HoverCardTrigger>
+                            <HoverCardContent side="top" align="start" className="w-auto p-0 border-none shadow-none bg-transparent">
+                              <ColorPicker color={manualBrandColor} onChange={setManualBrandColor} />
+                            </HoverCardContent>
+                          </HoverCard>
+                          <div className="flex-1 space-y-1 min-w-0">
+                            <Label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Hex Code</Label>
+                            <Input
+                              type="text"
+                              value={manualBrandColor.toUpperCase()}
+                              onChange={(e) => { let v = e.target.value; if (!v.startsWith("#")) v = "#" + v; setManualBrandColor(v.slice(0, 7)); }}
+                              className="w-full bg-white font-mono text-xs uppercase h-8 border-slate-200 rounded-lg focus:border-slate-900 px-2"
+                              maxLength={7}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. Accent Color */}
+                      <div className="space-y-3 flex flex-col h-full">
+                        <Label className="text-sm font-bold text-slate-900">Accent Color</Label>
+                        <p className="text-xs text-slate-500 mt-0.5">Badges & highlights.</p>
+                        <div className="flex items-center gap-3 p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                          <HoverCard openDelay={0} closeDelay={300}>
+                            <HoverCardTrigger asChild>
+                              <div
+                                className="w-10 h-10 rounded-full border-2 border-slate-200 shadow-sm cursor-pointer transition-transform hover:scale-110 shrink-0"
+                                style={{ backgroundColor: manualAccentColor }}
+                              />
+                            </HoverCardTrigger>
+                            <HoverCardContent side="top" align="center" className="w-auto p-0 border-none shadow-none bg-transparent">
+                              <ColorPicker color={manualAccentColor} onChange={setManualAccentColor} />
+                            </HoverCardContent>
+                          </HoverCard>
+                          <div className="flex-1 space-y-1 min-w-0">
+                            <Label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Hex Code</Label>
+                            <Input
+                              type="text"
+                              value={manualAccentColor.toUpperCase()}
+                              onChange={(e) => { let v = e.target.value; if (!v.startsWith("#")) v = "#" + v; setManualAccentColor(v.slice(0, 7)); }}
+                              className="w-full bg-white font-mono text-xs uppercase h-8 border-slate-200 rounded-lg focus:border-slate-900 px-2"
+                              maxLength={7}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. Background Color */}
+                      <div className="space-y-3 flex flex-col h-full">
+                        <Label className="text-sm font-bold text-slate-900">Background</Label>
+                        <p className="text-xs text-slate-500 mt-0.5">Main canvas color.</p>
+                        <div className="flex items-center gap-3 p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                          <HoverCard openDelay={0} closeDelay={300}>
+                            <HoverCardTrigger asChild>
+                              <div
+                                className="w-10 h-10 rounded-full border-2 border-slate-200 shadow-sm cursor-pointer transition-transform hover:scale-110 shrink-0"
+                                style={{ backgroundColor: manualBgColor }}
+                              />
+                            </HoverCardTrigger>
+                            <HoverCardContent side="top" align="end" className="w-auto p-0 border-none shadow-none bg-transparent">
+                              <ColorPicker color={manualBgColor} onChange={setManualBgColor} />
+                            </HoverCardContent>
+                          </HoverCard>
+                          <div className="flex-1 space-y-1 min-w-0">
+                            <Label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Hex Code</Label>
+                            <Input
+                              type="text"
+                              value={manualBgColor.toUpperCase()}
+                              onChange={(e) => { let v = e.target.value; if (!v.startsWith("#")) v = "#" + v; setManualBgColor(v.slice(0, 7)); }}
+                              className="w-full bg-white font-mono text-xs uppercase h-8 border-slate-200 rounded-lg focus:border-slate-900 px-2"
+                              maxLength={7}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. Contrast Mode Toggle */}
+                    <div className="space-y-3 flex flex-col">
+                      <Label className="text-sm font-bold text-slate-900">Text & Card Contrast</Label>
+                      <p className="text-xs text-slate-500 mt-0.5">Injects tested text and overlay colors based on your choice.</p>
+                      <div className="flex items-center gap-3 max-w-md">
+                        <button
+                          onClick={() => setContrastMode("dark")}
+                          className={`flex-1 py-3 text-sm font-bold rounded-xl border-2 transition-all ${contrastMode === "dark" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`}
+                        >
+                          Dark Text/Cards
+                        </button>
+                        <button
+                          onClick={() => setContrastMode("light")}
+                          className={`flex-1 py-3 text-sm font-bold rounded-xl border-2 transition-all ${contrastMode === "light" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`}
+                        >
+                          Light Text/Cards
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Featured Videos Card */}
         <Card className="border border-slate-200/80 bg-white shadow-xs rounded-2xl">
           <CardHeader className="border-b border-slate-100 pb-4">
@@ -987,6 +1396,308 @@ export default function Branding() {
             </div>
           </CardContent>
         </Card>
+        </div>
+
+        {/* Right Column: Sticky Mobile Preview */}
+        <div className="xl:col-span-4 sticky top-6 z-10 w-full flex justify-center">
+<div className="xl:col-span-5 flex flex-col items-center justify-center w-full">
+  <div className="w-full max-w-[320px] space-y-3">
+    <div className="flex items-center justify-between px-1">
+      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+        <Smartphone className="h-4 w-4 text-slate-500" />
+        Live Mobile Preview
+      </span>
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        Real-time
+      </span>
+    </div>
+
+    {/* Phone Bezel Frame */}
+    <div className="rounded-[44px] p-2.5 bg-slate-900 border-[6px] border-slate-800 shadow-2xl relative select-none">
+      {/* Dynamic Island / Notch */}
+      <div className="w-20 h-4 bg-black rounded-full mx-auto mb-2 shrink-0 flex items-center justify-end pr-2">
+        <div className="w-2 h-2 rounded-full bg-slate-900 border border-slate-800" />
+      </div>
+
+      {/* Phone Screen Canvas */}
+      <div
+        className="rounded-[32px] overflow-hidden flex flex-col h-[520px] transition-all duration-300 relative border text-xs"
+        style={{
+          background: currentThemeAttributes.mainBackgroundColor,
+          borderColor: currentThemeAttributes.mutedTextColor,
+          color: currentThemeAttributes.primaryTextColor,
+        }}
+      >
+        {/* Mobile Status Bar */}
+        <div className="px-5 pt-1.5 pb-2 flex items-center justify-between text-[11px] font-semibold shrink-0" style={{ color: currentThemeAttributes.primaryTextColor }}>
+          <span>9:41</span>
+          <div className="flex items-center gap-1.5 opacity-90">
+            <Signal className="h-3 w-3" />
+            <Wifi className="h-3 w-3" />
+            <Battery className="h-3.5 w-3.5" />
+          </div>
+        </div>
+
+        {/* Mobile App Header */}
+        <div
+          className="px-4 py-2.5 flex items-center justify-between border-b shrink-0 transition-colors"
+          style={{ borderColor: currentThemeAttributes.mutedTextColor }}
+        >
+          <div className="flex items-center gap-2 max-w-[170px]">
+            {logoPreview ? (
+              <img
+                src={logoPreview}
+                alt="Logo"
+                className="h-6 w-auto max-w-[90px] object-contain"
+              />
+            ) : (
+              <div className="h-6 w-6 rounded-md flex items-center justify-center font-bold text-xs" style={{ backgroundColor: currentThemeAttributes.primaryColor, color: currentThemeAttributes.buttonTextColor }}>
+                {(studioName || creatorName || "S").charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="font-bold text-xs truncate" style={{ color: currentThemeAttributes.primaryTextColor }}>
+              {studioName || creatorName || "TalentSea Studio"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Search className="h-3.5 w-3.5" style={{ color: currentThemeAttributes.secondaryTextColor }} />
+            <Bell className="h-3.5 w-3.5" style={{ color: currentThemeAttributes.secondaryTextColor }} />
+          </div>
+        </div>
+
+        {/* Scrollable Screen Content */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 no-scrollbar">
+          {/* Featured Hero Banner */}
+          <div
+            className="rounded-xl overflow-hidden relative border shadow-sm group"
+            style={{ borderColor: currentThemeAttributes.mutedTextColor }}
+          >
+            <div className="h-36 w-full relative">
+              <img
+                src={
+                  featuredBanners[0]?.thumbnailUrl ||
+                  bannerPreview ||
+                  "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80"
+                }
+                alt="Featured Banner"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+
+              {/* Accent Badge */}
+              <div className="absolute top-2 left-2">
+                <span
+                  className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider shadow-xs"
+                  style={{
+                    backgroundColor: currentThemeAttributes.secondaryColor,
+                    color: getContrastYIQ(currentThemeAttributes.secondaryColor),
+                  }}
+                >
+                  PRO
+                </span>
+              </div>
+
+              {/* Banner Overlay Info */}
+              <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                <p className="text-[11px] font-bold text-white line-clamp-1 drop-shadow-sm">
+                  {featuredBanners[0]?.title || "Cinematic Masterclass Vol. 1"}
+                </p>
+                <div className="flex items-center justify-between mt-1.5">
+                  {/* Primary Brand Color Action Button */}
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold shadow-xs transition-transform active:scale-95"
+                    style={{
+                      backgroundColor: currentThemeAttributes.primaryColor,
+                      color: currentThemeAttributes.buttonTextColor,
+                    }}
+                  >
+                    <Play className="h-2.5 w-2.5 fill-current" />
+                    Watch Now
+                  </button>
+                  <span className="text-[9px] text-white/80 font-mono">
+                    {featuredBanners[0]?.duration || "18:40"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Continue Watching Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider"
+                style={{ color: currentThemeAttributes.secondaryTextColor }}
+              >
+                Continue Watching
+              </span>
+              <span className="text-[9px] font-medium" style={{ color: currentThemeAttributes.primaryColor }}>
+                See All
+              </span>
+            </div>
+
+            <div
+              className="p-2 rounded-xl border flex items-center gap-2.5 transition-colors shadow-2xs"
+              style={{
+                backgroundColor: currentThemeAttributes.cardBackgroundColor,
+                borderColor: currentThemeAttributes.mutedTextColor,
+              }}
+            >
+              <div className="w-14 h-11 rounded-lg overflow-hidden relative shrink-0 bg-slate-800">
+                <img
+                  src="https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=300&auto=format&fit=crop&q=80"
+                  alt="Video thumb"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute bottom-0.5 right-0.5 bg-black/80 text-[8px] font-mono text-white px-1 rounded">
+                  14:20
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] font-semibold truncate" style={{ color: currentThemeAttributes.primaryTextColor }}>
+                    Color Grading & LUTs
+                  </p>
+                      <span
+                        className="text-[8px] font-bold px-1 py-0.2 rounded border shrink-0"
+                        style={{
+                          borderColor: currentThemeAttributes.secondaryColor,
+                          color: currentThemeAttributes.secondaryColor,
+                        }}
+                      >
+                        NEW
+                      </span>
+                    </div>
+
+                    {/* Progress bar styled with Primary Brand Color */}
+                    <div className="w-full h-1 rounded-full bg-slate-500/20 overflow-hidden mt-1.5">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: "65%",
+                          backgroundColor: currentThemeAttributes.primaryColor,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Secondary Video Mini Row */}
+              <div className="space-y-2">
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wider"
+                  style={{ color: currentThemeAttributes.secondaryTextColor }}
+                >
+                  Latest Additions
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    {
+                      title: "Lighting Setup 101",
+                      tag: "HD",
+                      img: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=300&auto=format&fit=crop&q=80",
+                    },
+                    {
+                      title: "Sound Design Pro",
+                      tag: "4K",
+                      img: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=300&auto=format&fit=crop&q=80",
+                    },
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-1.5 rounded-xl border space-y-1.5"
+                      style={{
+                        backgroundColor: currentThemeAttributes.cardBackgroundColor,
+                        borderColor: currentThemeAttributes.mutedTextColor,
+                      }}
+                    >
+                      <div className="h-14 rounded-lg overflow-hidden relative bg-slate-800">
+                        <img
+                          src={item.img}
+                          alt={item.title}
+                          className="w-full h-full object-cover"
+                        />
+                        <span
+                          className="absolute top-1 right-1 text-[8px] font-bold px-1 rounded"
+                          style={{
+                            backgroundColor: currentThemeAttributes.secondaryColor,
+                            color: getContrastYIQ(currentThemeAttributes.secondaryColor),
+                          }}
+                        >
+                          {item.tag}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-semibold truncate px-0.5" style={{ color: currentThemeAttributes.primaryTextColor }}>
+                        {item.title}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Bottom Navigation Bar */}
+            <div
+              className="px-4 py-2 border-t flex items-center justify-around shrink-0 transition-colors"
+              style={{
+                backgroundColor: currentThemeAttributes.cardBackgroundColor,
+                borderColor: currentThemeAttributes.mutedTextColor,
+              }}
+            >
+              {/* Active Home Tab */}
+              <div className="flex flex-col items-center gap-0.5 cursor-pointer">
+                <Home className="h-4 w-4" style={{ color: currentThemeAttributes.primaryColor }} />
+                <span className="text-[8px] font-bold" style={{ color: currentThemeAttributes.primaryColor }}>
+                  Home
+                </span>
+                <div
+                  className="w-1 h-1 rounded-full"
+                  style={{ backgroundColor: currentThemeAttributes.primaryColor }}
+                />
+              </div>
+
+              {/* Inactive Tab: Explore */}
+              <div className="flex flex-col items-center gap-0.5 opacity-60">
+                <Compass className="h-4 w-4" style={{ color: currentThemeAttributes.secondaryTextColor }} />
+                <span className="text-[8px]" style={{ color: currentThemeAttributes.secondaryTextColor }}>
+                  Explore
+                </span>
+                <div className="w-1 h-1 opacity-0" />
+              </div>
+
+              {/* Inactive Tab: Library */}
+              <div className="flex flex-col items-center gap-0.5 opacity-60">
+                <Film className="h-4 w-4" style={{ color: currentThemeAttributes.secondaryTextColor }} />
+                <span className="text-[8px]" style={{ color: currentThemeAttributes.secondaryTextColor }}>
+                  Library
+                </span>
+                <div className="w-1 h-1 opacity-0" />
+              </div>
+
+              {/* Inactive Tab: Profile */}
+              <div className="flex flex-col items-center gap-0.5 opacity-60">
+                <User className="h-4 w-4" style={{ color: currentThemeAttributes.secondaryTextColor }} />
+                <span className="text-[8px]" style={{ color: currentThemeAttributes.secondaryTextColor }}>
+                  Profile
+                </span>
+                <div className="w-1 h-1 opacity-0" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+    <p className="text-center text-[11px] text-slate-400 font-medium">
+      Changes reflect immediately in the mobile preview canvas.
+    </p>
+  </div>
+</div>
+
+        </div>
       </div>
     </div>
   );

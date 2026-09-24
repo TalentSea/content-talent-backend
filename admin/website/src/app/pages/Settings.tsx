@@ -7,7 +7,7 @@ import { Switch } from "../components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
   User, Lock, Bell, CreditCard, Globe, Shield, Save, Loader2, Upload, Check,
-  Building2, AlertCircle, CheckCircle2
+  Building2, AlertCircle, CheckCircle2, UserCheck, UserPlus, Eye, EyeOff, Power, RefreshCw
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -15,13 +15,24 @@ import {
 } from "../components/ui/select";
 import { Separator } from "../components/ui/separator";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../components/ui/dialog";
+import {
   getCreatorProfile,
   updateCreatorProfile,
   uploadAvatarPhoto,
   getPayoutSettings,
   updatePayoutSettings,
+  getTenantUsers,
+  createTenantUser,
+  toggleTenantUserActive,
   ApiProfile,
   ApiPayoutProfile,
+  TenantUser,
 } from "../services/apiService";
 
 export default function Settings() {
@@ -52,7 +63,86 @@ export default function Settings() {
   const [bankError, setBankError] = useState<string | null>(null);
   const [bankSuccess, setBankSuccess] = useState<string | null>(null);
 
-  // Load Profile and Payout Settings from API
+  // Tenant Admin Users State
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
+  const [loadingTenantUsers, setLoadingTenantUsers] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserFirstName, setNewUserFirstName] = useState("");
+  const [newUserLastName, setNewUserLastName] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [addingUser, setAddingUser] = useState(false);
+  const [tenantError, setTenantError] = useState<string | null>(null);
+  const [tenantSuccess, setTenantSuccess] = useState<string | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
+
+  const loadTenantUsers = async () => {
+    setLoadingTenantUsers(true);
+    try {
+      const users = await getTenantUsers();
+      setTenantUsers(users);
+    } catch (err: any) {
+      console.warn("Could not load tenant users:", err);
+    } finally {
+      setLoadingTenantUsers(false);
+    }
+  };
+
+  const handleAddTenantUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserEmail.trim() || !newUserPassword.trim() || !newUserFirstName.trim() || !newUserLastName.trim()) {
+      setTenantError("Please provide email, password, first name, and last name.");
+      return;
+    }
+    setTenantError(null);
+    setTenantSuccess(null);
+    setAddingUser(true);
+    try {
+      const created = await createTenantUser({
+        email: newUserEmail.trim(),
+        password: newUserPassword,
+        first_name: newUserFirstName.trim(),
+        last_name: newUserLastName.trim(),
+      });
+      setTenantUsers((prev) => [created, ...prev]);
+      setNewUserEmail("");
+      setNewUserPassword("");
+      setNewUserFirstName("");
+      setNewUserLastName("");
+      setTenantSuccess(`User ${created.email} added successfully.`);
+      setIsAddUserOpen(false);
+      setTimeout(() => setTenantSuccess(null), 4000);
+    } catch (err: any) {
+      setTenantError(err?.message || "Failed to create tenant user.");
+    } finally {
+      setAddingUser(false);
+    }
+  };
+
+  const handleToggleUserActive = async (user: TenantUser) => {
+    setTogglingUserId(user.id);
+    setTenantError(null);
+    setTenantSuccess(null);
+    const currentActive = user.is_active ?? user.isActive ?? true;
+    try {
+      const res = await toggleTenantUserActive(user.id, currentActive);
+      setTenantUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id ? { ...u, is_active: res.is_active, isActive: res.is_active } : u
+        )
+      );
+      setTenantSuccess(
+        `User ${user.email} ${res.is_active ? "activated" : "deactivated"} successfully.`
+      );
+    } catch (err: any) {
+      setTenantError(err?.message || "Failed to update user status.");
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
+
+  // Load Profile, Payout Settings, and Tenant Users from API
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -64,8 +154,12 @@ export default function Settings() {
         console.warn("Failed to load payout settings from API", err);
         return null;
       }),
+      getTenantUsers().catch((err) => {
+        console.warn("Failed to load tenant users from API", err);
+        return [];
+      }),
     ])
-      .then(([profile, payout]) => {
+      .then(([profile, payout, users]) => {
         if (profile) {
           if (profile.firstName) setFirstName(profile.firstName);
           if (profile.lastName) setLastName(profile.lastName);
@@ -85,6 +179,9 @@ export default function Settings() {
           setBankProfile(payout);
           if (payout.account_holder_name) setAccountHolderName(payout.account_holder_name);
           if (payout.ifsc_code) setIfscCode(payout.ifsc_code);
+        }
+        if (Array.isArray(users)) {
+          setTenantUsers(users);
         }
       })
       .finally(() => setLoading(false));
@@ -237,6 +334,10 @@ export default function Settings() {
           <TabsTrigger value="advanced" className="gap-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
             <Shield className="h-4 w-4" />
             <span>Advanced</span>
+          </TabsTrigger>
+          <TabsTrigger value="admin" className="gap-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all cursor-pointer">
+            <UserCheck className="h-4 w-4" />
+            <span>Admin</span>
           </TabsTrigger>
         </TabsList>
 
@@ -578,6 +679,237 @@ export default function Settings() {
               <Button variant="outline" className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 shadow-xs text-xs font-semibold">
                 Download My Data
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Admin - Tenant Users Management */}
+        <TabsContent value="admin" className="space-y-6">          
+          {/* Card: Tenant Users Roster */}
+          <Card className="bg-white border-slate-200/80 shadow-xs rounded-2xl">
+            <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-900 tracking-tight">
+                  Tenant Users
+                </CardTitle>
+                <p className="text-xs text-slate-500">
+                  Users registered under this tenant workspace ({tenantUsers.length} total).
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadTenantUsers}
+                disabled={loadingTenantUsers}
+                className="rounded-xl border-slate-200 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingTenantUsers ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-slate-900 text-white"><UserPlus className="h-4 w-4 mr-2" /> Add User</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Admin User</DialogTitle>
+                  </DialogHeader>
+                  <Card className="bg-white border-slate-200/80 shadow-xs rounded-2xl">
+                    <CardHeader className="border-b border-slate-100 pb-4">
+                      <CardTitle className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                        <UserPlus className="h-5 w-5 text-slate-700" />
+                        Add User to Tenant
+                      </CardTitle>
+                      <p className="text-xs text-slate-500">
+                        Create a new user account with administrative access for this tenant.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-5">
+                      {tenantError && (
+                        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 shrink-0" />
+                          <span>{tenantError}</span>
+                        </div>
+                      )}
+                      {tenantSuccess && (
+                        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                          <span>{tenantSuccess}</span>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleAddTenantUser} className="grid gap-4 md:grid-cols-2 items-end">
+                        <div>
+                          <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                            First Name
+                          </Label>
+                          <Input
+                            type="text"
+                            placeholder="John"
+                            value={newUserFirstName}
+                            onChange={(e) => setNewUserFirstName(e.target.value)}
+                            className="rounded-xl border-slate-200 text-sm bg-white"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                            Last Name
+                          </Label>
+                          <Input
+                            type="text"
+                            placeholder="Doe"
+                            value={newUserLastName}
+                            onChange={(e) => setNewUserLastName(e.target.value)}
+                            className="rounded-xl border-slate-200 text-sm bg-white"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                            User Email
+                          </Label>
+                          <Input
+                            type="email"
+                            placeholder="user@domain.com"
+                            value={newUserEmail}
+                            onChange={(e) => setNewUserEmail(e.target.value)}
+                            className="rounded-xl border-slate-200 text-sm bg-white"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                            Password
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type={showNewPassword ? "text" : "password"}
+                              placeholder="••••••••••••"
+                              value={newUserPassword}
+                              onChange={(e) => setNewUserPassword(e.target.value)}
+                              className="rounded-xl border-slate-200 text-sm pr-10 bg-white"
+                              required
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                              {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2 flex justify-end">
+                          <Button
+                            type="submit"
+                            disabled={addingUser}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl text-xs h-10 px-5 shadow-xs cursor-pointer"
+                          >
+                            {addingUser ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                            ) : (
+                              <UserPlus className="h-4 w-4 mr-1.5" />
+                            )}
+                            Add User
+                          </Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+
+
+            <CardContent className="pt-0 p-0">
+              {loadingTenantUsers ? (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-900" />
+                  <p className="text-xs">Loading tenant users...</p>
+                </div>
+              ) : tenantUsers.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-sm">
+                  No users found for this tenant.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-400 text-xs font-semibold bg-slate-50/50">
+                        <th className="p-4 pl-6">User</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Created Date</th>
+                        <th className="p-4 text-right pr-6">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {tenantUsers.map((u) => {
+                        const isActive = u.is_active !== false && u.isActive !== false;
+                        const isToggling = togglingUserId === u.id;
+                        return (
+                          <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 pl-6">
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                                  {(u.email || "U").charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-slate-900 text-xs">{u.email}</p>
+                                  {(u.first_name || u.last_name) && (
+                                    <p className="text-[11px] text-slate-400">
+                                      {[u.first_name, u.last_name].filter(Boolean).join(" ")}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <Badge
+                                variant="outline"
+                                className={`text-xs font-semibold ${
+                                  isActive
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-slate-100 text-slate-600 border-slate-200"
+                                }`}
+                              >
+                                {isActive ? "Active" : "Deactivated"}
+                              </Badge>
+                            </td>
+                            <td className="p-4 text-xs text-slate-500">
+                              {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+                            </td>
+                            <td className="p-4 text-right pr-6">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isToggling}
+                                onClick={() => handleToggleUserActive(u)}
+                                className={`rounded-xl text-xs font-semibold cursor-pointer ${
+                                  isActive
+                                    ? "border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                                    : "border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                                }`}
+                              >
+                                {isToggling ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                ) : (
+                                  <Power className="h-3.5 w-3.5 mr-1" />
+                                )}
+                                {isActive ? "Deactivate" : "Activate"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

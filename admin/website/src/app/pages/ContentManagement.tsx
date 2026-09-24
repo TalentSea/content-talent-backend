@@ -10,7 +10,8 @@ import {
   bulkRemoveVideosFromPlaylist, uploadPlaylistBanner, getPlaylistVideos,
   getAvailableVideosForPlaylist, reorderPlaylistVideos, getCategories,
   getAdminComments, postAdminVideoComment, getCommentReplies, postCommentReply,
-  toggleCommentLike, deleteComment as apiDeleteComment, ApiVideo, ApiPlaylist, ApiComment, ApiReply
+  toggleCommentLike, deleteComment as apiDeleteComment, ApiVideo, ApiPlaylist, ApiComment, ApiReply,
+  getShortVideos, deleteShortVideo, toggleShortVideoLike, ApiShortVideo
 } from "../services/apiService";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -39,7 +40,8 @@ import {
   ChevronDown, ImagePlus, SlidersHorizontal, Play,
   ArrowLeft, Pencil, CheckSquare, RefreshCw, Loader2, AlertCircle, FolderOpen, CheckCircle, Archive,
   GripVertical, ArrowUp, ArrowDown, Download, Subtitles, Maximize2, Minimize2,
-  MessageSquare, Send, Heart, CornerDownRight, MessageCircle
+  MessageSquare, Send, Heart, CornerDownRight, MessageCircle,
+  Smartphone, Flame, Share2, Sparkles, Volume2, VolumeX
 } from "lucide-react";
 
 
@@ -212,7 +214,7 @@ function DateRangeDialog({ open, onClose, from, to, onChange }: {
   const [localTo, setLocalTo] = useState(to);
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+      <DialogContent className="sm:max-w-sm bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-slate-900 font-bold text-base">Filter by Date</DialogTitle>
           <DialogDescription className="text-slate-500 text-xs">Select a single date or a date range</DialogDescription>
@@ -281,7 +283,7 @@ function AddVideosDialog({ open, onClose, excludeIds, allVideos, playlistId, onA
 
   return (
     <Dialog open={open} onOpenChange={() => { setSelected([]); setSearch(""); onClose(); }}>
-      <DialogContent className="max-w-xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+      <DialogContent className="sm:max-w-xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-slate-900 font-bold text-lg">Add Videos to Playlist</DialogTitle>
           <DialogDescription className="text-slate-500 text-xs">Select one or more videos to add</DialogDescription>
@@ -363,7 +365,7 @@ function SelectPlaylistDialog({ open, onClose, playlists, selected, onToggle }: 
 }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+      <DialogContent className="sm:max-w-sm bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-slate-900 font-bold text-base">Add to Playlist</DialogTitle>
           <DialogDescription className="text-slate-500 text-xs">Select one or more playlists for this video</DialogDescription>
@@ -623,7 +625,12 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
         onToggle={togglePlaylist}
       />
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+        <DialogContent
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          className="sm:max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl"
+        >
           <DialogHeader>
             <DialogTitle className="text-slate-900 font-bold text-lg">{isEdit ? "Edit Content Details" : "Upload New Content"}</DialogTitle>
             <DialogDescription className="text-slate-500 text-xs">{isEdit ? "Update your content details below" : "Add new video asset to your platform"}</DialogDescription>
@@ -1211,7 +1218,7 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
         onAdd={handleAddVideos}
       />
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900">
               {isEdit ? "Edit Playlist Details" : "Create New Playlist"}
@@ -1441,6 +1448,857 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ── Upload Short Video Dialog (with 9:16 Aspect Ratio Validation) ──────────────
+
+function UploadShortDialog({
+  open,
+  onClose,
+  onSaveSuccess,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaveSuccess: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Tutorial");
+  const [status, setStatus] = useState<"Published" | "Draft" | "Scheduled">("Published");
+  const [tags, setTags] = useState<string[]>(["shorts"]);
+  const [customThumbnail, setCustomThumbnail] = useState<string | null>(null);
+  const [customThumbnailFile, setCustomThumbnailFile] = useState<File | null>(null);
+  const [capturedThumbnail, setCapturedThumbnail] = useState<string | null>(null);
+
+  // Aspect ratio & video validation state
+  const [isCheckingVideo, setIsCheckingVideo] = useState(false);
+  const [aspectRatioValid, setAspectRatioValid] = useState<boolean | null>(null);
+  const [aspectRatioError, setAspectRatioError] = useState<string | null>(null);
+  const [videoDimensions, setVideoDimensions] = useState<{
+    width: number;
+    height: number;
+    duration: number;
+    ratio: number;
+  } | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setFile(null);
+      setVideoPreviewUrl(null);
+      setTitle("");
+      setDescription("");
+      setCategory("Tutorial");
+      setStatus("Published");
+      setTags(["shorts"]);
+      setCustomThumbnail(null);
+      setCustomThumbnailFile(null);
+      setCapturedThumbnail(null);
+      setAspectRatioValid(null);
+      setAspectRatioError(null);
+      setVideoDimensions(null);
+      setIsCheckingVideo(false);
+      setSubmitting(false);
+      setUploadProgress(0);
+    }
+  }, [open]);
+
+  const processVideoFile = (selectedFile: File) => {
+    if (!selectedFile.type.startsWith("video/")) {
+      setAspectRatioValid(false);
+      setAspectRatioError("Selected file is not a valid video format. Please upload MP4, MOV, or WebM.");
+      return;
+    }
+
+    setFile(selectedFile);
+    setAspectRatioValid(null);
+    setAspectRatioError(null);
+    setIsCheckingVideo(true);
+
+    const objUrl = URL.createObjectURL(selectedFile);
+    setVideoPreviewUrl(objUrl);
+
+    if (!title.trim()) {
+      const cleanName = selectedFile.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1) + " #shorts");
+    }
+
+    const testVideo = document.createElement("video");
+    testVideo.preload = "metadata";
+    testVideo.src = objUrl;
+
+    testVideo.onloadedmetadata = () => {
+      const w = testVideo.videoWidth;
+      const h = testVideo.videoHeight;
+      const dur = testVideo.duration || 0;
+      const ratio = w / h;
+
+      setVideoDimensions({
+        width: w,
+        height: h,
+        duration: dur,
+        ratio,
+      });
+
+      // ── ASPECT RATIO VALIDATION RULES ──────────────────────────────────────
+      // 1. Orientation Rule: Height MUST be strictly greater than Width (Vertical / Portrait)
+      if (w >= h) {
+        setIsCheckingVideo(false);
+        setAspectRatioValid(false);
+        if (w === h) {
+          setAspectRatioError(
+            `Invalid aspect ratio! Video is square (1:1 • ${w}×${h}). Short videos must be vertical portrait (9:16 recommended, height must be greater than width).`
+          );
+        } else {
+          setAspectRatioError(
+            `Invalid aspect ratio! Video is landscape / horizontal (${w}×${h}). Short videos must be vertical portrait (9:16 recommended, height must be greater than width).`
+          );
+        }
+        return;
+      }
+
+      // 2. Duration Rule: Max 180 seconds (3 minutes)
+      if (dur > 180) {
+        setIsCheckingVideo(false);
+        setAspectRatioValid(false);
+        setAspectRatioError(
+          `Video is too long (${Math.round(dur)}s). Short videos cannot exceed 3 minutes (180 seconds). Please trim your clip.`
+        );
+        return;
+      }
+
+      // Passed validation!
+      setIsCheckingVideo(false);
+      setAspectRatioValid(true);
+      setAspectRatioError(null);
+
+      // Seek to capture a vertical frame
+      testVideo.currentTime = Math.min(1, dur / 2);
+    };
+
+    testVideo.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = testVideo.videoWidth;
+        canvas.height = testVideo.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(testVideo, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          setCapturedThumbnail(dataUrl);
+        }
+      } catch (e) {
+        console.warn("Could not capture video thumbnail canvas:", e);
+      }
+    };
+
+    testVideo.onerror = () => {
+      setIsCheckingVideo(false);
+      setAspectRatioValid(false);
+      setAspectRatioError("Failed to decode video metadata. Ensure the file is not corrupted.");
+    };
+  };
+
+  const handleCustomThumbSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const f = e.target.files[0];
+      setCustomThumbnailFile(f);
+      const img = new Image();
+      img.src = URL.createObjectURL(f);
+      img.onload = () => {
+        setCustomThumbnail(img.src);
+      };
+    }
+  };
+
+  const handleSave = async (saveStatus?: string) => {
+    if (!file || !aspectRatioValid || !title.trim()) return;
+    setSubmitting(true);
+    setUploadProgress(15);
+
+    const durSec = videoDimensions?.duration ? Math.round(videoDimensions.duration) : 30;
+    const mins = Math.floor(durSec / 60);
+    const secs = durSec % 60;
+    const durationFormatted = `${mins}:${secs.toString().padStart(2, "0")}`;
+    const chosenStatus = (saveStatus || status || "Published").toLowerCase();
+    const publishIntent = chosenStatus === "published" ? "publish" : chosenStatus === "scheduled" ? "schedule" : "draft";
+
+    try {
+      // 1. Initiate short video upload on backend API
+      const initRes = await initiateVideoUpload({
+        title: title.trim(),
+        description: description.trim(),
+        tags: tags.length > 0 ? tags : ["shorts"],
+        video_type: "shorts",
+        publish_intent: publishIntent,
+      });
+
+      if (initRes && initRes.id) {
+        // 2. Upload vertical poster thumbnail strictly to slot 0
+        if (customThumbnailFile) {
+          await uploadThumbnail(initRes.id, 0, customThumbnailFile);
+        } else if (capturedThumbnail) {
+          try {
+            const blobRes = await fetch(capturedThumbnail);
+            const blob = await blobRes.blob();
+            const capturedFile = new File([blob], "poster.jpg", { type: "image/jpeg" });
+            await uploadThumbnail(initRes.id, 0, capturedFile);
+          } catch (e) {
+            console.warn("Could not upload auto-captured thumbnail to slot 0:", e);
+          }
+        }
+
+        // 3. Direct TUS stream upload to Bunny Stream if signed
+        if (file && initRes.signature) {
+          await new Promise<void>((resolve) => {
+            const upload = new tus.Upload(file, {
+              endpoint: "https://video.bunnycdn.com/tusupload",
+              storeFingerprintForResuming: false,
+              removeFingerprintOnSuccess: true,
+              retryDelays: [0, 3000, 5000],
+              chunkSize: 5 * 1024 * 1024,
+              uploadSize: file.size,
+              headers: {
+                AuthorizationSignature: String(initRes.signature),
+                AuthorizationExpire: String(initRes.expirationTime || Math.floor(Date.now() / 1000) + 3600),
+                VideoId: String(initRes.bunnyVideoId || initRes.id),
+                LibraryId: String(initRes.bunnyLibraryId || "123456"),
+              },
+              metadata: {
+                filetype: file.type || "video/mp4",
+                title: title.trim(),
+              },
+              onProgress: (bytesUploaded, bytesTotal) => {
+                if (bytesTotal > 0) {
+                  const pct = Math.round((bytesUploaded / bytesTotal) * 100);
+                  setUploadProgress(pct);
+                }
+              },
+              onError: (err) => {
+                console.warn("TUS short video stream notice:", err);
+                resolve();
+              },
+              onSuccess: () => {
+                setUploadProgress(100);
+                resolve();
+              },
+            });
+            upload.start();
+          });
+        }
+      }
+
+      setUploadProgress(100);
+      setTimeout(() => {
+        onSaveSuccess();
+        onClose();
+      }, 350);
+    } catch (err: any) {
+      console.error("Backend short upload error:", err);
+      setAspectRatioError(err?.message || "Failed to upload short video to backend. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !submitting && !v && onClose()}>
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="sm:max-w-4xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl p-0 overflow-hidden max-h-[92vh] flex flex-col [&>button:last-child]:hidden"
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center font-bold">
+              <Smartphone className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-bold text-slate-900">Upload Short Video</DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Shorts must be vertical portrait video (9:16 ratio) up to 180 seconds.
+              </DialogDescription>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            disabled={submitting}
+            className="h-8 w-8 text-slate-400 hover:text-slate-600 rounded-lg"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 flex flex-col md:flex-row gap-6">
+          {/* Left Column: 9:16 Video Dropzone / Preview */}
+          <div className="w-full md:w-[260px] shrink-0 flex flex-col items-center gap-3">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && processVideoFile(e.target.files[0])}
+            />
+
+            {/* 9:16 Dropzone Frame */}
+            <div
+              onClick={() => !submitting && fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files?.[0]) processVideoFile(e.dataTransfer.files[0]);
+              }}
+              className={`w-full aspect-[9/16] max-h-[380px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center relative overflow-hidden transition-all cursor-pointer select-none ${
+                aspectRatioValid === true
+                  ? "border-emerald-400 bg-emerald-50/20"
+                  : aspectRatioValid === false
+                  ? "border-rose-400 bg-rose-50/30"
+                  : "border-slate-200 hover:border-slate-400 bg-slate-50"
+              }`}
+            >
+              {isCheckingVideo ? (
+                <div className="flex flex-col items-center gap-2 p-4 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-700" />
+                  <span className="text-xs font-semibold text-slate-700">Checking aspect ratio...</span>
+                  <span className="text-[10px] text-slate-400">Verifying 9:16 vertical resolution</span>
+                </div>
+              ) : videoPreviewUrl && aspectRatioValid ? (
+                <div className="relative w-full h-full bg-black group">
+                  <video
+                    src={videoPreviewUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-semibold gap-1.5">
+                    <Upload className="h-5 w-5" />
+                    <span>Change Video</span>
+                  </div>
+                  {/* Resolution pill */}
+                  <div className="absolute bottom-2 left-2 right-2 bg-black/80 backdrop-blur-xs text-white text-[10px] font-mono px-2 py-1 rounded-lg flex items-center justify-between">
+                    <span>{videoDimensions?.width}×{videoDimensions?.height}</span>
+                    <span className="text-emerald-400 font-bold">9:16 ✓</span>
+                  </div>
+                </div>
+              ) : videoPreviewUrl && aspectRatioValid === false ? (
+                <div className="p-4 text-center flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                  <span className="text-xs font-bold text-rose-700">Non-Vertical Video</span>
+                  <p className="text-[11px] text-slate-500">
+                    Resolution: {videoDimensions?.width}×{videoDimensions?.height}
+                  </p>
+                  <Button size="sm" variant="outline" className="mt-2 text-xs h-7 border-rose-200 text-rose-700 bg-white">
+                    Choose Vertical Video
+                  </Button>
+                </div>
+              ) : (
+                <div className="p-4 text-center flex flex-col items-center gap-2 text-slate-500">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-700">
+                    <Smartphone className="h-6 w-6 text-pink-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Drop vertical video here</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">MP4, MOV up to 180s</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-slate-200 bg-white font-medium text-slate-600 mt-1">
+                    Required: 9:16 Ratio
+                  </Badge>
+                </div>
+              )}
+            </div>
+
+            {/* Ratio Status Badge */}
+            {aspectRatioValid === true && (
+              <div className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>Valid 9:16 Vertical Ratio</span>
+              </div>
+            )}
+            {aspectRatioValid === false && (
+              <div className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>Ratio Validation Failed</span>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Metadata Form */}
+          <div className="flex-1 space-y-4">
+            {/* Aspect Ratio Error Banner */}
+            {aspectRatioError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5 font-medium leading-relaxed">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                <div>
+                  <p className="font-bold">Aspect Ratio Issue</p>
+                  <p>{aspectRatioError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Title Input */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>Title <span className="text-rose-500">*</span></span>
+                <span className="text-[11px] font-normal text-slate-400">{title.length}/100</span>
+              </Label>
+              <Input
+                placeholder="Catchy title for your short..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={100}
+                className="bg-white border-slate-200 text-xs h-10 rounded-xl"
+              />
+            </div>
+
+            {/* Tags Input */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-800">Tags</Label>
+              <TagInput tags={tags} setTags={setTags} />
+              {/* Hashtag quick add chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-slate-400 font-medium">Quick tags:</span>
+                {["shorts", "filmmaking", "tutorial", "cinematic", "viral", "bts"].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      if (!tags.includes(tag)) {
+                        setTags([...tags, tag]);
+                      }
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Caption / Description */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-800">Caption / Description</Label>
+              <Textarea
+                placeholder="Brief description or context for the short video..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="bg-white border-slate-200 text-xs rounded-xl resize-none"
+              />
+            </div>
+
+            {/* Custom 9:16 Thumbnail */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-800">Cover Thumbnail</Label>
+                <span className="text-[10px] text-slate-400">9:16 aspect ratio</span>
+              </div>
+              <input
+                type="file"
+                ref={thumbInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleCustomThumbSelect}
+              />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-16 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0">
+                  {customThumbnail || capturedThumbnail ? (
+                    <img
+                      src={customThumbnail || capturedThumbnail!}
+                      alt="Thumbnail cover"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400">
+                      <ImagePlus className="h-4 w-4" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => thumbInputRef.current?.click()}
+                    className="h-8 text-xs border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50"
+                  >
+                    <ImagePlus className="h-3.5 w-3.5 mr-1.5" />
+                    Upload Custom 9:16 Cover
+                  </Button>
+                  <p className="text-[10px] text-slate-400">
+                    {customThumbnail ? "Custom cover selected" : capturedThumbnail ? "Auto-captured from 1st second" : "Default cover will be generated"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Progress Bar */}
+            {submitting && (
+              <div className="space-y-1.5 pt-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span>Uploading short video...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full bg-slate-900 rounded-full transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <DialogFooter className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+          <div className="text-xs text-slate-400 hidden sm:block">
+            {aspectRatioValid === true ? (
+              <span className="text-emerald-600 font-medium">✓ Ready to publish</span>
+            ) : file ? (
+              <span className="text-rose-600 font-medium">Fix aspect ratio before publishing</span>
+            ) : (
+              <span>Select a vertical video file to begin</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={submitting}
+              className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl h-9 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => handleSave("Draft")} 
+              disabled={submitting || !file || aspectRatioValid !== true || !title.trim()} 
+              className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl h-9 text-xs"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save as Draft"}
+            </Button>
+            <div className="flex">
+              <Button 
+                className="rounded-r-none bg-slate-900 hover:bg-slate-800 text-white rounded-l-xl text-xs h-9 font-semibold shadow-xs gap-1.5" 
+                onClick={() => handleSave("Published")} 
+                disabled={submitting || !file || aspectRatioValid !== true || !title.trim()}
+              >
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Upload className="h-3.5 w-3.5" />Publish</>}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={submitting || !file || aspectRatioValid !== true || !title.trim()}>
+                  <Button className="rounded-l-none px-2 bg-slate-900 hover:bg-slate-800 text-white border-l border-slate-700 rounded-r-xl h-9">
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white border-slate-200 text-slate-900 rounded-xl shadow-xl">
+                  <DropdownMenuItem onClick={() => handleSave("Published")} className="cursor-pointer hover:bg-slate-50">
+                    <Video className="mr-2 h-4 w-4" />Publish Now
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-slate-100" />
+                  <DropdownMenuItem onClick={() => handleSave("Scheduled")} className="cursor-pointer hover:bg-slate-50">
+                    <Clock className="mr-2 h-4 w-4" />Schedule Publish
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Vertical Short Video Player Modal ─────────────────────────────────────────
+
+function ShortPlayerDialog({
+  open,
+  onClose,
+  short,
+}: {
+  open: boolean;
+  onClose: () => void;
+  short: ApiShortVideo | null;
+}) {
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [likes, setLikes] = useState(0);
+  const [hasLiked, setHasLiked] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [playbackUrl, setPlaybackUrl] = useState<string>("");
+  const [loadingPlayback, setLoadingPlayback] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
+  useEffect(() => {
+    if (short) {
+      setLikes(short.likes);
+      setHasLiked(false);
+      setIsPlaying(true);
+      setIsMuted(false);
+    }
+  }, [short]);
+
+  // Fetch real playback URL from backend API /api/v1/admin/videos/{id}
+  useEffect(() => {
+    if (!short || !open) {
+      setPlaybackUrl("");
+      return;
+    }
+
+    setLoadingPlayback(true);
+    getVideoDetails(short.id)
+      .then((details) => {
+        const url = details.playbackUrl || details.videoUrl || short.videoUrl;
+        setPlaybackUrl(url);
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch fresh short playback URL:", err);
+        setPlaybackUrl(short.videoUrl);
+      })
+      .finally(() => {
+        setLoadingPlayback(false);
+      });
+  }, [short, open]);
+
+  // Attach HLS / MP4 stream to video element
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !playbackUrl) return;
+
+    try {
+      video.disablePictureInPicture = true;
+    } catch {}
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (playbackUrl.includes(".m3u8") && Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+      hlsRef.current = hls;
+      hls.loadSource(playbackUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+        setIsPlaying(true);
+      });
+    } else {
+      video.src = playbackUrl;
+      video.play().catch(() => {});
+      setIsPlaying(true);
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [playbackUrl]);
+
+  if (!short) return null;
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    videoRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (hasLiked) return;
+    setLikes((prev) => prev + 1);
+    setHasLiked(true);
+    try {
+      await toggleShortVideoLike(short.id);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="sm:max-w-md bg-transparent border-0 shadow-none p-0 flex items-center justify-center"
+      >
+        <div className="relative w-full max-w-[340px] aspect-[9/16] rounded-3xl overflow-hidden bg-black shadow-2xl border border-slate-800 select-none">
+          {/* Loading Indicator */}
+          {loadingPlayback && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs gap-2">
+              <Loader2 className="h-8 w-8 text-white animate-spin" />
+              <span className="text-[11px] text-white/80 font-medium">Loading stream...</span>
+            </div>
+          )}
+
+          {/* Vertical Video Element */}
+          <video
+            ref={videoRef}
+            autoPlay
+            loop
+            playsInline
+            disablePictureInPicture
+            controlsList="nodownload nopictureinpicture"
+            muted={isMuted}
+            onClick={togglePlay}
+            className="w-full h-full object-cover cursor-pointer"
+          />
+
+          {/* Top Controls Overlay */}
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-bold">
+              <Flame className="h-3.5 w-3.5 text-pink-500" />
+              <span>Shorts</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={toggleMute}
+                className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Play/Pause Center Indicator (When Paused) */}
+          {!isPlaying && (
+            <div
+              onClick={togglePlay}
+              className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer z-10"
+            >
+              <div className="w-14 h-14 rounded-full bg-black/70 backdrop-blur-md text-white flex items-center justify-center pl-1 shadow-xl">
+                <Play className="h-7 w-7 fill-current" />
+              </div>
+            </div>
+          )}
+
+          {/* Right Floating Actions Column */}
+          <div className="absolute right-3 bottom-24 flex flex-col items-center gap-4 z-20">
+            {/* Like button */}
+            <button
+              onClick={handleLike}
+              className="flex flex-col items-center gap-1 text-white group cursor-pointer"
+            >
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
+                  hasLiked
+                    ? "bg-pink-500 text-white scale-110 shadow-lg shadow-pink-500/50"
+                    : "bg-black/60 hover:bg-black/80 text-white"
+                }`}
+              >
+                <Heart className={`h-5 w-5 ${hasLiked ? "fill-current" : ""}`} />
+              </div>
+              <span className="text-[10px] font-bold drop-shadow-md">
+                {likes.toLocaleString()}
+              </span>
+            </button>
+
+            {/* Share button */}
+            <button
+              onClick={handleShare}
+              className="flex flex-col items-center gap-1 text-white group cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center backdrop-blur-md transition-colors">
+                <Share2 className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold drop-shadow-md">
+                {copied ? "Copied!" : "Share"}
+              </span>
+            </button>
+
+            {/* Category / Duration Pill */}
+            <div className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-md text-slate-300 text-[9px] font-mono">
+              {short.duration}
+            </div>
+          </div>
+
+          {/* Bottom Gradient & Info Overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent z-10 text-white pointer-events-none">
+            <div className="space-y-1.5 max-w-[230px]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-pink-600 flex items-center justify-center text-[10px] font-bold">
+                  S
+                </div>
+                <span className="text-xs font-bold truncate">TalentSea Studio</span>
+                <Badge variant="outline" className="text-[9px] py-0 px-1 border-white/20 text-white/90">
+                  {short.category || "Shorts"}
+                </Badge>
+              </div>
+
+              <p className="text-xs font-semibold line-clamp-2 drop-shadow-sm">
+                {short.title}
+              </p>
+
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                <Calendar className="h-3 w-3 text-slate-400" />
+                <span>{short.date || (short.createdAt ? short.createdAt.split("T")[0] : "Recently added")}</span>
+              </div>
+
+              {short.description && (
+                <p className="text-[11px] text-slate-300 line-clamp-1">
+                  {short.description}
+                </p>
+              )}
+
+              {short.tags && short.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {short.tags.slice(0, 3).map((t) => (
+                    <span key={t} className="text-[10px] text-pink-400 font-medium">
+                      #{t.replace(/^#/, "")}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2033,7 +2891,7 @@ function VideoPlayerDialog({ open, onClose, content, onPlaybackError }: {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 shadow-2xl text-slate-900 rounded-2xl [&>button:last-child]:hidden">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 shadow-2xl text-slate-900 rounded-2xl [&>button:last-child]:hidden">
         {/* YouTube Studio Header Bar */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200">
           <div className="flex items-center gap-2.5 min-w-0 pr-4">
@@ -2496,7 +3354,7 @@ function ViewContentDialog({ open, onClose, content, onPlay }: {
   if (!content) return null;
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+      <DialogContent className="sm:max-w-2xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">{content.title}</DialogTitle>
           <DialogDescription className="text-xs text-slate-500">Content details & metadata</DialogDescription>
@@ -3126,6 +3984,18 @@ export default function ContentManagement() {
   const [newPlaylistOpen, setNewPlaylistOpen] = useState(false);
   const [editPlaylistMeta, setEditPlaylistMeta] = useState<Playlist | null>(null);
 
+  // Shorts State & Handlers
+  const [shorts, setShorts] = useState<ApiShortVideo[]>([]);
+  const [loadingShorts, setLoadingShorts] = useState(false);
+  const [shortSearch, setShortSearch] = useState("");
+  const [shortFilterCategory, setShortFilterCategory] = useState("all");
+  const [shortSortBy, setShortSortBy] = useState("newest");
+  const [uploadShortOpen, setUploadShortOpen] = useState(false);
+  const [playingShort, setPlayingShort] = useState<ApiShortVideo | null>(null);
+  const [deleteShortDialogOpen, setDeleteShortDialogOpen] = useState(false);
+  const [shortToDelete, setShortToDelete] = useState<ApiShortVideo | null>(null);
+  const [isDeletingShort, setIsDeletingShort] = useState(false);
+
   // Notification Toast state
   const [toast, setToast] = useState<{ show: boolean; title: string; message: string }>({ show: false, title: "", message: "" });
   const showToast = useCallback((title: string, message: string) => {
@@ -3133,10 +4003,82 @@ export default function ContentManagement() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 5000);
   }, []);
 
+  const loadShortsData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoadingShorts(true);
+    try {
+      const data = await getShortVideos();
+      setShorts(data);
+    } catch (err) {
+      console.warn("Failed to load short videos:", err);
+    } finally {
+      if (!isSilent) setLoadingShorts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadShortsData();
+  }, [loadShortsData]);
+
+  // Real-time status polling for transcoding short videos (silent background refresh)
+  useEffect(() => {
+    const hasTranscodingShorts = shorts.some((s) => {
+      const st = (s.status || "").toLowerCase();
+      return ["pending", "processing", "encoding", "uploading"].includes(st);
+    });
+
+    if (hasTranscodingShorts) {
+      const timer = setInterval(() => {
+        loadShortsData(true);
+      }, 4000);
+      return () => clearInterval(timer);
+    }
+  }, [shorts, loadShortsData]);
+
+  const filteredShorts = useMemo(() => {
+    let list = [...shorts];
+    if (shortSearch.trim()) {
+      const q = shortSearch.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.title.toLowerCase().includes(q) ||
+          (s.description && s.description.toLowerCase().includes(q)) ||
+          s.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    if (shortFilterCategory !== "all") {
+      list = list.filter((s) => s.category?.toLowerCase() === shortFilterCategory.toLowerCase());
+    }
+    if (shortSortBy === "views") {
+      list.sort((a, b) => b.views - a.views);
+    } else if (shortSortBy === "likes") {
+      list.sort((a, b) => b.likes - a.likes);
+    } else {
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return list;
+  }, [shorts, shortSearch, shortFilterCategory, shortSortBy]);
+
+  const handleDeleteShortConfirm = async () => {
+    if (!shortToDelete) return;
+    setIsDeletingShort(true);
+    try {
+      await deleteShortVideo(shortToDelete.id);
+      showToast("Short Deleted", `"${shortToDelete.title}" has been deleted.`);
+      setDeleteShortDialogOpen(false);
+      setShortToDelete(null);
+      loadShortsData();
+    } catch (err) {
+      showToast("Error", "Failed to delete short video.");
+    } finally {
+      setIsDeletingShort(false);
+    }
+  };
+
   const loadData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
       const vRes = await getVideos({
+        video_type: "standard",
         status: filterStatus !== "all" ? filterStatus.toLowerCase() : undefined,
         category: filterCategory !== "all" ? filterCategory : undefined,
         search: search.trim() || undefined,
@@ -3146,7 +4088,19 @@ export default function ContentManagement() {
       });
 
       if (vRes?.data && Array.isArray(vRes.data)) {
-        const mapped: Content[] = vRes.data.map((item: ApiVideo) => ({
+        const syncedItems = await Promise.all(
+          vRes.data.map(async (item: ApiVideo) => {
+            const s = (item.status || "").toLowerCase();
+            if (["pending", "processing", "encoding", "uploading"].includes(s)) {
+              try {
+                const detailed = await getVideoDetails(item.id);
+                if (detailed) return detailed;
+              } catch {}
+            }
+            return item;
+          })
+        );
+        const mapped: Content[] = syncedItems.map((item: ApiVideo) => ({
           id: item.id,
           title: item.title,
           type: "Video",
@@ -3300,6 +4254,8 @@ export default function ContentManagement() {
   return (
     <div className="space-y-6">
       <UploadEditDialog open={uploadOpen} onClose={() => setUploadOpen(false)} playlists={playlists} onSaveSuccess={loadData} />
+      <UploadShortDialog open={uploadShortOpen} onClose={() => setUploadShortOpen(false)} onSaveSuccess={loadShortsData} />
+      <ShortPlayerDialog open={!!playingShort} onClose={() => setPlayingShort(null)} short={playingShort} />
       <EditVideoDialog open={!!editContent} onClose={() => setEditContent(null)} content={editContent} playlists={playlists} onSaveSuccess={loadData} />
       <ViewContentDialog open={!!viewContent} onClose={() => setViewContent(null)} content={viewContent} onPlay={(c) => setPlayingVideo(c)} />
       <VideoPlayerDialog open={!!playingVideo} onClose={() => setPlayingVideo(null)} content={playingVideo} onPlaybackError={(msg) => showToast("Something went wrong", msg)} />
@@ -3313,18 +4269,52 @@ export default function ContentManagement() {
         onChange={(f, t) => { setFilterDateFrom(f); setFilterDateTo(t); }}
       />
 
+      {/* Delete Short Confirmation Dialog */}
+      <Dialog open={deleteShortDialogOpen} onOpenChange={setDeleteShortDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-2xl border-slate-200 text-slate-900 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900">Delete Short Video?</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Are you sure you want to permanently delete "{shortToDelete?.title}"? This video and its analytics will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteShortDialogOpen(false)}
+              disabled={isDeletingShort}
+              className="rounded-xl h-9 text-xs border-slate-200 text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteShortConfirm}
+              disabled={isDeletingShort}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl h-9 text-xs shadow-xs"
+            >
+              {isDeletingShort ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Delete Short"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Content Management</h1>
           <p className="text-slate-500 mt-1 text-sm font-normal">Upload, organize, and manage your OTT video library</p>
         </div>
         <div className="flex items-center gap-2.5">
-          <Button variant="outline" size="icon" onClick={() => loadData()} title="Refresh Data" className="h-10 w-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl shadow-xs">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-slate-900" : ""}`} />
+          <Button variant="outline" size="icon" onClick={() => { loadData(); loadShortsData(); }} title="Refresh Data" className="h-10 w-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl shadow-xs">
+            <RefreshCw className={`h-4 w-4 ${loading || loadingShorts ? "animate-spin text-slate-900" : ""}`} />
           </Button>
           {activeTab === "videos" && (
             <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white h-10 px-4 font-semibold rounded-xl shadow-xs" onClick={() => setUploadOpen(true)}>
               <Plus className="h-4 w-4" />Upload Content
+            </Button>
+          )}
+          {activeTab === "shorts" && (
+            <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white h-10 px-4 font-semibold rounded-xl shadow-xs" onClick={() => setUploadShortOpen(true)}>
+              <Plus className="h-4 w-4" />Upload Short
             </Button>
           )}
           {activeTab === "playlists" && (
@@ -3349,6 +4339,15 @@ export default function ContentManagement() {
               </span>
             </TabsTrigger>
             <TabsTrigger
+              value="shorts"
+              className="gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900"
+            >
+              <Smartphone className="h-4 w-4 text-pink-500" />Shorts
+              <span className={`ml-1 text-[11px] px-2 py-0.5 rounded-full font-bold ${activeTab === "shorts" ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-600"}`}>
+                {shorts.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger
               value="playlists"
               className="gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900"
             >
@@ -3363,7 +4362,7 @@ export default function ContentManagement() {
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <Input type="search" placeholder="Search videos..." className="pl-8.5 w-52 sm:w-60 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
+                <Input type="search" placeholder="Search videos..." className="pl-9 w-52 sm:w-60 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
                   value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Button variant="outline" className={`gap-2 rounded-xl text-xs font-semibold shadow-xs h-9 ${showFilters ? "bg-slate-900 text-white hover:bg-slate-800 border-slate-900" : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"}`}
@@ -3374,11 +4373,37 @@ export default function ContentManagement() {
             </div>
           )}
 
+          {activeTab === "shorts" && (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="search"
+                  placeholder="Search shorts..."
+                  className="pl-9 w-48 sm:w-56 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
+                  value={shortSearch}
+                  onChange={(e) => setShortSearch(e.target.value)}
+                />
+              </div>
+
+              <Select value={shortSortBy} onValueChange={setShortSortBy}>
+                <SelectTrigger className="h-9 text-xs w-32 bg-white border-slate-200 text-slate-900 rounded-xl shadow-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-slate-200 text-slate-900 rounded-xl shadow-lg">
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="views">Most viewed</SelectItem>
+                  <SelectItem value="likes">Most liked</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {activeTab === "playlists" && (
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <Input type="search" placeholder="Search playlists..." className="pl-8.5 w-52 sm:w-60 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
+                <Input type="search" placeholder="Search playlists..." className="pl-9 w-52 sm:w-60 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-xs h-9"
                   value={playlistSearch} onChange={(e) => setPlaylistSearch(e.target.value)} />
               </div>
               <Select value={playlistSortBy} onValueChange={setPlaylistSortBy}>
@@ -3578,6 +4603,115 @@ export default function ContentManagement() {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-rose-600 text-xs cursor-pointer font-medium" onClick={() => handleDeleteVideo(content.id)}>
                                 <Trash2 className="mr-2 h-3.5 w-3.5" />Delete Asset
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Shorts Tab (9:16 Vertical Videos) ── */}
+        <TabsContent value="shorts">
+          <Card className="border border-slate-200/80 bg-white shadow-xs rounded-2xl overflow-hidden">
+            <CardContent className="p-6">
+              {loadingShorts ? (
+                <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-900" />
+                  <span className="font-medium text-xs text-slate-500">Loading short videos...</span>
+                </div>
+              ) : filteredShorts.length === 0 ? (
+                <div className="text-center py-20 text-slate-400">
+                  <div className="w-14 h-14 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center mx-auto mb-3">
+                    <Smartphone className="h-7 w-7" />
+                  </div>
+                  <p className="font-bold text-slate-900 text-base">No Short Videos Found</p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    {shortSearch.trim() || shortFilterCategory !== "all"
+                      ? "No shorts match your current search or category filters."
+                      : "Upload vertical 9:16 short clips up to 180 seconds to engage mobile audiences."}
+                  </p>
+                  <Button
+                    className="mt-4 gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl text-xs h-9 px-4"
+                    onClick={() => setUploadShortOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" /> Upload Your First Short
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                    <TableRow className="border-b border-slate-200/80 hover:bg-transparent">
+                      <TableHead className="font-bold text-slate-500 uppercase tracking-wider text-[11px]">Short Asset</TableHead>
+                      <TableHead className="font-bold text-slate-500 uppercase tracking-wider text-[11px]">Status</TableHead>
+                      <TableHead className="font-bold text-slate-500 uppercase tracking-wider text-[11px]">Views</TableHead>
+                      <TableHead className="font-bold text-slate-500 uppercase tracking-wider text-[11px]">Duration</TableHead>
+                      <TableHead className="font-bold text-slate-500 uppercase tracking-wider text-[11px]">Date Added</TableHead>
+                      <TableHead className="text-right font-bold text-slate-500 uppercase tracking-wider text-[11px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredShorts.map((short) => (
+                      <TableRow key={short.id} className="hover:bg-slate-50/80 border-b border-slate-100 transition-colors group cursor-pointer">
+                        <TableCell onClick={() => setPlayingShort(short)}>
+                          <div className="flex items-center gap-3">
+                            <div className="h-14 w-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 relative overflow-hidden group/thumb shadow-xs border border-slate-200/80">
+                              {short.thumbnailUrl ? (
+                                <img src={short.thumbnailUrl} alt={short.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <Smartphone className="h-5 w-5 text-slate-400 opacity-60" />
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/30 transition-colors flex items-center justify-center">
+                                <Play className="h-6 w-6 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity fill-white" />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-900 text-sm group-hover:text-slate-700 transition-colors line-clamp-1 max-w-[150px] sm:max-w-[200px]">{short.title}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs font-semibold ${
+                            short.status === "Published" || short.status === "published"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              : short.status === "Scheduled" || short.status === "scheduled"
+                                ? "bg-blue-50 border-blue-200 text-blue-700"
+                                : short.status === "Processing" || short.status === "processing"
+                                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                                  : "bg-slate-100 border-slate-200 text-slate-700"
+                          }`}>
+                            {short.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-slate-700 font-medium text-xs">{short.views?.toLocaleString()}</TableCell>
+                        <TableCell className="text-slate-500 font-mono text-xs">{short.duration}</TableCell>
+                        <TableCell className="text-slate-500 text-xs">{short.date || (short.createdAt ? short.createdAt.split("T")[0] : "-")}</TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl"><MoreVertical className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white border border-slate-200 shadow-xl rounded-xl text-slate-700">
+                              <DropdownMenuItem onClick={() => setPlayingShort(short)} className="text-xs cursor-pointer">
+                                <Play className="mr-2 h-3.5 w-3.5 fill-slate-700 text-slate-700" />Play Short
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                navigator.clipboard.writeText(window.location.href);
+                                showToast("Copied Link", "Short link copied to clipboard.");
+                              }} className="text-xs cursor-pointer">
+                                <Share2 className="mr-2 h-3.5 w-3.5 text-slate-500" />Copy Link
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-rose-600 text-xs cursor-pointer font-medium" onClick={() => {
+                                setShortToDelete(short);
+                                setDeleteShortDialogOpen(true);
+                              }}>
+                                <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-500" />Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
