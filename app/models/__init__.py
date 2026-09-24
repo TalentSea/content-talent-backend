@@ -16,6 +16,7 @@ from app.models.subscriber import Subscriber
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.tenant import Tenant
 from app.models.user_subscription import UserSubscription
+from app.models.verification_code import VerificationCode
 from app.models.video import Video, VideoLike, VideoSave, VideoViewEvent, WatchHistory
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "SubscriptionPlan",
     "Tenant",
     "UserSubscription",
+    "VerificationCode",
     "Video",
     "VideoLike",
     "VideoSave",

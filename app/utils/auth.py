@@ -160,3 +160,69 @@ def verify_tenant_active(tenant_or_id: object) -> object:
         )
     return tenant
 
+
+def create_reset_token(email: str, tenant_id: int, expires_minutes: int = 10) -> str:
+    """
+    Creates a stateless, cryptographically signed JWT token for password reset.
+    Scoped to email and tenant_id with 10-minute expiry.
+    """
+    settings = get_settings()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    payload = {
+        "email": email.lower().strip(),
+        "tenant_id": tenant_id,
+        "purpose": "password_reset",
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_reset_token(token: str) -> dict:
+    """
+    Decodes and cryptographically verifies a stateless password reset JWT token.
+    Raises HTTPException(401) if expired, malformed, or missing required claims.
+    """
+    settings = get_settings()
+    try:
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
+        if payload.get("purpose") != "password_reset":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid reset token scope",
+            )
+        email = payload.get("email")
+        tenant_id = payload.get("tenant_id")
+        if not email or tenant_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Malformed reset token payload",
+            )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Reset token has expired. Please request a new verification code.",
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate reset token credentials",
+        )
+
+
+def hash_verification_code(code: str) -> str:
+    """
+    Computes SHA-256 hash of a 6-digit OTP code for secure database storage.
+    """
+    return hashlib.sha256(code.strip().encode("utf-8")).hexdigest()
+
+
+def verify_verification_code(raw_code: str, code_hash: str) -> bool:
+    """
+    Timing-attack-safe comparison of submitted raw 6-digit code against stored hash.
+    """
+    computed = hashlib.sha256(raw_code.strip().encode("utf-8")).hexdigest()
+    return secrets.compare_digest(computed, code_hash)
+

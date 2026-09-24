@@ -37,6 +37,7 @@ def init_db():
     from app.models.subscription_plan import SubscriptionPlan
     from app.models.tenant import Tenant
     from app.models.user_subscription import UserSubscription
+    from app.models.verification_code import VerificationCode
     from app.models.video import (
         Video,
         VideoLike,
@@ -54,6 +55,7 @@ def init_db():
             Admin,
             Subscriber,
             RefreshToken,
+            VerificationCode,
             Video,
             VideoLike,
             VideoSave,

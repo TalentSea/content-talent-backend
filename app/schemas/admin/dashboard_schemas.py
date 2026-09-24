@@ -24,11 +24,19 @@ class GrowthMetric(BaseModel):
 class ContentInventoryBreakdown(BaseModel):
     """Detailed inventory counts for creator content catalog."""
 
-    total: int = Field(..., description="Lifetime video count")
-    published: int = Field(..., description="Playable public videos")
+    total: int = Field(..., description="Lifetime total assets (videos + shorts)")
+    published: int = Field(..., description="Playable public videos and shorts")
     drafts: int = Field(..., description="Videos in draft, pending or encoding state")
+    videos: int = Field(..., description="Lifetime standard widescreen catalog videos")
+    shorts: int = Field(..., description="Lifetime vertical short reels")
     recently_added: int = Field(
-        ..., description="New videos published/uploaded within current date window"
+        ..., description="Total new assets (videos + shorts) uploaded within current date window"
+    )
+    recently_added_videos: int = Field(
+        ..., description="New standard catalog videos uploaded within current date window"
+    )
+    recently_added_shorts: int = Field(
+        ..., description="New vertical short reels uploaded within current date window"
     )
 
 

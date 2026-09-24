@@ -1,20 +1,101 @@
 from fastapi import APIRouter, status
 
-from app.dependencies import CurrentSubscriber, OptionalSubscriber
+from app.dependencies import CurrentSubscriber
 from app.schemas.mobile.auth_schemas import (
     AuthTokenResponse,
     FacebookAuthRequest,
+    ForgotPasswordRequest,
     GoogleAuthRequest,
     GuestAuthRequest,
+    MobileLoginRequest,
+    MobileRegisterRequest,
     RefreshTokenRequest,
+    ResetPasswordRequest,
     UserProfileResponse,
+    VerifyRegistrationRequest,
+    VerifyResetCodeRequest,
+    VerifyResetCodeResponse,
 )
 from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.services.mobile.auth_service import AuthService
 
-router = APIRouter(prefix="/api/v1/mobile/auth", tags=["Mobile Social Authentication"])
+router = APIRouter(prefix="/api/v1/mobile/auth", tags=["Mobile Authentication"])
 auth_service = AuthService()
 
+
+# --------------------------------------------------------------------------
+# Native Email & Password Authentication Routes
+# --------------------------------------------------------------------------
+
+@router.post(
+    "/register",
+    response_model=ActionSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Initiate Registration & Send Verification Code",
+    description="Dispatches a 6-digit OTP code to email to verify registration or link existing Google account.",
+)
+def register(payload: MobileRegisterRequest):
+    return auth_service.initiate_registration(payload)
+
+
+@router.post(
+    "/verify-registration",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Verify Registration Code & Issue Tokens",
+    description="Verifies the 6-digit OTP code, creates or smart-links subscriber account, deletes the OTP record immediately, and returns application JWT tokens.",
+)
+def verify_registration(payload: VerifyRegistrationRequest):
+    return auth_service.verify_registration(payload)
+
+
+@router.post(
+    "/login",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Email & Password Login",
+    description="Authenticates registered subscribers using their email address and password.",
+)
+def login(payload: MobileLoginRequest):
+    return auth_service.login_local_subscriber(payload)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ActionSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Request Password Reset Code",
+    description="Initiates password reset flow by dispatching a 6-digit OTP code to the subscriber's email.",
+)
+def forgot_password(payload: ForgotPasswordRequest):
+    return auth_service.request_password_reset(payload)
+
+
+@router.post(
+    "/verify-reset-code",
+    response_model=VerifyResetCodeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Verify Password Reset Code",
+    description="Validates the 6-digit OTP code, deletes the OTP record immediately, and returns a 10-minute stateless signed JWT reset_token.",
+)
+def verify_reset_code(payload: VerifyResetCodeRequest):
+    return auth_service.verify_reset_code(payload)
+
+
+@router.post(
+    "/reset-password",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reset Password via Reset Token",
+    description="Validates the cryptographically signed reset_token, sets the new password, and returns fresh JWT tokens for instant auto-login.",
+)
+def reset_password(payload: ResetPasswordRequest):
+    return auth_service.reset_password_with_token(payload)
+
+
+# --------------------------------------------------------------------------
+# Social & Guest Authentication Routes
+# --------------------------------------------------------------------------
 
 @router.post(
     "/guest",
@@ -31,29 +112,27 @@ def authenticate_guest(payload: GuestAuthRequest):
     "/google",
     response_model=AuthTokenResponse,
     status_code=status.HTTP_200_OK,
-    summary="Dedicated Google OIDC Sign-In & Account Upgrade",
-    description="Exchanges a Google OIDC id_token JWT for application session JWT tokens. Upgrades active Guest account in-place if Bearer token is provided.",
+    summary="Dedicated Google OIDC Sign-In",
+    description="Exchanges a Google OIDC id_token JWT for application session JWT tokens.",
 )
-def authenticate_google(
-    payload: GoogleAuthRequest, optional_subscriber: OptionalSubscriber = None
-):
-    guest_id = optional_subscriber.get("user_id") if optional_subscriber else None
-    return auth_service.authenticate_google(payload, guest_subscriber_id=guest_id)
+def authenticate_google(payload: GoogleAuthRequest):
+    return auth_service.authenticate_google(payload)
 
 
 @router.post(
     "/facebook",
     response_model=AuthTokenResponse,
     status_code=status.HTTP_200_OK,
-    summary="Dedicated Facebook OAuth Sign-In & Account Upgrade",
-    description="Exchanges a Facebook OAuth access_token for application session JWT tokens. Upgrades active Guest account in-place if Bearer token is provided.",
+    summary="Dedicated Facebook OAuth Sign-In",
+    description="Exchanges a Facebook OAuth access_token for application session JWT tokens.",
 )
-def authenticate_facebook(
-    payload: FacebookAuthRequest, optional_subscriber: OptionalSubscriber = None
-):
-    guest_id = optional_subscriber.get("user_id") if optional_subscriber else None
-    return auth_service.authenticate_facebook(payload, guest_subscriber_id=guest_id)
+def authenticate_facebook(payload: FacebookAuthRequest):
+    return auth_service.authenticate_facebook(payload)
 
+
+# --------------------------------------------------------------------------
+# Session Lifecycle & Profile Routes
+# --------------------------------------------------------------------------
 
 @router.post(
     "/refresh",

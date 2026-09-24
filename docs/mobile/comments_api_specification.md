@@ -3,7 +3,7 @@
 ## 1. System Architecture & Security Standards
 
 ### Authentication Standard
-- **Public Feed Reading (`GET`)**: Optional Subscriber authentication via `get_optional_subscriber`. Guest users can view comments, but `is_liked` returns `false` and `is_owner` returns `false`.
+- **Public Feed Reading (`GET`)**: Authenticated via Subscriber or Guest Bearer token (`CurrentSubscriber`). Guest users can view comments, but `is_liked` returns `false` and `is_owner` returns `false`.
 - **Protected Actions (`POST`, `DELETE`)**: Requires a valid Subscriber JWT Bearer token passed in the HTTP request header:
 ```http
 Authorization: Bearer <subscriber_access_token>
@@ -27,7 +27,7 @@ Retrieves a paginated list of top-level comments for a specific video.
 
 #### Request Headers
 ```http
-Authorization: Bearer <subscriber_access_token>  # Optional
+Authorization: Bearer <access_token>  # Subscriber or Guest Bearer token
 ```
 
 #### Path Parameters

@@ -35,9 +35,14 @@ class Settings(BaseSettings):
 
     # Background Tasks & Automation Settings
     AUTO_PUBLISHER_LOOP_INTERVAL_SECONDS: int = 60
-    STALE_GUEST_CLEANUP_DAYS: int = 90
+    STALE_GUEST_CLEANUP_DAYS: int = 7
     SUBSCRIPTION_EXPIRATION_LOOP_INTERVAL_SECONDS: int = 3600
     MAX_FEATURED_VIDEOS_PER_CREATOR: int = 10
+
+    # Verification Code & OTP Security Settings
+    VERIFICATION_CODE_EXPIRE_MINUTES: int = 10
+    VERIFICATION_CODE_MAX_ATTEMPTS: int = 5
+    VERIFICATION_CODE_RESEND_COOLDOWN_SECONDS: int = 60
 
     GOOGLE_CLIENT_ID: str = (
         "166951692335-a6bblebovsn6ftnrs15n9n8bjpo79o5g.apps.googleusercontent.com"

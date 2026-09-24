@@ -86,6 +86,72 @@ class AuthRepository:
                 return existing
             raise
 
+    def find_user_by_email(self, tenant_id: int, email: str) -> Subscriber | None:
+        """
+        Finds subscriber bound to tenant_id by normalized email address.
+        """
+        try:
+            return (
+                Subscriber.select()
+                .where(
+                    (Subscriber.tenant == tenant_id)
+                    & (Subscriber.email == email.lower().strip())
+                )
+                .first()
+            )
+        except PeeweeException as e:
+            logger.error("Error querying subscriber by email: %s", e)
+            return None
+
+    def create_local_user(
+        self,
+        tenant_id: int,
+        name: str,
+        email: str,
+        password_hash: str,
+    ) -> Subscriber:
+        """
+        Provisions a new local email/password subscriber bound to tenant_id.
+        """
+        normalized_email = email.lower().strip()
+        now = datetime.now(timezone.utc)
+        return Subscriber.create(
+            tenant=tenant_id,
+            name=name.strip(),
+            email=normalized_email,
+            password_hash=password_hash,
+            provider="local",
+            provider_id=normalized_email,
+            role="subscriber",
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+
+    def link_password_and_update_name(
+        self, subscriber: Subscriber, name: str, password_hash: str
+    ) -> Subscriber:
+        """
+        Smart linking: Attaches a password and updates the profile name on an existing (e.g. Google) subscriber.
+        Preserves original subscriber ID, provider ID, subscriptions, and history completely intact.
+        """
+        subscriber.name = name.strip()
+        subscriber.password_hash = password_hash
+        subscriber.updated_at = datetime.now(timezone.utc)
+        subscriber.save()
+        return subscriber
+
+    def update_user_password(
+        self, subscriber: Subscriber, password_hash: str
+    ) -> Subscriber:
+        """
+        Updates the password hash of an existing subscriber during password reset.
+        """
+        subscriber.password_hash = password_hash
+        subscriber.updated_at = datetime.now(timezone.utc)
+        subscriber.save()
+        return subscriber
+
     def update_user_profile_info(
         self, subscriber: Subscriber, name: str | None, avatar_url: str | None
     ) -> Subscriber:
@@ -224,60 +290,9 @@ class AuthRepository:
                 return sub
             raise
 
-    def upgrade_guest_subscriber(
-        self,
-        guest_subscriber_id: int,
-        tenant_id: int,
-        provider: str,
-        provider_id: str,
-        email: str | None = None,
-        name: str | None = None,
-        avatar_url: str | None = None,
-    ) -> Subscriber:
+    def cleanup_stale_guest_subscribers(self, days: int = 7) -> int:
         """
-        Upgrades a Guest subscriber, or returns existing social subscriber if user is returning.
-        Cleans up temporary guest subscriber record on returning user login.
-        """
-        # 1. If this social user ALREADY has an account, return existing subscriber!
-        existing_user = self.find_user_by_provider_or_email(
-            tenant_id, provider, provider_id, email
-        )
-        if existing_user:
-            guest_sub = self.get_user_by_id(guest_subscriber_id)
-            if guest_sub and guest_sub.provider == "guest":
-                guest_sub.delete_instance()
-            return self.update_user_profile_info(existing_user, name, avatar_url)
-
-        # 2. Otherwise, upgrade the guest row in-place for new users
-        sub = self.get_user_by_id(guest_subscriber_id)
-        if not sub:
-            return self.create_social_user(
-                tenant_id=tenant_id,
-                provider=provider,
-                provider_id=provider_id,
-                email=email,
-                name=name,
-                avatar_url=avatar_url,
-            )
-
-        now = datetime.now(timezone.utc)
-        sub.tenant = tenant_id
-        sub.provider = provider
-        sub.provider_id = provider_id
-        sub.role = "subscriber"
-        if email:
-            sub.email = email
-        if name:
-            sub.name = name
-        if avatar_url:
-            sub.avatar_url = avatar_url
-        sub.updated_at = now
-        sub.save()
-        return sub
-
-    def cleanup_stale_guest_subscribers(self, days: int = 90) -> int:
-        """
-        Deletes abandoned guest subscriber records with updated_at < NOW() - 90 days.
+        Deletes abandoned guest subscriber records with updated_at < NOW() - days (default 7 days).
         Cascades delete to associated watch_history, video_saves, and video_likes.
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)

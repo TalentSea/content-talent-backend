@@ -20,9 +20,10 @@ class Subscriber(BaseModel):
     email = CharField(max_length=255, null=True, index=True)
     name = CharField(max_length=255, null=True)
     avatar_url = CharField(max_length=500, null=True)
+    password_hash = CharField(max_length=255, null=True)
     provider = CharField(
         max_length=50, default="google"
-    )  # 'google', 'facebook', or 'guest'
+    )  # 'local', 'google', 'facebook', or 'guest'
     provider_id = CharField(
         max_length=255, index=True
     )  # Google sub, FB id, or Device GUID

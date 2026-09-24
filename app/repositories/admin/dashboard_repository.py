@@ -108,7 +108,7 @@ class DashboardRepository:
     def get_content_inventory(
         self, tenant_id: int, window_start: datetime
     ) -> dict[str, int]:
-        """Returns inventory counts: total, published, drafts, recently_added."""
+        """Returns inventory counts: total, published, drafts, videos, shorts, recently_added, recently_added_videos, recently_added_shorts."""
         total = Video.select().where(Video.tenant == tenant_id).count()
         published = (
             Video.select()
@@ -127,6 +127,16 @@ class DashboardRepository:
             )
             .count()
         )
+        shorts = (
+            Video.select()
+            .where(
+                Video.tenant == tenant_id,
+                Video.video_type == "shorts",
+            )
+            .count()
+        )
+        videos = max(0, total - shorts)
+
         recently_added = (
             Video.select()
             .where(
@@ -135,11 +145,26 @@ class DashboardRepository:
             )
             .count()
         )
+        recently_added_shorts = (
+            Video.select()
+            .where(
+                Video.tenant == tenant_id,
+                Video.created_at >= window_start,
+                Video.video_type == "shorts",
+            )
+            .count()
+        )
+        recently_added_videos = max(0, recently_added - recently_added_shorts)
+
         return {
             "total": total,
             "published": published,
             "drafts": drafts,
+            "videos": videos,
+            "shorts": shorts,
             "recently_added": recently_added,
+            "recently_added_videos": recently_added_videos,
+            "recently_added_shorts": recently_added_shorts,
         }
 
     def get_subscription_tier_breakdown(

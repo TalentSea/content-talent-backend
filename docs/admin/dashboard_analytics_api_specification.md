@@ -126,7 +126,11 @@ Authorization: Bearer <admin_access_token>
     "total": 48,
     "published": 45,
     "drafts": 3,
-    "recently_added": 2
+    "videos": 36,
+    "shorts": 12,
+    "recently_added": 2,
+    "recently_added_videos": 1,
+    "recently_added_shorts": 1
   }
 }
 ```
@@ -140,10 +144,14 @@ Authorization: Bearer <admin_access_token>
 - `total_users`: Total registered audience accounts with user acquisition growth.
 - `total_subscribers`: Paying members with an active subscription (`status = 'active'`) and conversion growth.
 - `total_content`: Catalog inventory breakdown:
-  - `total`: All lifetime video assets.
+  - `total`: Total lifetime video assets (`videos + shorts`).
   - `published`: Ready and playable videos visible on the platform.
   - `drafts`: Processing, scheduled, or unlisted videos.
-  - `recently_added`: New videos uploaded during the selected date window.
+  - `videos`: Total standard widescreen catalog videos (`video_type = 'standard'`).
+  - `shorts`: Total vertical short reels (`video_type = 'shorts'`).
+  - `recently_added`: Total new assets (`recently_added_videos + recently_added_shorts`) uploaded during the selected date window.
+  - `recently_added_videos`: New standard widescreen catalog videos uploaded during the selected date window.
+  - `recently_added_shorts`: New vertical short reels uploaded during the selected date window.
 
 #### Mathematical Telemetry Model (Growth Percentage)
 

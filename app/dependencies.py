@@ -57,19 +57,6 @@ def get_current_subscriber(
     }
 
 
-def get_optional_subscriber(
-    token: Annotated[str | None, Depends(oauth2_scheme_optional)] = None,
-) -> dict[str, Any] | None:
-    """
-    Optional authentication for endpoints that allow guest access or guest account upgrade.
-    """
-    if not token:
-        return None
-    try:
-        return get_current_subscriber(token)
-    except HTTPException:
-        return None
-
 
 def get_current_admin(
     cookie_token: Annotated[str | None, Cookie(alias="admin_access_token")] = None,
@@ -172,5 +159,4 @@ def get_current_super_admin(
 CurrentAdmin = Annotated[dict[str, Any], Depends(get_current_admin)]
 CurrentSuperAdmin = Annotated[dict[str, Any], Depends(get_current_super_admin)]
 CurrentSubscriber = Annotated[dict[str, Any], Depends(get_current_subscriber)]
-OptionalSubscriber = Annotated[dict[str, Any] | None, Depends(get_optional_subscriber)]
 FormFile = Annotated[UploadFile, File(...)]
