@@ -5,6 +5,7 @@ from fastapi import HTTPException, Response, status
 from app.config import get_settings
 from app.repositories.admin.auth_repository import AuthRepository
 from app.schemas.admin.auth_schemas import (
+    AdminChangePasswordRequest,
     AdminLoginRequest,
     AdminLoginResponse,
     AdminSummaryResponse,
@@ -14,6 +15,7 @@ from app.schemas.shared.common_schemas import ActionSuccessResponse
 from app.utils.auth import (
     create_access_token,
     create_refresh_token_string,
+    hash_password,
     hash_refresh_token,
     verify_password,
     verify_tenant_active,
@@ -289,3 +291,44 @@ class AuthService:
         self._clear_refresh_cookie(response)
         self._clear_access_cookie(response)
         return ActionSuccessResponse(status="success")
+
+    def change_password(
+        self, admin_id: int, payload: AdminChangePasswordRequest, response: Response
+    ) -> ActionSuccessResponse:
+        """
+        Updates account password for the authenticated administrator (Tenant Admin or Super Admin).
+        Re-verifies current password and rotates the refresh session upon success.
+        """
+        admin = self.repo.get_admin_by_id(admin_id)
+        if not admin:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Admin account not found",
+            )
+
+        if not getattr(admin, "is_active", True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin account has been deactivated. Please contact platform administration.",
+            )
+
+        if not admin.password_hash or not verify_password(payload.current_password, admin.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password does not match",
+            )
+
+        if verify_password(payload.new_password, admin.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password cannot be identical to current password",
+            )
+
+        new_password_hash = hash_password(payload.new_password)
+        self.repo.update_admin_password(admin.id, new_password_hash)
+
+        # Rotate refresh session to invalidate other devices while keeping current browser session active
+        self._rotate_refresh_session(admin.id, response)
+
+        return ActionSuccessResponse(status="success")
+

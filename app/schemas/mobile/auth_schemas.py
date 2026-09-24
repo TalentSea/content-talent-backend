@@ -142,3 +142,12 @@ class AuthTokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int = 1800
     user: UserProfileResponse
+
+
+class UpdateSubscriberProfileRequest(BaseModel):
+    """
+    Request payload to update subscriber profile attributes (e.g. display name).
+    """
+
+    name: str = Field(..., min_length=2, max_length=100, description="Updated display name")
+

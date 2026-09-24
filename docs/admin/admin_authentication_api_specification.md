@@ -641,6 +641,55 @@ Set-Cookie: admin_refresh_token=; HttpOnly; Secure; SameSite=None; Path=/api/v1/
 
 ---
 
+### 4.5 `POST /api/v1/admin/auth/change-password` — Change Password (Admin & Super Admin)
+
+Updates the password for the currently authenticated administrator (both Tenant Admins and Platform Super Admins). Requires verification of the existing password before applying the new password.
+
+#### Security & Access Rules:
+- **Authentication**: `CurrentAdmin` (Cookie `admin_access_token` or Bearer Header).
+- **IDOR Protection**: The target account is strictly resolved from `current_admin["user_id"]` in the JWT context.
+- **Role Parity**: Functions identically for both Creator Admins (`role = "admin"`) and Platform Super Admins (`role = "super_admin"`).
+- **Password Strength**: Minimum 8 characters. The new password must not match the current password.
+- **Session Continuity**: Upon updating the password hash, the backend rotates the refresh token session in the database and sends updated `HttpOnly` cookies, ensuring the active browser remains seamlessly logged in while invalidating any stale sessions on other devices.
+
+#### Request Headers:
+
+```http
+Cookie: admin_access_token=<jwt_cookie>
+Content-Type: application/json
+```
+
+_(Or header fallback: `Authorization: Bearer <admin_access_token>`)_
+
+#### Request Body Specification:
+
+```json
+{
+  "current_password": "OldPassword123!",
+  "new_password": "NewSecurePassword456!"
+}
+```
+
+| Field              | Type     | Required | Validation Rules                  | Description                               |
+| :----------------- | :------- | :------: | :-------------------------------- | :---------------------------------------- |
+| `current_password` | `string` | **Yes**  | Min 1 char                        | Existing account password for verification|
+| `new_password`     | `string` | **Yes**  | Min 8 chars, distinct from current| New account password to be hashed         |
+
+#### Error Responses:
+- `400 Bad Request`: `"Current password does not match"`
+- `400 Bad Request`: `"New password cannot be identical to current password"`
+- `401 Unauthorized`: `"Authentication required: No access token provided"`
+
+#### Response Specification (`200 OK`):
+
+```json
+{
+  "status": "success"
+}
+```
+
+---
+
 ## 5. Super Admin Tenant & Creator Onboarding API (`POST /api/v1/admin/tenants`)
 
 Creator admin accounts are never registered publicly; they are provisioned by Platform Super Admins via the tenant onboarding endpoint.
@@ -777,4 +826,6 @@ sequenceDiagram
 | `POST` | `/api/v1/admin/auth/refresh` | Silently renew access token with token rotation | Cookie: `admin_refresh_token` | Empty body | `AdminTokenResponse` + 2 rotated Cookies |
 | `GET` | `/api/v1/admin/auth/me` | Rehydrate identity & studio context for session | Cookie: `admin_access_token` or Bearer Header | None | `AdminSummaryResponse` |
 | `POST` | `/api/v1/admin/auth/logout` | Revoke session in DB & erase auth cookies | Cookie: `admin_access_token` or Bearer Header | None | `{"message": "Successfully logged out"}` + Expired Cookies |
+| `POST` | `/api/v1/admin/auth/change-password` | Change password with current password verification (Admin & Super Admin) | Cookie: `admin_access_token` or Bearer Header | JSON (`current_password`, `new_password`) | `ActionSuccessResponse` (`status="success"`) |
+
 

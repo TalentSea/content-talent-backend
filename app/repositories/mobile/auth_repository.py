@@ -171,6 +171,27 @@ class AuthRepository:
             subscriber.save()
         return subscriber
 
+    def update_subscriber_name(self, subscriber: Subscriber, name: str) -> Subscriber:
+        """
+        Updates the display name of a subscriber.
+        """
+        subscriber.name = name.strip()
+        subscriber.updated_at = datetime.now(timezone.utc)
+        subscriber.save()
+        return subscriber
+
+    def update_subscriber_avatar(
+        self, subscriber: Subscriber, avatar_url: str
+    ) -> Subscriber:
+        """
+        Updates the profile avatar CDN URL of a subscriber.
+        """
+        subscriber.avatar_url = avatar_url
+        subscriber.updated_at = datetime.now(timezone.utc)
+        subscriber.save()
+        return subscriber
+
+
     def create_refresh_token_record(
         self,
         subscriber: Subscriber,

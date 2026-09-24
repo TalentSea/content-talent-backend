@@ -86,6 +86,18 @@ class Settings(BaseSettings):
     DEFAULT_CURRENCY: str = "INR"
     DEFAULT_CATEGORY_COLOR: str = "#3b82f6"
 
+    # SMTP / Transactional Email Settings
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: str = "contenttalent@gmail.com"
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "contenttalent@gmail.com"
+    SMTP_FROM_NAME: str = "Content Talent"
+    SMTP_USE_TLS: bool = False
+    SMTP_USE_SSL: bool = True
+
+
+
     @property
     def allowed_image_extensions_tuple(self) -> tuple[str, ...]:
         """

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Cookie, Response, status
 
 from app.dependencies import CurrentAdmin
 from app.schemas.admin.auth_schemas import (
+    AdminChangePasswordRequest,
     AdminLoginRequest,
     AdminLoginResponse,
     AdminSummaryResponse,
@@ -53,3 +54,23 @@ def admin_logout(current_admin: CurrentAdmin, response: Response):
     POST /api/v1/admin/auth/logout — Revokes active refresh session in DB and erases HttpOnly cookie.
     """
     return auth_service.logout(current_admin["user_id"], response)
+
+
+@router.post(
+    "/change-password",
+    response_model=ActionSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Change Password (Admin & Super Admin)",
+    description="Updates password for the authenticated administrator after verifying current password.",
+)
+def admin_change_password(
+    payload: AdminChangePasswordRequest,
+    current_admin: CurrentAdmin,
+    response: Response,
+):
+    """
+    POST /api/v1/admin/auth/change-password — Changes password with current password verification.
+    Serves both Tenant Admins and Platform Super Admins.
+    """
+    return auth_service.change_password(current_admin["user_id"], payload, response)
+

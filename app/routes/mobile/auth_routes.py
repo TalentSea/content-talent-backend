@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from app.dependencies import CurrentSubscriber
+from app.dependencies import CurrentSubscriber, FormFile
 from app.schemas.mobile.auth_schemas import (
     AuthTokenResponse,
     FacebookAuthRequest,
@@ -11,6 +11,7 @@ from app.schemas.mobile.auth_schemas import (
     MobileRegisterRequest,
     RefreshTokenRequest,
     ResetPasswordRequest,
+    UpdateSubscriberProfileRequest,
     UserProfileResponse,
     VerifyRegistrationRequest,
     VerifyResetCodeRequest,
@@ -26,6 +27,7 @@ auth_service = AuthService()
 # --------------------------------------------------------------------------
 # Native Email & Password Authentication Routes
 # --------------------------------------------------------------------------
+
 
 @router.post(
     "/register",
@@ -97,6 +99,7 @@ def reset_password(payload: ResetPasswordRequest):
 # Social & Guest Authentication Routes
 # --------------------------------------------------------------------------
 
+
 @router.post(
     "/guest",
     response_model=AuthTokenResponse,
@@ -134,6 +137,7 @@ def authenticate_facebook(payload: FacebookAuthRequest):
 # Session Lifecycle & Profile Routes
 # --------------------------------------------------------------------------
 
+
 @router.post(
     "/refresh",
     response_model=AuthTokenResponse,
@@ -166,3 +170,39 @@ def logout_session(payload: RefreshTokenRequest):
 def get_current_user_profile(current_user: CurrentSubscriber):
     user_id = current_user.get("user_id")
     return auth_service.get_current_user_profile(user_id)
+
+
+@router.patch(
+    "/profile",
+    response_model=UserProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Subscriber Profile Name",
+    description="Updates the display name of the authenticated subscriber.",
+)
+def update_subscriber_profile(
+    payload: UpdateSubscriberProfileRequest,
+    current_user: CurrentSubscriber,
+):
+    return auth_service.update_profile_name(
+        user_id=current_user["user_id"],
+        role=current_user.get("role"),
+        payload=payload,
+    )
+
+
+@router.post(
+    "/profile/photo",
+    response_model=UserProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Upload Subscriber Avatar Photo",
+    description="Uploads a new avatar image to Bunny Storage with CDN cache-busting.",
+)
+def upload_subscriber_avatar(
+    current_user: CurrentSubscriber,
+    photo: FormFile,
+):
+    return auth_service.upload_profile_avatar(
+        user_id=current_user["user_id"],
+        role=current_user.get("role"),
+        file=photo,
+    )

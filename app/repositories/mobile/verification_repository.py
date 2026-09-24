@@ -105,7 +105,7 @@ class VerificationRepository:
         Stores an in-flight registration OTP record containing hashed code and serialized temporary payload.
         """
         settings = get_settings()
-        expires_minutes = getattr(settings, "VERIFICATION_CODE_EXPIRE_MINUTES", 10)
+        expires_minutes = settings.VERIFICATION_CODE_EXPIRE_MINUTES
         self.cleanup_expired_and_pending(tenant_id, email)
 
         now = now_utc()
@@ -138,7 +138,7 @@ class VerificationRepository:
         Stores an in-flight password reset OTP record.
         """
         settings = get_settings()
-        expires_minutes = getattr(settings, "VERIFICATION_CODE_EXPIRE_MINUTES", 10)
+        expires_minutes = settings.VERIFICATION_CODE_EXPIRE_MINUTES
         self.cleanup_expired_and_pending(tenant_id, email)
 
         now = now_utc()

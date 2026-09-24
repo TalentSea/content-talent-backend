@@ -23,9 +23,11 @@ This specification defines the complete authentication and identity architecture
 │ 4. Forgot Password         ──► POST /api/v1/mobile/auth/forgot-password     ──► Sends 6-Digit OTP│
 │ 5. Verify Reset Code       ──► POST /api/v1/mobile/auth/verify-reset-code   ──► Reset JWT Token │
 │ 6. Reset Password (In-App) ──► POST /api/v1/mobile/auth/reset-password      ──► Auto-Login Token│
-│ 6. Skip Signup (Guest)     ──► POST /api/v1/mobile/auth/guest               ──► Guest JWT Token │
-│ 7. Google OIDC Sign-In     ──► POST /api/v1/mobile/auth/google              ──► Google JWT Token│
-│ 8. Facebook OAuth2 Sign-In ──► POST /api/v1/mobile/auth/facebook            ──► FB JWT Token    │
+│ 7. Skip Signup (Guest)     ──► POST /api/v1/mobile/auth/guest               ──► Guest JWT Token │
+│ 8. Google OIDC Sign-In     ──► POST /api/v1/mobile/auth/google              ──► Google JWT Token│
+│ 9. Facebook OAuth2 Sign-In ──► POST /api/v1/mobile/auth/facebook            ──► FB JWT Token    │
+│ 10. Update Name (Profile)  ──► PATCH /api/v1/mobile/auth/profile             ──► Updated Profile │
+│ 11. Upload Avatar Photo    ──► POST /api/v1/mobile/auth/profile/photo        ──► CDN Avatar URL  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
                                                  │
                                                  ▼
@@ -682,3 +684,199 @@ Authorization: Bearer <access_token>
   "created_at": "2026-08-11T19:00:00Z"
 }
 ```
+
+---
+
+### 13. `PATCH /api/v1/mobile/auth/profile` — Update Subscriber Name
+
+Updates the display name of the authenticated subscriber.
+
+#### Request Headers
+
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+#### Security & Access Rules
+- **Guard**: `CurrentSubscriber` (Zero IDOR: `user_id` extracted from JWT context).
+- **Guest Restriction**: Anonymous guest users (`role == "guest"`) are rejected with `403 Forbidden` (`"Guest accounts cannot update profile details. Please register or sign in."`).
+
+#### Request Body Specification
+
+```json
+{
+  "name": "Jane Smith"
+}
+```
+
+| Field  | Type     | Required | Validation Rules                  | Description                      |
+| :----- | :------- | :------: | :-------------------------------- | :------------------------------- |
+| `name` | `string` | **Yes**  | Min 2 chars, max 100 chars, trim | New display name for subscriber  |
+
+#### Response Specification (`200 OK`)
+
+Returns the updated subscriber profile:
+
+```json
+{
+  "id": 99,
+  "name": "Jane Smith",
+  "email": "jane.doe@gmail.com",
+  "avatar_url": "https://lh3.googleusercontent.com/a/AEdFT...",
+  "provider": "local",
+  "role": "subscriber",
+  "created_at": "2026-08-11T19:00:00Z"
+}
+```
+
+---
+
+### 14. `POST /api/v1/mobile/auth/profile/photo` — Upload Profile Picture (Avatar)
+
+Uploads a new avatar photo to Bunny Cloud Storage with CDN cache-busting, updates `subscribers.avatar_url`, and automatically removes the previous custom avatar from Bunny Storage.
+
+#### Request Headers
+
+```http
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+#### Security & Access Rules
+- **Guard**: `CurrentSubscriber` (`user_id` from JWT context).
+- **Guest Restriction**: Anonymous guest users (`role == "guest"`) are rejected with `403 Forbidden`.
+- **Validation**: Enforces allowed extensions (`jpg`, `jpeg`, `png`, `webp`) and maximum size (`MAX_AVATAR_SIZE_MB`, 2MB).
+- **Cloud Path**: Stored in Bunny Cloud Storage under `assets/avatars/subscribers/subscriber_{user_id}_{timestamp}.{ext}`.
+
+#### Request Body (`multipart/form-data`)
+
+- `photo` (File, required): Binary image file (`JPG`, `PNG`, or `WEBP`, max 2MB).
+
+#### Response Specification (`200 OK`)
+
+```json
+{
+  "id": 99,
+  "name": "Jane Smith",
+  "email": "jane.doe@gmail.com",
+  "avatar_url": "https://talentsea77999.b-cdn.net/assets/avatars/subscribers/subscriber_99_1785056000.jpg",
+  "provider": "local",
+  "role": "subscriber",
+  "created_at": "2026-08-11T19:00:00Z"
+}
+```
+
+---
+
+## 15. 📧 Transactional Email Templates & Expected Delivery Output
+
+The platform dispatches multipart (HTML + Plaintext) transactional emails via standard SMTP (`smtplib`). When SMTP credentials are not configured in `.env`, the system automatically logs codes to the server console in Developer Mode.
+
+---
+
+### 15.1 Registration Verification OTP Email
+
+Dispatched when a subscriber signs up via `POST /api/v1/mobile/auth/register`.
+
+* **Subject**: `<Studio Name> — Verification Code: 482910`
+* **From**: `Content Talent <contenttalent@gmail.com>`
+* **To**: `<subscriber_email>`
+
+#### Visual / HTML Email Preview (Rendered in Gmail / Apple Mail / Outlook)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│                    Welcome to Content Talent!               │
+│                                                             │
+│       Use the verification code below to complete your      │
+│                     account registration:                   │
+│                                                             │
+│       ┌─────────────────────────────────────────────┐       │
+│       │                                             │       │
+│       │                 4 8 2 9 1 0                 │       │
+│       │                                             │       │
+│       └─────────────────────────────────────────────┘       │
+│                                                             │
+│             ⏰ This code expires in 10 minutes.             │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│  If you did not initiate this request, you can safely        │
+│  ignore this email.                                         │
+│  © Content Talent. All rights reserved.                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+> [!NOTE]
+> **Smart Linking Banner**: If the email matches an existing Google subscriber (`is_linked_account=True`), the following notice automatically renders below the code box:
+> `ℹ️ This verification will link password login to your existing account while preserving all your active subscriptions and watch history.`
+
+#### Plaintext Fallback Output
+
+```text
+Welcome to Content Talent!
+
+Your verification code is: 482910
+
+Please enter this 6-digit code in the app to complete your account verification.
+This code will expire in 10 minutes.
+
+If you did not request this verification code, please ignore this email.
+```
+
+---
+
+### 15.2 Password Reset OTP Email
+
+Dispatched when a subscriber initiates password reset via `POST /api/v1/mobile/auth/forgot-password`.
+
+* **Subject**: `<Studio Name> — Password Reset Code: 719304`
+* **From**: `Content Talent <contenttalent@gmail.com>`
+* **To**: `<subscriber_email>`
+
+#### Visual / HTML Email Preview (Rendered in Gmail / Apple Mail / Outlook)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│                     Reset Your Password                     │
+│                                                             │
+│       We received a request to reset the password for       │
+│       your Content Talent account. Use the code below:      │
+│                                                             │
+│       ┌─────────────────────────────────────────────┐       │
+│       │                                             │       │
+│       │                 7 1 9 3 0 4                 │       │
+│       │                                             │       │
+│       └─────────────────────────────────────────────┘       │
+│                                                             │
+│             ⏰ This code expires in 10 minutes.             │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│  If you did not request a password reset, no further action │
+│  is required. Your account is safe.                         │
+│  © Content Talent. All rights reserved.                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+> [!NOTE]
+> **Google Sign-In Awareness**: If the subscriber originally signed up with Google (`has_google_linked=True`), the following notice automatically renders below the code box:
+> `ℹ️ You originally signed in using Google. Setting a password will allow you to sign in using either Google or your email and password.`
+
+#### Plaintext Fallback Output
+
+```text
+Hello from Content Talent,
+
+We received a request to reset your password.
+
+Your password reset code is: 719304
+
+Please enter this 6-digit code in the app to reset your password.
+This code will expire in 10 minutes.
+
+If you did not request a password reset, please ignore this email. Your account remains completely secure.
+```
+
+

@@ -1,6 +1,6 @@
 # Complete Database Architecture & Field-by-Field Schema Specification
 
-This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **23 Database Tables** in the **Content Talent Backend API**.
+This document provides a permanent visual, architectural, and **field-by-field schema specification** for all **24 Database Tables** in the **Content Talent Backend API**.
 
 ---
 
@@ -16,6 +16,7 @@ erDiagram
     TENANT ||--o{ FEATURED_VIDEO : "curates home carousel (1:N)"
     TENANT ||--o{ SUBSCRIPTION_PLAN : "offers (1:N)"
     TENANT ||--o{ SUBSCRIBER : "hosts members (1:N)"
+    TENANT ||--o{ VERIFICATION_CODE : "stores temporary OTPs (1:N)"
     TENANT ||--o{ PAYMENT : "receives transactions (1:N)"
     TENANT ||--o{ USER_SUBSCRIPTION : "grants entitlements (1:N)"
     TENANT ||--o{ VIDEO_VIEW_EVENT : "aggregates telemetry (1:N)"
@@ -170,17 +171,18 @@ In this multi-tenant SaaS OTT platform:
 
 | Column Name   | Data Type      | Key / Constraint                       | Nullable | Default Value    | Description                                         |
 | :------------ | :------------- | :------------------------------------- | :------: | :--------------- | :-------------------------------------------------- |
-| `id`          | `INTEGER`      | **PK (Auto Increment)**                |    NO    | Auto             | Primary key ID of the mobile subscriber             |
-| `tenant_id`   | `INTEGER`      | **FK ➔ `tenants.id` (CASCADE, INDEX)** |    NO    | None (Mandatory) | Tenant Studio hosting this subscriber               |
-| `email`       | `VARCHAR(255)` | **INDEX**                              |   YES    | `NULL`           | Subscriber email address (null for guests)          |
-| `name`        | `VARCHAR(255)` | Standard                               |   YES    | `NULL`           | Display name (Google/Facebook/Guest name)           |
-| `avatar_url`  | `VARCHAR(500)` | Standard                               |   YES    | `NULL`           | Social profile picture URL                          |
-| `provider`    | `VARCHAR(50)`  | Standard                               |    NO    | `"google"`       | Auth provider (`"google"`, `"facebook"`, `"guest"`) |
-| `provider_id` | `VARCHAR(255)` | **INDEX**                              |    NO    | None             | Provider ID (Google `sub`, FB `id`, or `device_id`) |
-| `role`        | `VARCHAR(50)`  | Standard                               |    NO    | `"subscriber"`   | Access role (`"subscriber"` or `"guest"`)           |
-| `is_active`   | `BOOLEAN`      | Standard                               |    NO    | `True`           | Account active flag                                 |
-| `created_at`  | `DATETIME`     | Standard                               |    NO    | `UTC timestamp`  | Account registration timestamp                      |
-| `updated_at`  | `DATETIME`     | Standard                               |    NO    | `UTC timestamp`  | Account last update timestamp                       |
+| `id`            | `INTEGER`      | **PK (Auto Increment)**                |    NO    | Auto             | Primary key ID of the mobile subscriber                   |
+| `tenant_id`     | `INTEGER`      | **FK ➔ `tenants.id` (CASCADE, INDEX)** |    NO    | None (Mandatory) | Tenant Studio hosting this subscriber                     |
+| `email`         | `VARCHAR(255)` | **INDEX**                              |   YES    | `NULL`           | Subscriber email address (null for guests)                |
+| `name`          | `VARCHAR(255)` | Standard                               |   YES    | `NULL`           | Display name (Google/Facebook/Guest/Native name)          |
+| `avatar_url`    | `VARCHAR(500)` | Standard                               |   YES    | `NULL`           | Social or uploaded CDN profile picture URL                |
+| `password_hash` | `VARCHAR(255)` | Standard                               |   YES    | `NULL`           | PBKDF2-HMAC-SHA256 password hash (native email auth)      |
+| `provider`      | `VARCHAR(50)`  | Standard                               |    NO    | `"google"`       | Auth provider (`"local"`, `"google"`, `"facebook"`, `"guest"`) |
+| `provider_id`   | `VARCHAR(255)` | **INDEX**                              |    NO    | None             | Provider ID (Google `sub`, FB `id`, email, or `device_id`)|
+| `role`          | `VARCHAR(50)`  | Standard                               |    NO    | `"subscriber"`   | Access role (`"subscriber"` or `"guest"`)                 |
+| `is_active`     | `BOOLEAN`      | Standard                               |    NO    | `True`           | Account active flag                                       |
+| `created_at`    | `DATETIME`     | Standard                               |    NO    | `UTC timestamp`  | Account registration timestamp                            |
+| `updated_at`    | `DATETIME`     | Standard                               |    NO    | `UTC timestamp`  | Account last update timestamp                             |
 
 - **Unique Composite Index**: `(("tenant", "provider", "provider_id"), True)` — Enforces 1 unique subscriber account per auth provider per tenant studio.
 
@@ -573,3 +575,24 @@ In this multi-tenant SaaS OTT platform:
 | `bank_name`           | `VARCHAR(100)` | Standard                                       |   YES    | `NULL`          | Bank name auto-resolved from IFSC                  |
 | `created_at`          | `DATETIME`     | Standard                                       |    NO    | `UTC timestamp` | Registration timestamp                             |
 | `updated_at`          | `DATETIME`     | Standard                                       |    NO    | `UTC timestamp` | Last update timestamp                              |
+
+---
+
+### 24. `verification_codes` Table (Temporary Registration & Password Reset OTP Ledger)
+
+- **Model File**: [`app/models/verification_code.py`](../app/models/verification_code.py)
+- **Table Name**: `verification_codes`
+
+| Column Name    | Data Type      | Key / Constraint                       | Nullable | Default Value   | Description                                                                     |
+| :------------- | :------------- | :------------------------------------- | :------: | :-------------- | :------------------------------------------------------------------------------ |
+| `id`           | `INTEGER`      | **PK (Auto Increment)**                |    NO    | Auto            | Primary key ID of temporary verification record                                 |
+| `tenant_id`    | `INTEGER`      | **FK ➔ `tenants.id` (CASCADE, INDEX)** |    NO    | None            | Tenant Studio hosting this verification request                                 |
+| `email`        | `VARCHAR(255)` | **INDEX**                              |    NO    | None            | Lowercase subscriber email destination                                          |
+| `code_hash`    | `VARCHAR(255)` | Standard                               |    NO    | None            | SHA-256 hash of the 6-digit numeric OTP                                         |
+| `purpose`      | `VARCHAR(50)`  | Standard                               |    NO    | None            | Verification context: `"registration"` or `"password_reset"`                    |
+| `payload_data` | `TEXT`         | Standard                               |   YES    | `NULL`          | JSON-encoded temporary registration payload (`name`, `password_hash`)            |
+| `attempts`     | `INTEGER`      | Standard                               |    NO    | `0`             | Brute-force lockout counter (purged on $\ge 5$ failed attempts)                 |
+| `expires_at`   | `DATETIME`     | **INDEX**                              |    NO    | None            | Expiration timestamp (10 minutes from dispatch)                                 |
+| `created_at`   | `DATETIME`     | Standard                               |    NO    | `UTC timestamp` | OTP dispatch timestamp (used to enforce 60s resend cooldown)                     |
+
+- **Composite Index**: `(("tenant", "email", "purpose"), False)` — Optimizes latest-code lookups and cooldown verification queries scoped by tenant, email, and purpose.

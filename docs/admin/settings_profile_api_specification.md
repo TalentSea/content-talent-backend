@@ -172,3 +172,42 @@ Content-Type: multipart/form-data
   "avatar_url": "https://talentsea77999.b-cdn.net/assets/avatars/avatar_101_1785055000.jpg"
 }
 ```
+
+---
+
+### 4. `POST /api/v1/admin/auth/change-password` — Change Password (Settings -> Security)
+
+Allows administrators (both Tenant Admins and Platform Super Admins) to securely update their account password from the **Settings -> Security** view by re-verifying their current password.
+
+#### Request Headers
+```http
+Authorization: Bearer <creator_access_token>
+Content-Type: application/json
+```
+*(Or automatic browser `admin_access_token` HttpOnly cookie)*
+
+#### Request Body Specification
+```json
+{
+  "current_password": "OldPassword123!",
+  "new_password": "NewSecurePassword456!"
+}
+```
+
+| Field              | Type     | Required | Validation Rules                  | Description                               |
+| :----------------- | :------- | :------: | :-------------------------------- | :---------------------------------------- |
+| `current_password` | `string` | **Yes**  | Min 1 char                        | Existing account password for verification|
+| `new_password`     | `string` | **Yes**  | Min 8 chars, distinct from current| New account password to be hashed         |
+
+#### Error Responses
+- `400 Bad Request`: `"Current password does not match"`
+- `400 Bad Request`: `"New password cannot be identical to current password"`
+- `401 Unauthorized`: `"Authentication required: No access token provided"`
+
+#### Response Specification (`200 OK`)
+```json
+{
+  "status": "success"
+}
+```
+

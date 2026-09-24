@@ -14,7 +14,7 @@ content-talent-backend/
 ├── docs/                         # Architecture & API Specifications
 │   ├── mobile/                   # Mobile Application API Specifications
 │   ├── admin/                    # Admin Portal API Specifications
-│   ├── database_architecture_specification.md # Complete 23-Table Database Schema Specification
+│   ├── database_architecture_specification.md # Complete 24-Table Database Schema Specification
 ├── app/
 │   ├── config.py                 # Pydantic environment configuration and settings
 │   ├── database.py               # Peewee database proxy and table initialization
@@ -37,6 +37,7 @@ content-talent-backend/
 │   │   ├── video.py              # Video asset metadata, VideoLike, VideoSave, WatchHistory, and VideoViewEvent entities
 │   │   ├── playlist.py           # Playlist, PlaylistVideo, and PlaylistSave entities
 │   │   ├── comment.py            # Comment, thread replies, and junction entities
+│   │   ├── verification_code.py  # Temporary OTP verification codes for registration and password reset
 │   │   └── ad_monetization.py    # AdImpressionEvent, AdPlatformMonthlyReconciliation, AdMonthlySettlement, and CreatorPayoutProfile entities
 │   ├── repositories/             # Data Access Layer (Peewee Queries)
 │   │   ├── admin/                # Creator Admin Repositories
@@ -53,6 +54,7 @@ content-talent-backend/
 │   │   │   └── super_admin_monetization_repository.py
 │   │   ├── mobile/               # Mobile Subscriber Repositories
 │   │   │   ├── auth_repository.py
+│   │   │   ├── verification_repository.py
 │   │   │   ├── video_repository.py
 │   │   │   ├── playlist_repository.py
 │   │   │   ├── comment_repository.py
@@ -201,16 +203,18 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
 - **Dedicated 0-Indexed Thumbnail Management**: Implements dedicated sub-resource upload paths (`slot: 0, 1, 2`) supporting primary cover swaps without accidental asset deletion.
 - **Playlist Curation and Deterministic Cover Overrides**: Multi-video collection management with deterministic cloud banner overrides and custom video ordering.
 - **Comments and On-Demand Thread Replies**: High-performance top-level comment listing with `reply_count`, search, video/category filtering, and on-demand paginated reply thread fetching (`GET /comments/{id}/replies?sort=oldest`).
+- **Native Email & In-App OTP Authentication, Smart Linking & SMTP Email Delivery**: Native email and password registration and login (`/api/v1/mobile/auth/*`) paired with a self-pruning 6-digit In-App OTP engine (`10-minute expiry`, `5-attempt brute-force lockout`, and `60-second resend cooldown`). Features **Smart Account Linking** to link passwords to existing Google accounts without duplicate profiles or loss of paid subscriptions, and a 2-step In-App Forgot Password flow returning a 10-minute stateless signed JWT reset token. Delivers branded multipart HTML + Plain Text transactional emails via standard SMTP (`smtplib`), supporting Gmail SSL (port 465), AWS SES, Brevo, and standard mail servers, with automatic fallback to local console logging in Developer Mode.
+- **Mobile Profile Management & In-Session Admin Password Change**: Self-service subscriber profile endpoints allowing users to update their display name (`PATCH /api/v1/mobile/auth/profile`) and upload custom profile pictures (`POST /api/v1/mobile/auth/profile/photo`) to Bunny Cloud Storage (`assets/avatars/subscribers/subscriber_{user_id}_{timestamp}`) with CDN cache-busting and automatic old asset purge. Includes a unified in-session password change endpoint (`POST /api/v1/admin/auth/change-password`) for **both Tenant Admins and Platform Super Admins** requiring current password re-verification, enforcing 8-character minimum entropy, and rotating `HttpOnly` session cookies.
 - **Creator Ad Monetization, Settlements Engine & Dynamic eCPM Architecture**: Comprehensive advertising telemetry and monthly revenue settlement engine. Dispatches Google IMA VAST beacons (`POST /api/v1/mobile/videos/{id}/ad-impression`) with configurable rapid-fire anti-spam debouncing and rolling session caps. Implements a 30% white-label platform technology commission deducted strictly at the eCPM layer ($\text{Creator eCPM} = \text{Raw eCPM} \times 0.70$) without exposing internal margins on creator APIs. Features dynamic historical eCPM baselines (zero hardcoded rates), ₹500 minimum payout threshold rollovers, bank payout profiles with masked account numbers and auto-resolved IFSC codes, and an intuitive GUI-driven monthly revenue settlement and disbursement workflow in the Web Admin Portal.
 - **Standardized Pagination Envelopes**: Wraps list queries inside a generic `PaginatedResponse[T]` structure (`total`, `page`, `limit`, `total_pages`, `items`).
 - **Insecure Direct Object Reference (IDOR) Protection**: User identity is strictly derived from validated JWT Bearer tokens.
 
 ---
 
-## API Summary Breakdown (108 Total Endpoints)
+## API Summary Breakdown (119 Total Endpoints)
 
-- **Admin Endpoints (71)**:
-  - Creator Authentication & Session Lifecycle: 4 endpoints
+- **Admin Endpoints (72)**:
+  - Creator Authentication & Session Lifecycle: 5 endpoints
   - Platform Super Admin Tenant Management: 5 endpoints
   - Tenant Staff Administrator Management: 4 endpoints
   - Studio Dashboard & Analytics: 4 endpoints
@@ -224,10 +228,10 @@ The repository contains version-controlled AI Agent Skills in `.agents/skills/` 
   - Subscription Plans Management: 2 endpoints
   - Creator Ad Monetization, Analytics, Payout Settings & Statements: 5 endpoints
   - Platform Super Admin Ad Revenue Reconciliation & Monthly Settlements: 4 endpoints
-- **Mobile Endpoints (37)**:
+- **Mobile Endpoints (45)**:
   - Video Catalog, Shorts Swipe Feed, Player, History, Likes, Saves & Ad Telemetry: 14 endpoints
   - Comments & Replies: 6 endpoints
-  - Authentication, Guest & Profiles: 6 endpoints
+  - Authentication, Registration, Forgot Password, Guest & Profiles: 14 endpoints
   - Razorpay Orders & Verification: 2 endpoints
   - Subscription Entitlement Status: 1 endpoint
   - Playlists Catalog & Bookmarks: 4 endpoints
@@ -360,15 +364,15 @@ Content-Type: application/json
 
 ### Onboarding Fields Reference
 
-| Field | Type | Required | Description |
-| :--- | :---: | :---: | :--- |
-| `name` | String | **Yes** | Studio / organization name (auto-generates unique URL slug, e.g. `acme-media-network`). |
-| `email` | String | **Yes** | Owner's login email address (case-insensitive, trimmed, unique). |
-| `password` | String | **Yes** | Initial owner login password (minimum 8 characters, hashed with PBKDF2). |
-| `first_name` | String | No | Owner's first name. |
-| `last_name` | String | No | Owner's last name. |
-| `tagline` | String | No | Short branding catchphrase displayed on mobile apps. |
-| `description` | String | No | Channel/studio biography displayed on mobile app about page. |
+| Field         |  Type  | Required | Description                                                                             |
+| :------------ | :----: | :------: | :-------------------------------------------------------------------------------------- |
+| `name`        | String | **Yes**  | Studio / organization name (auto-generates unique URL slug, e.g. `acme-media-network`). |
+| `email`       | String | **Yes**  | Owner's login email address (case-insensitive, trimmed, unique).                        |
+| `password`    | String | **Yes**  | Initial owner login password (minimum 8 characters, hashed with PBKDF2).                |
+| `first_name`  | String |    No    | Owner's first name.                                                                     |
+| `last_name`   | String |    No    | Owner's last name.                                                                      |
+| `tagline`     | String |    No    | Short branding catchphrase displayed on mobile apps.                                    |
+| `description` | String |    No    | Channel/studio biography displayed on mobile app about page.                            |
 
 ### 🔒 Atomic Provisioning Invariants
 
@@ -387,6 +391,7 @@ Every tenant creation runs inside a single ACID database transaction (`with db_p
 Platform administrators execute monthly advertising revenue settlements and bank wire disbursements directly through the **Platform Admin Web Dashboard** and REST APIs:
 
 ### 1. Monthly Settlement Reconciliation (2-Step Draft & Publish Workflow)
+
 Platform Super Admins review gross revenue reported by Google Ad Manager / programmatic exchanges and execute the monthly reconciliation directly in the GUI (`/admin/monetization/reconciliation`):
 
 - **Draft Phase (`POST /api/v1/admin/monetization/reconciliations`)**: Super Admin inputs gross revenue (`month`, `gross_revenue`, optional `notes`). The system calculates the platform technology commission (30%), net creator pool (70%), gross eCPM, and creator net eCPM, returning a per-tenant projection preview without generating database statements.
@@ -395,6 +400,7 @@ Platform Super Admins review gross revenue reported by Google Ad Manager / progr
 - **Bank Details Verification**: Accounts earning $\ge \text{₹500}$ without registered bank details enter `"pending_bank_details"` until bank info is registered in the studio settings.
 
 ### 2. Confirm Bank Wire Transfers (Mark Paid with Bank UTR)
+
 On payout day (28th of next month), platform administrators disburse wire transfers (NEFT/RTGS/IMPS) and confirm payments by submitting the official bank UTR code directly via the Web Dashboard or API (`POST /api/v1/admin/monetization/settlements/{statement_id}/mark-paid`):
 
 - Transitions the settlement status from `"reconciled"` to `"paid"`.
@@ -406,6 +412,7 @@ On payout day (28th of next month), platform administrators disburse wire transf
 > Every statement ID follows the deterministic pattern: `STMT-{YYYYMM}-TEN{tenant_id}-{hash}` (e.g. `TEN42` = Tenant Studio ID `42`). In the database, each statement record is uniquely bound to one specific tenant studio via `tenant_id`. Marking a statement as paid directly attributes the bank UTR to that exact tenant's settlement statement.
 
 ### 3. Master Platform Financial Ledger & Audits
+
 Platform administrators inspect company-wide monthly revenue, platform profit retained, total creator pool distributed, and historic settlement statements via the Admin GUI and audit ledger API (`GET /api/v1/admin/monetization/reconciliations?page=1&limit=12`).
 
 ---
@@ -415,6 +422,7 @@ Platform administrators inspect company-wide monthly revenue, platform profit re
 The Web Admin Dashboard provides comprehensive GUI controls for platform governance and tenant staff management:
 
 ### 1. Platform Super Admin: Tenant Lifecycle Governance
+
 Super Admins manage tenant studios via the `/admin/tenants` dashboard:
 
 - **List All Tenants**: `GET /api/v1/admin/tenants` (returns tenants, owner email, creation date, and active status).
@@ -430,6 +438,7 @@ Super Admins manage tenant studios via the `/admin/tenants` dashboard:
   > **Immediate Revocation**: Deactivating a tenant studio immediately invalidates all active JWT refresh sessions for all administrators and subscribers belonging to that tenant, hides public catalog feeds, and disables ad monetization telemetry.
 
 ### 2. Tenant Owner: Studio Staff Administrator Management
+
 Tenant owners manage their internal team via the `/admin/users` dashboard:
 
 - **List Staff Administrators**: `GET /api/v1/admin/users` (scoped strictly to the authenticated tenant studio).
@@ -489,9 +498,10 @@ py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 > **Automatic Startup Seeding**:  
 > On server startup, the FastAPI lifespan automatically and idempotently executes `app.utils.seeder`:
+>
 > 1. Provisions the Platform Super Admin from `.env` credentials (`SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`).
 > 2. Provisions the initial default tenant and owner account if the database is newly initialized.
-> No manual CLI execution or provisioning commands required! Log in immediately at `POST /api/v1/admin/auth/login`.
+>    No manual CLI execution or provisioning commands required! Log in immediately at `POST /api/v1/admin/auth/login`.
 
 ---
 

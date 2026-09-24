@@ -45,3 +45,13 @@ class AdminTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int = 1800
+
+
+class AdminChangePasswordRequest(BaseModel):
+    """
+    Request payload for in-session password change for Tenant Admins and Super Admins.
+    """
+
+    current_password: str = Field(..., min_length=1, description="Existing account password")
+    new_password: str = Field(..., min_length=8, description="New account password (min 8 characters)")
+

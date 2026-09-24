@@ -64,3 +64,22 @@ class AuthRepository:
                 "Error updating refresh token hash for admin %s: %s", admin_id, e
             )
             raise
+
+    def update_admin_password(self, admin_id: int, password_hash: str) -> bool:
+        """
+        Updates the stored password hash for an admin record.
+        """
+        try:
+            rows_updated = (
+                Admin.update(
+                    password_hash=password_hash,
+                    updated_at=datetime.now(timezone.utc),
+                )
+                .where(Admin.id == admin_id)
+                .execute()
+            )
+            return rows_updated > 0
+        except PeeweeException as e:
+            logger.error("Error updating password for admin %s: %s", admin_id, e)
+            raise
+

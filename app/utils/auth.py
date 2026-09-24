@@ -226,3 +226,10 @@ def verify_verification_code(raw_code: str, code_hash: str) -> bool:
     computed = hashlib.sha256(raw_code.strip().encode("utf-8")).hexdigest()
     return secrets.compare_digest(computed, code_hash)
 
+
+def generate_verification_code() -> str:
+    """
+    Generates a cryptographically secure random 6-digit numeric OTP string (100000 - 999999).
+    """
+    return f"{secrets.randbelow(900000) + 100000:06d}"
+

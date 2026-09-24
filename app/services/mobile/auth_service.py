@@ -1,12 +1,13 @@
 import json
 import logging
-import secrets
+import time
 from typing import Any
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 
 from app.config import get_settings
 from app.models.subscriber import Subscriber
+from app.models.tenant import Tenant
 from app.repositories.mobile.auth_repository import AuthRepository
 from app.repositories.mobile.verification_repository import VerificationRepository
 from app.schemas.mobile.auth_schemas import (
@@ -19,6 +20,7 @@ from app.schemas.mobile.auth_schemas import (
     MobileRegisterRequest,
     RefreshTokenRequest,
     ResetPasswordRequest,
+    UpdateSubscriberProfileRequest,
     UserProfileResponse,
     VerifyRegistrationRequest,
     VerifyResetCodeRequest,
@@ -30,6 +32,7 @@ from app.utils.auth import (
     create_access_token,
     create_reset_token,
     decode_reset_token,
+    generate_verification_code,
     hash_password,
     verify_password,
     verify_tenant_active,
@@ -39,6 +42,7 @@ from app.utils.idp_verifiers import (
     verify_facebook_access_token,
     verify_google_id_token,
 )
+from app.utils.image_uploader import validate_and_upload_image
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -70,7 +74,7 @@ class AuthService:
             email=subscriber.email,
             avatar_url=subscriber.avatar_url,
             provider=subscriber.provider,
-            role="subscriber" if subscriber.provider != "guest" else "guest",
+            role=subscriber.role,
             created_at=subscriber.created_at,
         )
 
@@ -84,7 +88,7 @@ class AuthService:
         expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         expire_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-        role_str = subscriber.role or ("subscriber" if subscriber.provider != "guest" else "guest")
+        role_str = subscriber.role or "subscriber"
         access_token = create_access_token(
             user_id=subscriber.id,
             role=role_str,
@@ -131,7 +135,7 @@ class AuthService:
 
         # Enforce 60-second resend cooldown
         settings = get_settings()
-        cooldown_sec = getattr(settings, "VERIFICATION_CODE_RESEND_COOLDOWN_SECONDS", 60)
+        cooldown_sec = settings.VERIFICATION_CODE_RESEND_COOLDOWN_SECONDS
         recent = self.verification_repo.get_recent_code(
             tenant_id=payload.tenant_id,
             email=email,
@@ -145,7 +149,7 @@ class AuthService:
             )
 
         # Generate cryptographically secure 6-digit OTP
-        code = f"{secrets.randbelow(900000) + 100000:06d}"
+        code = generate_verification_code()
         password_hash = hash_password(payload.password)
 
         self.verification_repo.store_registration_otp(
@@ -157,8 +161,13 @@ class AuthService:
         )
 
         is_linked = bool(existing_user is not None)
+        tenant = Tenant.get_or_none(Tenant.id == payload.tenant_id)
+        studio_name = tenant.name if tenant else None
         self.email_service.send_registration_otp(
-            email=email, code=code, is_linked_account=is_linked
+            email=email,
+            code=code,
+            is_linked_account=is_linked,
+            studio_name=studio_name,
         )
 
         return ActionSuccessResponse(status="success")
@@ -183,7 +192,7 @@ class AuthService:
             )
 
         settings = get_settings()
-        max_attempts = getattr(settings, "VERIFICATION_CODE_MAX_ATTEMPTS", 5)
+        max_attempts = settings.VERIFICATION_CODE_MAX_ATTEMPTS
 
         if code_record.attempts >= max_attempts:
             self.verification_repo.delete_code(code_record.id)
@@ -206,9 +215,9 @@ class AuthService:
             )
 
         # Code is valid; extract registration payload
-        data = json.loads(code_record.payload_data) if code_record.payload_data else {}
-        name = data.get("name") or "Subscriber"
-        password_hash = data.get("password_hash")
+        data = json.loads(code_record.payload_data)
+        name = data["name"]
+        password_hash = data["password_hash"]
 
         # Smart linking: if subscriber already exists via Google, link password and update name
         subscriber = self.repo.find_user_by_email(payload.tenant_id, email)
@@ -267,7 +276,7 @@ class AuthService:
         subscriber = self.repo.find_user_by_email(payload.tenant_id, email)
         if subscriber and subscriber.is_active:
             settings = get_settings()
-            cooldown_sec = getattr(settings, "VERIFICATION_CODE_RESEND_COOLDOWN_SECONDS", 60)
+            cooldown_sec = settings.VERIFICATION_CODE_RESEND_COOLDOWN_SECONDS
             recent = self.verification_repo.get_recent_code(
                 tenant_id=payload.tenant_id,
                 email=email,
@@ -275,17 +284,19 @@ class AuthService:
                 within_seconds=cooldown_sec,
             )
             if not recent:
-                code = f"{secrets.randbelow(900000) + 100000:06d}"
+                code = generate_verification_code()
                 self.verification_repo.store_password_reset_otp(
                     tenant_id=payload.tenant_id,
                     email=email,
                     raw_code=code,
                 )
                 has_google = bool(subscriber.provider == "google")
+                studio_name = subscriber.tenant.name if subscriber.tenant else None
                 self.email_service.send_password_reset_otp(
                     email=email,
                     code=code,
                     has_google_linked=has_google,
+                    studio_name=studio_name,
                 )
 
         return ActionSuccessResponse(status="success")
@@ -310,7 +321,7 @@ class AuthService:
             )
 
         settings = get_settings()
-        max_attempts = getattr(settings, "VERIFICATION_CODE_MAX_ATTEMPTS", 5)
+        max_attempts = settings.VERIFICATION_CODE_MAX_ATTEMPTS
 
         if code_record.attempts >= max_attempts:
             self.verification_repo.delete_code(code_record.id)
@@ -339,7 +350,7 @@ class AuthService:
         reset_token = create_reset_token(
             email=email,
             tenant_id=payload.tenant_id,
-            expires_minutes=getattr(settings, "VERIFICATION_CODE_EXPIRE_MINUTES", 10),
+            expires_minutes=settings.VERIFICATION_CODE_EXPIRE_MINUTES,
         )
 
         return VerifyResetCodeResponse(status="success", reset_token=reset_token)
@@ -505,3 +516,60 @@ class AuthService:
                 detail=f"Subscriber account {user_id} not found",
             )
         return self._build_user_profile_response(subscriber)
+
+    def update_profile_name(
+        self, user_id: int, role: str, payload: UpdateSubscriberProfileRequest
+    ) -> UserProfileResponse:
+        """
+        Updates subscriber display name. Anonymous guest sessions are rejected.
+        """
+        if role == "guest":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Guest accounts cannot update profile details. Please register or sign in.",
+            )
+
+        subscriber = self.repo.get_user_by_id(user_id)
+        if not subscriber or not subscriber.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subscriber account {user_id} not found",
+            )
+
+        subscriber = self.repo.update_subscriber_name(subscriber, payload.name)
+        return self._build_user_profile_response(subscriber)
+
+    def upload_profile_avatar(
+        self, user_id: int, role: str, file: UploadFile
+    ) -> UserProfileResponse:
+        """
+        Uploads avatar image to Bunny Storage (assets/avatars/subscribers/subscriber_{user_id}_{timestamp}.{ext})
+        with CDN cache-busting, updates subscriber record, and returns refreshed UserProfileResponse.
+        """
+        if role == "guest":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Guest accounts cannot update profile details. Please register or sign in.",
+            )
+
+        subscriber = self.repo.get_user_by_id(user_id)
+        if not subscriber or not subscriber.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subscriber account {user_id} not found",
+            )
+
+        settings = get_settings()
+        timestamp = int(time.time())
+
+        avatar_url = validate_and_upload_image(
+            file=file,
+            storage_path_without_ext=f"assets/avatars/subscribers/subscriber_{user_id}_{timestamp}",
+            max_size_mb=settings.MAX_AVATAR_SIZE_MB,
+            old_file_url=subscriber.avatar_url,
+            old_file_storage_folder="assets/avatars/subscribers",
+        )
+
+        subscriber = self.repo.update_subscriber_avatar(subscriber, avatar_url)
+        return self._build_user_profile_response(subscriber)
+
