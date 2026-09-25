@@ -14,6 +14,7 @@ class MobileVideoListItemResponse(BaseModel):
     duration: int = 0
     views_count: int = 0
     category: str | None = None
+    video_type: str = "standard"
     last_position_seconds: int | None = None
     progress_percentage: float | None = None
     published_at: datetime | None = None

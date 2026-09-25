@@ -25,5 +25,5 @@ COPY . .
 EXPOSE 8000
 
 # Wait for Postgres, then start Uvicorn
-CMD ["wait-for-it", "host.docker.internal:5432", "--timeout=30", "--strict", "--", \
+CMD ["wait-for-it", "localhost:5432", "--timeout=30", "--strict", "--", \
      "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

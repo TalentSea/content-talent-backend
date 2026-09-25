@@ -88,12 +88,13 @@ class MobileVideoRepository:
         self,
         subscriber_id: int,
         tenant_id: int | None = None,
+        video_type: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready videos liked by a specific subscriber ("My Liked Videos").
-        Optionally filters by tenant_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation, and video_type ('shorts' vs 'standard').
         """
         try:
             query = (
@@ -108,6 +109,16 @@ class MobileVideoRepository:
 
             if tenant_id is not None:
                 query = query.where(Video.tenant == tenant_id)
+
+            if video_type:
+                vt = video_type.strip().lower()
+                if vt == "shorts":
+                    query = query.where(Video.video_type == "shorts")
+                elif vt == "standard":
+                    query = query.where(
+                        (Video.video_type == "standard")
+                        | (Video.video_type.is_null(True))
+                    )
 
             query = query.order_by(VideoLike.created_at.desc())
 
@@ -332,12 +343,13 @@ class MobileVideoRepository:
         self,
         subscriber_id: int,
         tenant_id: int | None = None,
+        video_type: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[Video], int]:
         """
         Retrieves paginated published & ready videos saved by a specific subscriber ("My Watchlist").
-        Optionally filters by tenant_id for tenant isolation.
+        Optionally filters by tenant_id for tenant isolation, and video_type ('shorts' vs 'standard').
         """
         try:
             query = (
@@ -352,6 +364,16 @@ class MobileVideoRepository:
 
             if tenant_id is not None:
                 query = query.where(Video.tenant == tenant_id)
+
+            if video_type:
+                vt = video_type.strip().lower()
+                if vt == "shorts":
+                    query = query.where(Video.video_type == "shorts")
+                elif vt == "standard":
+                    query = query.where(
+                        (Video.video_type == "standard")
+                        | (Video.video_type.is_null(True))
+                    )
 
             query = query.order_by(VideoSave.created_at.desc())
 

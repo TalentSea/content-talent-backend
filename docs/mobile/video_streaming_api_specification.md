@@ -349,12 +349,20 @@ Authorization: Bearer <access_token>  (Required)
 
 ### 7. `GET /api/v1/mobile/videos/liked` — My Liked Videos (Subscriber Favorites)
 
-Retrieves a paginated list of videos that **the authenticated subscriber has liked**, sorted by `liked_at DESC`. Serves the "Liked Videos" screen in the mobile app profile.
+Retrieves a paginated list of videos that **the authenticated subscriber has liked**, sorted by `liked_at DESC`. Serves the "Liked Videos" screen in the mobile app profile. Supports filtering specifically for shorts or standard videos.
 
 #### Request Headers
 ```http
 Authorization: Bearer <access_token>  (Required)
 ```
+
+#### Query Parameters
+
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `video_type` | `string` | No | `null` | Filter liked items by video type: `'shorts'` or `'standard'`. Omit to return all. |
+| `page` | `integer` | No | `1` | Page number ($\ge 1$). |
+| `limit` | `integer` | No | `20` | Items per page ($1 \le \text{limit} \le 100$). |
 
 #### Response Specification (`200 OK`)
 ```json
@@ -367,9 +375,22 @@ Authorization: Bearer <access_token>  (Required)
       "duration": 1200,
       "views_count": 14250,
       "category": "tutorials",
+      "video_type": "standard",
       "last_position_seconds": 480,
       "progress_percentage": 40.0,
       "published_at": "2026-08-05T10:00:00Z"
+    },
+    {
+      "id": 105,
+      "title": "Exciting Behind The Scenes",
+      "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_105_main.jpg",
+      "duration": 45,
+      "views_count": 3200,
+      "category": null,
+      "video_type": "shorts",
+      "last_position_seconds": 0,
+      "progress_percentage": 0.0,
+      "published_at": "2026-08-06T12:00:00Z"
     }
   ],
   "total": 12,
@@ -383,17 +404,42 @@ Authorization: Bearer <access_token>  (Required)
 
 ### 8. `GET /api/v1/mobile/videos/saved` — My Saved Videos (Subscriber Watchlist)
 
-Retrieves a paginated list of videos that **the authenticated subscriber has saved / bookmarked**, sorted by `saved_at DESC`. Serves the "My Watchlist" screen in the mobile app profile.
+Retrieves a paginated list of videos that **the authenticated subscriber has saved / bookmarked**, sorted by `saved_at DESC`. Serves the "My Watchlist" screen in the mobile app profile. Supports filtering specifically for saved shorts or saved standard videos.
 
 #### Request Headers
 ```http
 Authorization: Bearer <access_token>  (Required)
 ```
 
+#### Query Parameters
+
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `video_type` | `string` | No | `null` | Filter saved items by video type: `'shorts'` or `'standard'`. Omit to return all. |
+| `page` | `integer` | No | `1` | Page number ($\ge 1$). |
+| `limit` | `integer` | No | `20` | Items per page ($1 \le \text{limit} \le 100$). |
+
+#### Examples:
+- **Get Only Saved Shorts**: `GET /api/v1/mobile/videos/saved?video_type=shorts`
+- **Get Only Saved Standard Videos**: `GET /api/v1/mobile/videos/saved?video_type=standard`
+- **Get All Saved Videos & Shorts**: `GET /api/v1/mobile/videos/saved`
+
 #### Response Specification (`200 OK`)
 ```json
 {
   "items": [
+    {
+      "id": 105,
+      "title": "Exciting Behind The Scenes",
+      "thumbnail_url": "https://talentsea.b-cdn.net/thumbnails/thumb_105_main.jpg",
+      "duration": 45,
+      "views_count": 3200,
+      "category": null,
+      "video_type": "shorts",
+      "last_position_seconds": 0,
+      "progress_percentage": 0.0,
+      "published_at": "2026-08-06T12:00:00Z"
+    },
     {
       "id": 101,
       "title": "Mastering Flutter & FastAPI Microservices",
@@ -401,6 +447,7 @@ Authorization: Bearer <access_token>  (Required)
       "duration": 1200,
       "views_count": 14250,
       "category": "tutorials",
+      "video_type": "standard",
       "last_position_seconds": 480,
       "progress_percentage": 40.0,
       "published_at": "2026-08-05T10:00:00Z"

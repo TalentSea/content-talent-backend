@@ -47,6 +47,7 @@ class MobileVideoService:
             duration=parse_duration_seconds(v.duration),
             views_count=v.views or 0,
             category=v.category,
+            video_type=v.resolved_video_type,
             last_position_seconds=pos,
             progress_percentage=pct,
             published_at=v.published_at,
@@ -431,15 +432,18 @@ class MobileVideoService:
         self,
         subscriber_id: int,
         tenant_id: int | None = None,
+        video_type: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
         """
         Retrieves a paginated list of videos liked by the calling subscriber ("My Liked Videos").
+        Optionally filtered by video_type ('shorts' or 'standard').
         """
         videos, total_count = self.repo.list_subscriber_liked_videos(
             subscriber_id=subscriber_id,
             tenant_id=tenant_id,
+            video_type=video_type,
             page=page,
             limit=limit,
         )
@@ -451,15 +455,18 @@ class MobileVideoService:
         self,
         subscriber_id: int,
         tenant_id: int | None = None,
+        video_type: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> PaginatedResponse[MobileVideoListItemResponse]:
         """
         Retrieves a paginated list of videos saved by the calling subscriber ("My Watchlist").
+        Optionally filtered by video_type ('shorts' or 'standard').
         """
         videos, total_count = self.repo.list_subscriber_saved_videos(
             subscriber_id=subscriber_id,
             tenant_id=tenant_id,
+            video_type=video_type,
             page=page,
             limit=limit,
         )

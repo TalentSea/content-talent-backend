@@ -130,16 +130,21 @@ def remove_video_from_watch_history(
     response_model=PaginatedResponse[MobileVideoListItemResponse],
     status_code=status.HTTP_200_OK,
     summary="Get My Liked Videos",
-    description="Retrieves a paginated list of published & ready video assets liked by the authenticated subscriber.",
+    description="Retrieves a paginated list of published & ready video assets liked by the authenticated subscriber. Supports filtering by video_type ('shorts' or 'standard').",
 )
 def list_subscriber_liked_videos(
     current_subscriber: CurrentSubscriber,
+    video_type: str | None = Query(
+        None,
+        description="Filter liked items by video type: 'shorts' or 'standard'. Omit to return all.",
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
     return mobile_video_service.list_subscriber_liked_videos(
         subscriber_id=current_subscriber.get("user_id"),
         tenant_id=current_subscriber.get("tenant_id"),
+        video_type=video_type,
         page=page,
         limit=limit,
     )
@@ -150,16 +155,21 @@ def list_subscriber_liked_videos(
     response_model=PaginatedResponse[MobileVideoListItemResponse],
     status_code=status.HTTP_200_OK,
     summary="Get My Saved Videos (My Watchlist)",
-    description="Retrieves a paginated list of published & ready video assets saved/bookmarked by the authenticated subscriber.",
+    description="Retrieves a paginated list of published & ready video assets saved/bookmarked by the authenticated subscriber. Supports filtering by video_type ('shorts' or 'standard').",
 )
 def list_subscriber_saved_videos(
     current_subscriber: CurrentSubscriber,
+    video_type: str | None = Query(
+        None,
+        description="Filter saved items by video type: 'shorts' or 'standard'. Omit to return all.",
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
     return mobile_video_service.list_subscriber_saved_videos(
         subscriber_id=current_subscriber.get("user_id"),
         tenant_id=current_subscriber.get("tenant_id"),
+        video_type=video_type,
         page=page,
         limit=limit,
     )
