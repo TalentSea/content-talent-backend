@@ -24,6 +24,6 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Wait for Postgres, then start Uvicorn
+# Wait for Postgres, then start Uvicorn (To run locally change localhost to host.docker.internal)
 CMD ["wait-for-it", "localhost:5432", "--timeout=30", "--strict", "--", \
      "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
