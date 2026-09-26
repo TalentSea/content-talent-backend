@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import Hls from "hls.js";
 import * as tus from "tus-js-client";
 import {
@@ -55,6 +56,7 @@ type Content = {
   status: string;
   publishIntent?: string;
   views: string;
+  likes?: number;
   duration: string;
   date: string;
   premium: boolean;
@@ -515,11 +517,15 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
     try {
       if (isEdit && content) {
         // Editing existing content (e.g. Draft or Scheduled video -> Publish or Unpublish)
+        const isShort = content.type === "Short" || content.tags?.includes("shorts");
+        const finalTags = isShort && !tags.includes("shorts") ? ["shorts", ...tags] : tags;
+
         await updateVideo(content.id, {
           title: title.trim(),
           category,
           description,
-          tags,
+          tags: finalTags,
+          ...(isShort ? { video_type: "shorts" } : {}),
         });
 
         if (slot0File) await uploadThumbnail(content.id, 0, slot0File);
@@ -607,9 +613,12 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
       }
       onSaveSuccess();
       onClose();
+      toast.success(isEdit ? (content?.type === "Short" ? "Short updated successfully." : "Video updated successfully.") : "Video uploaded and queued successfully.");
     } catch (err: any) {
       console.error("Failed to save video asset:", err);
-      setError(err?.message || "An error occurred while saving the video asset. Please try again.");
+      const msg = err?.message || "Something went wrong while saving the video asset. Please try again.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -743,7 +752,11 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
                   existingUrl={content?.thumbnailUrl || (content as any)?.mainThumbnailUrl || (content as any)?.main_thumbnail_url}
                   onSelect={(f) => {
                     setSlot0File(f);
-                    if (content) uploadThumbnail(content.id, 0, f);
+                    if (content) {
+                      uploadThumbnail(content.id, 0, f)
+                        .then(() => toast.success("Thumbnail 1 uploaded successfully."))
+                        .catch((err) => toast.error(err?.message || "Failed to upload thumbnail 1."));
+                    }
                   }}
                 />
                 <ThumbnailSlot
@@ -751,12 +764,21 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
                   existingUrl={(content as any)?.altThumbnailUrls?.[0] || (content as any)?.alt_thumbnail_urls?.[0]}
                   onSelect={(f) => {
                     setSlot1File(f);
-                    if (content) uploadThumbnail(content.id, 1, f);
+                    if (content) {
+                      uploadThumbnail(content.id, 1, f)
+                        .then(() => toast.success("Thumbnail 2 uploaded successfully."))
+                        .catch((err) => toast.error(err?.message || "Failed to upload thumbnail 2."));
+                    }
                   }}
                   onMakePrimary={() => {
                     if (content) {
                       const url = (content as any)?.altThumbnailUrls?.[0] || (content as any)?.alt_thumbnail_urls?.[0] || 1;
-                      selectMainThumbnail(content.id, url).then(() => onSaveSuccess());
+                      selectMainThumbnail(content.id, url)
+                        .then(() => {
+                          toast.success("Primary thumbnail updated.");
+                          onSaveSuccess();
+                        })
+                        .catch((err) => toast.error(err?.message || "Failed to set primary thumbnail."));
                     }
                   }}
                 />
@@ -765,12 +787,21 @@ function UploadEditDialog({ open, onClose, isEdit = false, content, playlists, o
                   existingUrl={(content as any)?.altThumbnailUrls?.[1] || (content as any)?.alt_thumbnail_urls?.[1]}
                   onSelect={(f) => {
                     setSlot2File(f);
-                    if (content) uploadThumbnail(content.id, 2, f);
+                    if (content) {
+                      uploadThumbnail(content.id, 2, f)
+                        .then(() => toast.success("Thumbnail 3 uploaded successfully."))
+                        .catch((err) => toast.error(err?.message || "Failed to upload thumbnail 3."));
+                    }
                   }}
                   onMakePrimary={() => {
                     if (content) {
                       const url = (content as any)?.altThumbnailUrls?.[1] || (content as any)?.alt_thumbnail_urls?.[1] || 2;
-                      selectMainThumbnail(content.id, url).then(() => onSaveSuccess());
+                      selectMainThumbnail(content.id, url)
+                        .then(() => {
+                          toast.success("Primary thumbnail updated.");
+                          onSaveSuccess();
+                        })
+                        .catch((err) => toast.error(err?.message || "Failed to set primary thumbnail."));
                     }
                   }}
                 />
@@ -1164,8 +1195,10 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
     if (isEdit && playlist) {
       try {
         await removeVideoFromPlaylist(playlist.id, id);
-      } catch (err) {
+        toast.success("Video removed from playlist.");
+      } catch (err: any) {
         console.error("Failed to remove video from playlist:", err);
+        toast.error(err?.message || "Failed to remove video from playlist.");
       }
     }
   };
@@ -1177,8 +1210,10 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
     if (isEdit && playlist) {
       try {
         await addVideosToPlaylist(playlist.id, filtered);
-      } catch (err) {
+        toast.success("Videos added to playlist.");
+      } catch (err: any) {
         console.error("Failed to add videos to playlist:", err);
+        toast.error(err?.message || "Failed to add videos to playlist.");
       }
     }
   };
@@ -1189,6 +1224,7 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
     try {
       if (isEdit && playlist) {
         await updatePlaylist(playlist.id, { title, description });
+        toast.success("Playlist updated successfully.");
       } else {
         const newPl = await createPlaylist({ title, description, videoIds });
         if (newPl && newPl.id && bannerFileRef.current?.files?.[0]) {
@@ -1198,11 +1234,13 @@ function PlaylistMetaDialog({ open, onClose, playlist, allVideos, onSaveSuccess 
             console.warn("Failed to upload banner for new playlist:", e);
           }
         }
+        toast.success("Playlist created successfully.");
       }
       onSaveSuccess();
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save playlist:", err);
+      toast.error(err?.message || "Something went wrong while saving playlist.");
     } finally {
       setSubmitting(false);
     }
@@ -1697,13 +1735,16 @@ function UploadShortDialog({
       }
 
       setUploadProgress(100);
+      toast.success("Short video uploaded and queued successfully.");
       setTimeout(() => {
         onSaveSuccess();
         onClose();
       }, 350);
     } catch (err: any) {
       console.error("Backend short upload error:", err);
-      setAspectRatioError(err?.message || "Failed to upload short video to backend. Please check your connection and try again.");
+      const msg = err?.message || "Failed to upload short video to backend. Please check your connection and try again.";
+      setAspectRatioError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -2026,7 +2067,7 @@ function UploadShortDialog({
   );
 }
 
-// ── Vertical Short Video Player Modal ─────────────────────────────────────────
+// ── Vertical Short Video Player Modal (Split View: Left Reel, Right Details & Comments) ──
 
 function ShortPlayerDialog({
   open,
@@ -2041,15 +2082,28 @@ function ShortPlayerDialog({
   const [isMuted, setIsMuted] = useState(false);
   const [likes, setLikes] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string>("");
   const [loadingPlayback, setLoadingPlayback] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
+  // Comments state inside ShortPlayerDialog
+  const [comments, setComments] = useState<ApiComment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [adminCommentText, setAdminCommentText] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
+
+  // Thread reply states
+  const [replyOpenId, setReplyOpenId] = useState<number | string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [openRepliesId, setOpenRepliesId] = useState<number | null>(null);
+  const [repliesCache, setRepliesCache] = useState<Record<number, ApiReply[]>>({});
+  const [loadingReplies, setLoadingReplies] = useState(false);
+
   useEffect(() => {
     if (short) {
-      setLikes(short.likes);
+      setLikes(short.likes || 0);
       setHasLiked(false);
       setIsPlaying(true);
       setIsMuted(false);
@@ -2077,6 +2131,23 @@ function ShortPlayerDialog({
         setLoadingPlayback(false);
       });
   }, [short, open]);
+
+  // Fetch comments for the short
+  useEffect(() => {
+    if (open && short?.id) {
+      setLoadingComments(true);
+      getAdminComments({ videoId: short.id })
+        .then((res) => setComments(res.data))
+        .catch((err) => console.warn("Failed to fetch comments for short:", err))
+        .finally(() => setLoadingComments(false));
+    } else if (!open) {
+      setComments([]);
+      setAdminCommentText("");
+      setReplyOpenId(null);
+      setReplyText("");
+      setOpenRepliesId(null);
+    }
+  }, [open, short?.id]);
 
   // Attach HLS / MP4 stream to video element
   useEffect(() => {
@@ -2135,32 +2206,122 @@ function ShortPlayerDialog({
     setIsMuted(!isMuted);
   };
 
-  const handleLike = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleLikeShort = async () => {
     if (hasLiked) return;
     setLikes((prev) => prev + 1);
     setHasLiked(true);
     try {
       await toggleShortVideoLike(short.id);
+      toast.success("Short liked!");
     } catch {
       // ignore
     }
   };
 
-  const handleShare = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const handlePostComment = async () => {
+    if (!adminCommentText.trim() || !short?.id) return;
+    setPostingComment(true);
+    try {
+      const created = await postAdminVideoComment(short.id, adminCommentText);
+      setComments((prev) => [created, ...prev]);
+      setAdminCommentText("");
+      toast.success("Comment posted successfully.");
+    } catch (err: any) {
+      console.error("Failed to post comment:", err);
+      toast.error(err?.message || "Something went wrong while posting comment.");
+    } finally {
+      setPostingComment(false);
+    }
+  };
+
+  const handleToggleCommentLike = async (commentId: number) => {
+    try {
+      const res = await toggleCommentLike(commentId);
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, isLiked: res.isLiked, likes: res.likes } : c))
+      );
+    } catch (err) {
+      console.error("Failed to toggle comment like:", err);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+    try {
+      await apiDeleteComment(commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      toast.success("Comment deleted successfully.");
+    } catch (err: any) {
+      console.error("Failed to delete comment:", err);
+      toast.error(err?.message || "Something went wrong while deleting comment.");
+    }
+  };
+
+  const handleToggleReplies = async (commentId: number) => {
+    if (openRepliesId === commentId) {
+      setOpenRepliesId(null);
+      return;
+    }
+    setOpenRepliesId(commentId);
+    if (!repliesCache[commentId]) {
+      setLoadingReplies(true);
+      try {
+        const res = await getCommentReplies(commentId);
+        setRepliesCache((prev) => ({ ...prev, [commentId]: res.data }));
+      } catch (err) {
+        console.warn("Failed to load replies:", err);
+      } finally {
+        setLoadingReplies(false);
+      }
+    }
+  };
+
+  const handleToggleReplyLike = async (parentCommentId: number, replyId: number) => {
+    try {
+      const res = await toggleCommentLike(replyId);
+      setRepliesCache((prev) => ({
+        ...prev,
+        [parentCommentId]: (prev[parentCommentId] || []).map((r) =>
+          r.id === replyId ? { ...r, isLiked: res.isLiked, likes: res.likes } : r
+        ),
+      }));
+    } catch (err) {
+      console.error("Failed to toggle reply like:", err);
+    }
+  };
+
+  const handleSendReply = async (parentCommentId: number, targetReplyId?: number) => {
+    if (!replyText.trim()) return;
+    setSubmittingReply(true);
+    try {
+      const targetId = targetReplyId ?? parentCommentId;
+      const newReply = await postCommentReply(targetId, replyText);
+      setRepliesCache((prev) => ({
+        ...prev,
+        [parentCommentId]: [...(prev[parentCommentId] || []), newReply],
+      }));
+      setComments((prev) =>
+        prev.map((c) => (c.id === parentCommentId ? { ...c, replyCount: c.replyCount + 1 } : c))
+      );
+      setOpenRepliesId(parentCommentId);
+      setReplyText("");
+      setReplyOpenId(null);
+      toast.success("Reply posted successfully.");
+    } catch (err: any) {
+      console.error("Failed to post reply:", err);
+      toast.error(err?.message || "Something went wrong while posting reply.");
+    } finally {
+      setSubmittingReply(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="sm:max-w-md bg-transparent border-0 shadow-none p-0 flex items-center justify-center"
+        className="sm:max-w-4xl lg:max-w-5xl h-[90vh] max-h-[820px] p-0 overflow-hidden bg-white border border-slate-200 shadow-2xl text-slate-900 rounded-2xl flex flex-col md:flex-row [&>button:last-child]:hidden"
       >
-        <div className="relative w-full max-w-[340px] aspect-[9/16] rounded-3xl overflow-hidden bg-black shadow-2xl border border-slate-800 select-none">
-          {/* Loading Indicator */}
+        {/* ── Left Side: Vertical Reel Player ── */}
+        <div className="w-full md:w-[350px] lg:w-[390px] h-[300px] md:h-full flex-shrink-0 bg-black flex items-center justify-center relative overflow-hidden select-none">
           {loadingPlayback && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs gap-2">
               <Loader2 className="h-8 w-8 text-white animate-spin" />
@@ -2178,29 +2339,24 @@ function ShortPlayerDialog({
             controlsList="nodownload nopictureinpicture"
             muted={isMuted}
             onClick={togglePlay}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full object-contain bg-black cursor-pointer"
           />
 
           {/* Top Controls Overlay */}
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-bold">
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20 pointer-events-none">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-bold pointer-events-auto">
               <Flame className="h-3.5 w-3.5 text-pink-500" />
-              <span>Shorts</span>
+              <span>Shorts Reel</span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 pointer-events-auto">
               <button
+                type="button"
                 onClick={toggleMute}
                 className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
                 title={isMuted ? "Unmute" : "Mute"}
               >
                 {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
-              >
-                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -2209,7 +2365,7 @@ function ShortPlayerDialog({
           {!isPlaying && (
             <div
               onClick={togglePlay}
-              className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer z-10"
+              className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer z-10"
             >
               <div className="w-14 h-14 rounded-full bg-black/70 backdrop-blur-md text-white flex items-center justify-center pl-1 shadow-xl">
                 <Play className="h-7 w-7 fill-current" />
@@ -2217,83 +2373,290 @@ function ShortPlayerDialog({
             </div>
           )}
 
-          {/* Right Floating Actions Column */}
-          <div className="absolute right-3 bottom-24 flex flex-col items-center gap-4 z-20">
-            {/* Like button */}
-            <button
-              onClick={handleLike}
-              className="flex flex-col items-center gap-1 text-white group cursor-pointer"
-            >
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
-                  hasLiked
-                    ? "bg-pink-500 text-white scale-110 shadow-lg shadow-pink-500/50"
-                    : "bg-black/60 hover:bg-black/80 text-white"
-                }`}
-              >
-                <Heart className={`h-5 w-5 ${hasLiked ? "fill-current" : ""}`} />
-              </div>
-              <span className="text-[10px] font-bold drop-shadow-md">
-                {likes.toLocaleString()}
-              </span>
-            </button>
+          {/* Duration Pill at bottom-right */}
+          <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full bg-black/60 backdrop-blur-md text-slate-300 text-[10px] font-mono z-20 pointer-events-none">
+            {short.duration}
+          </div>
+        </div>
 
-            {/* Share button */}
-            <button
-              onClick={handleShare}
-              className="flex flex-col items-center gap-1 text-white group cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center backdrop-blur-md transition-colors">
-                <Share2 className="h-4 w-4" />
+        {/* ── Right Side: Details, Likes, Views & Comments ── */}
+        <div className="flex-1 flex flex-col min-w-0 bg-white border-t md:border-t-0 md:border-l border-slate-200 overflow-hidden">
+          {/* Header Bar */}
+          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 bg-white border-b border-slate-200">
+            <div className="flex items-center gap-2.5 min-w-0 pr-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-xs">
+                <Smartphone className="h-4 w-4" />
               </div>
-              <span className="text-[10px] font-bold drop-shadow-md">
-                {copied ? "Copied!" : "Share"}
-              </span>
-            </button>
-
-            {/* Category / Duration Pill */}
-            <div className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-md text-slate-300 text-[9px] font-mono">
-              {short.duration}
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-900 truncate leading-snug">
+                  {short.title}
+                </h3>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-200 text-slate-600 bg-slate-50 font-medium">
+                    {short.category || "Shorts"}
+                  </Badge>
+                  <span>·</span>
+                  <span>{short.date || (short.createdAt ? short.createdAt.split("T")[0] : "Recently added")}</span>
+                </div>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+              title="Close Preview (Esc)"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          {/* Bottom Gradient & Info Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent z-10 text-white pointer-events-none">
-            <div className="space-y-1.5 max-w-[230px]">
+          {/* Scrollable Container for Details & Comments */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+            {/* Metrics Row: Likes, Views, Duration */}
+            <div className="grid grid-cols-3 gap-2.5">
+              {/* Likes button & count */}
+              <button
+                type="button"
+                onClick={handleLikeShort}
+                className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+                  hasLiked
+                    ? "bg-pink-50 border-pink-200 text-pink-700"
+                    : "bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-700"
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Heart className={`h-4 w-4 ${hasLiked ? "fill-pink-500 text-pink-500" : "text-slate-500"}`} />
+                  <span className="font-bold text-sm text-slate-900">{likes.toLocaleString()}</span>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-0.5 font-medium">{hasLiked ? "Liked" : "Likes"}</span>
+              </button>
+
+              {/* Views */}
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-center">
+                <div className="flex items-center gap-1.5">
+                  <Eye className="h-4 w-4 text-slate-500" />
+                  <span className="font-bold text-sm text-slate-900">{short.views?.toLocaleString() || "0"}</span>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-0.5 font-medium">Total Views</span>
+              </div>
+
+              {/* Duration */}
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-center">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-slate-500" />
+                  <span className="font-bold text-sm text-slate-900 font-mono">{short.duration}</span>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-0.5 font-medium">Duration</span>
+              </div>
+            </div>
+
+            {/* Description & Tags */}
+            {(short.description || (short.tags && short.tags.length > 0)) && (
+              <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                {short.description && (
+                  <p className="text-slate-700 leading-relaxed whitespace-pre-line">{short.description}</p>
+                )}
+                {short.tags && short.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {short.tags.map((t) => (
+                      <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold">
+                        #{t.replace(/^#/, "")}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Comments Header */}
+            <div className="pt-2 border-t border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-slate-700" />
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Comments ({comments.length})
+                  </h4>
+                </div>
+                <span className="text-[11px] text-slate-400">Creator Moderation</span>
+              </div>
+
+              {/* Comment Input */}
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-pink-600 flex items-center justify-center text-[10px] font-bold">
-                  S
-                </div>
-                <span className="text-xs font-bold truncate">TalentSea Studio</span>
-                <Badge variant="outline" className="text-[9px] py-0 px-1 border-white/20 text-white/90">
-                  {short.category || "Shorts"}
-                </Badge>
+                <Input
+                  placeholder="Add a public comment on this short..."
+                  value={adminCommentText}
+                  onChange={(e) => setAdminCommentText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handlePostComment();
+                    }
+                  }}
+                  className="bg-white border-slate-200 text-slate-900 h-9 text-xs rounded-xl flex-1 focus-visible:ring-slate-900/10"
+                />
+                <Button
+                  size="sm"
+                  disabled={!adminCommentText.trim() || postingComment}
+                  onClick={handlePostComment}
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-3.5 rounded-xl text-xs gap-1.5 font-medium flex-shrink-0 cursor-pointer"
+                >
+                  {postingComment ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5" />
+                      <span>Post</span>
+                    </>
+                  )}
+                </Button>
               </div>
 
-              <p className="text-xs font-semibold line-clamp-2 drop-shadow-sm">
-                {short.title}
-              </p>
+              {/* Comments List */}
+              <div className="space-y-2.5 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                {loadingComments ? (
+                  <div className="flex items-center justify-center py-6 text-slate-400 gap-2 text-xs">
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-900" /> Loading short comments...
+                  </div>
+                ) : comments.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 text-xs bg-slate-50 rounded-xl border border-slate-200">
+                    <MessageSquare className="h-6 w-6 mx-auto mb-1.5 opacity-40 text-slate-400" />
+                    <p className="text-slate-600 font-medium">No comments on this short yet.</p>
+                    <p className="text-[11px] text-slate-400">Be the first to post a creator comment above.</p>
+                  </div>
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 text-xs shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs overflow-hidden">
+                            {comment.userAvatar ? (
+                              <img src={comment.userAvatar} alt={comment.userName} className="w-full h-full object-cover" />
+                            ) : (
+                              comment.userName.charAt(0)
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                              <span>{comment.userName}</span>
+                              <Badge className="bg-slate-100 border-slate-200 text-slate-700 text-[10px] px-1.5 py-0 font-medium">
+                                Creator
+                              </Badge>
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {new Date(comment.createdAt).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="h-6 w-6 text-slate-400 hover:text-rose-600 cursor-pointer"
+                          title="Delete comment"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
 
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
-                <Calendar className="h-3 w-3 text-slate-400" />
-                <span>{short.date || (short.createdAt ? short.createdAt.split("T")[0] : "Recently added")}</span>
+                      <p className="text-slate-700 leading-relaxed ml-9 whitespace-pre-line">{comment.text}</p>
+
+                      <div className="flex items-center justify-between ml-9 text-[11px] text-slate-500 pt-1">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCommentLike(comment.id)}
+                            className={`flex items-center gap-1 transition-colors cursor-pointer ${
+                              comment.isLiked ? "text-rose-600 font-bold" : "hover:text-slate-900 text-slate-500"
+                            }`}
+                          >
+                            <Heart className={`h-3.5 w-3.5 ${comment.isLiked ? "fill-rose-500 text-rose-500" : ""}`} />
+                            {comment.likes}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleReplies(comment.id)}
+                            className="flex items-center gap-1 hover:text-slate-900 text-slate-500 transition-colors cursor-pointer"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            {comment.replyCount}
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplyOpenId(replyOpenId === comment.id ? null : comment.id);
+                            setReplyText("");
+                          }}
+                          className="flex items-center gap-1 text-slate-700 hover:text-slate-900 font-semibold cursor-pointer"
+                        >
+                          <CornerDownRight className="h-3 w-3" /> Reply
+                        </button>
+                      </div>
+
+                      {/* Inline reply composer */}
+                      {replyOpenId === comment.id && (
+                        <div className="mt-2 ml-9 flex gap-2">
+                          <Input
+                            placeholder={`Reply to ${comment.userName}...`}
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            className="bg-white border-slate-200 text-slate-900 h-8 text-xs rounded-lg"
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!replyText.trim() || submittingReply}
+                            onClick={() => handleSendReply(comment.id)}
+                            className="bg-slate-900 hover:bg-slate-800 text-white h-8 px-3 rounded-lg text-xs cursor-pointer"
+                          >
+                            {submittingReply ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send"}
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Nested Replies List */}
+                      {openRepliesId === comment.id && (
+                        <div className="ml-9 mt-2.5 space-y-2 border-l-2 border-slate-100 pl-3">
+                          {loadingReplies && (!repliesCache[comment.id] || repliesCache[comment.id].length === 0) ? (
+                            <div className="flex items-center gap-2 text-slate-400 text-[11px] py-1">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Loading replies...
+                            </div>
+                          ) : (repliesCache[comment.id] || []).length === 0 ? (
+                            <div className="text-slate-400 text-[11px] py-1 italic">No replies yet.</div>
+                          ) : (
+                            (repliesCache[comment.id] || []).map((reply) => (
+                              <div key={reply.id} className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="h-5 w-5 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-[10px]">
+                                      {reply.userName.charAt(0)}
+                                    </div>
+                                    <span className="font-semibold text-slate-800 text-[11px]">{reply.userName}</span>
+                                    <span className="text-[10px] text-slate-400">· {new Date(reply.createdAt).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                                <p className="text-slate-700 text-xs ml-6">{reply.text}</p>
+                                <div className="ml-6 flex items-center gap-3 text-[10px] text-slate-500">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleReplyLike(comment.id, reply.id)}
+                                    className={`flex items-center gap-1 cursor-pointer ${reply.isLiked ? "text-rose-600 font-bold" : "hover:text-slate-900"}`}
+                                  >
+                                    <Heart className={`h-3 w-3 ${reply.isLiked ? "fill-rose-500 text-rose-500" : ""}`} />
+                                    {reply.likes}
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
-
-              {short.description && (
-                <p className="text-[11px] text-slate-300 line-clamp-1">
-                  {short.description}
-                </p>
-              )}
-
-              {short.tags && short.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {short.tags.slice(0, 3).map((t) => (
-                    <span key={t} className="text-[10px] text-pink-400 font-medium">
-                      #{t.replace(/^#/, "")}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -2512,8 +2875,10 @@ function VideoPlayerDialog({ open, onClose, content, onPlaybackError }: {
       const created = await postAdminVideoComment(content.id, adminCommentText);
       setVideoComments((prev) => [created, ...prev]);
       setAdminCommentText("");
-    } catch (err) {
+      toast.success("Comment posted successfully.");
+    } catch (err: any) {
       console.error("Failed to post admin comment:", err);
+      toast.error(err?.message || "Something went wrong while posting comment.");
     } finally {
       setPostingAdminComment(false);
     }
@@ -2535,8 +2900,10 @@ function VideoPlayerDialog({ open, onClose, content, onPlaybackError }: {
     try {
       await apiDeleteComment(commentId);
       setVideoComments((prev) => prev.filter((c) => c.id !== commentId));
-    } catch (err) {
+      toast.success("Comment deleted successfully.");
+    } catch (err: any) {
       console.error("Failed to delete comment:", err);
+      toast.error(err?.message || "Something went wrong while deleting comment.");
     }
   };
 
@@ -2589,8 +2956,10 @@ function VideoPlayerDialog({ open, onClose, content, onPlaybackError }: {
       setOpenRepliesId(parentCommentId);
       setReplyText("");
       setReplyOpenId(null);
-    } catch (err) {
+      toast.success("Reply posted successfully.");
+    } catch (err: any) {
       console.error("Failed to post reply:", err);
+      toast.error(err?.message || "Something went wrong while posting reply.");
     } finally {
       setSubmittingReply(false);
     }
@@ -3387,14 +3756,15 @@ function ViewContentDialog({ open, onClose, content, onPlay }: {
             </div>
             <div className="absolute bottom-3 right-3 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono font-medium">{content.duration}</div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Views", value: content.views || "0" },
-              { label: "Category", value: content.category },
-              { label: "Date Added", value: content.date },
+              { label: "Views", value: typeof content.views === "number" ? (content.views as number).toLocaleString() : (content.views || "0") },
+              { label: "Likes", value: content.likes !== undefined ? content.likes.toLocaleString() : "0" },
+              { label: "Category", value: content.category || "General" },
+              { label: "Date Added", value: content.date || "-" },
             ].map((s) => (
               <div key={s.label} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <div className="font-bold text-sm text-slate-900">{s.value}</div>
+                <div className="font-bold text-sm text-slate-900 truncate">{s.value}</div>
                 <div className="text-xs text-slate-500">{s.label}</div>
               </div>
             ))}
@@ -3525,9 +3895,11 @@ function PlaylistDetailScreen({
         } else {
           setCurrentThumbnail(URL.createObjectURL(file));
         }
+        toast.success("Playlist thumbnail uploaded successfully.");
         onRefresh();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to upload playlist banner/thumbnail:", err);
+        toast.error(err?.message || "Failed to upload playlist thumbnail.");
       } finally {
         setUploadingBanner(false);
       }
@@ -3589,32 +3961,38 @@ function PlaylistDetailScreen({
   const removeSelected = async () => {
     try {
       await bulkRemoveVideosFromPlaylist(playlist.id, selected);
+      toast.success(`${selected.length} video(s) removed from playlist.`);
       setSelected([]);
       fetchVideos();
       onRefresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to remove videos from playlist:", err);
+      toast.error(err?.message || "Failed to remove videos from playlist.");
     }
   };
 
   const removeSingle = async (id: number) => {
     try {
       await removeVideoFromPlaylist(playlist.id, id);
+      toast.success("Video removed from playlist.");
       setSelected((prev) => prev.filter((x) => x !== id));
       fetchVideos();
       onRefresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to remove video from playlist:", err);
+      toast.error(err?.message || "Failed to remove video from playlist.");
     }
   };
 
   const handleAdd = async (ids: number[]) => {
     try {
       await addVideosToPlaylist(playlist.id, ids);
+      toast.success(`${ids.length} video(s) added to playlist.`);
       fetchVideos();
       onRefresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to add videos to playlist:", err);
+      toast.error(err?.message || "Failed to add videos to playlist.");
     }
   };
 
@@ -3996,20 +4374,48 @@ export default function ContentManagement() {
   const [shortToDelete, setShortToDelete] = useState<ApiShortVideo | null>(null);
   const [isDeletingShort, setIsDeletingShort] = useState(false);
 
+  const convertShortToContent = useCallback((short: ApiShortVideo): Content => ({
+    id: short.id,
+    title: short.title,
+    type: "Short",
+    category: short.category || "Shorts",
+    status: short.status,
+    views: typeof short.views === "number" ? short.views.toString() : String(short.views || 0),
+    likes: short.likes || 0,
+    duration: short.duration || "0:30",
+    date: short.date || (short.createdAt ? short.createdAt.split("T")[0] : new Date().toISOString().split("T")[0]),
+    premium: false,
+    description: short.description || "",
+    tags: short.tags && short.tags.length > 0 ? short.tags : ["shorts"],
+    thumbnailUrl: short.thumbnailUrl,
+    videoUrl: short.videoUrl,
+  }), []);
+
   // Notification Toast state
-  const [toast, setToast] = useState<{ show: boolean; title: string; message: string }>({ show: false, title: "", message: "" });
+  const [toastState, setToastState] = useState<{ show: boolean; title: string; message: string }>({ show: false, title: "", message: "" });
   const showToast = useCallback((title: string, message: string) => {
-    setToast({ show: true, title, message });
-    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 5000);
+    if (title.toLowerCase().includes("error") || title.toLowerCase().includes("fail") || title.toLowerCase().includes("wrong")) {
+      toast.error(message ? `${title}: ${message}` : title);
+    } else {
+      toast.success(message ? `${title}: ${message}` : title);
+    }
+    setToastState({ show: true, title, message });
+    setTimeout(() => setToastState((prev) => ({ ...prev, show: false })), 5000);
   }, []);
 
-  const loadShortsData = useCallback(async (isSilent = false) => {
+  const loadShortsData = useCallback(async (isSilent = false, retryCount = 0) => {
     if (!isSilent) setLoadingShorts(true);
     try {
       const data = await getShortVideos();
       setShorts(data);
     } catch (err) {
       console.warn("Failed to load short videos:", err);
+      // Auto-retry silently if backend was sleeping on cold-start
+      if (retryCount < 2) {
+        setTimeout(() => {
+          loadShortsData(true, retryCount + 1);
+        }, 3000);
+      }
     } finally {
       if (!isSilent) setLoadingShorts(false);
     }
@@ -4063,12 +4469,13 @@ export default function ContentManagement() {
     setIsDeletingShort(true);
     try {
       await deleteShortVideo(shortToDelete.id);
-      showToast("Short Deleted", `"${shortToDelete.title}" has been deleted.`);
+      toast.success(`"${shortToDelete.title}" deleted successfully.`);
       setDeleteShortDialogOpen(false);
       setShortToDelete(null);
-      loadShortsData();
-    } catch (err) {
-      showToast("Error", "Failed to delete short video.");
+      loadShortsData(true);
+      loadData(true);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete short video.");
     } finally {
       setIsDeletingShort(false);
     }
@@ -4107,6 +4514,7 @@ export default function ContentManagement() {
           category: item.category || "Uncategorized",
           status: item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : "Draft",
           views: item.views !== undefined ? item.views.toString() : "0",
+          likes: item.likes !== undefined ? item.likes : 0,
           duration: item.duration || "0:00",
           date: item.date || new Date().toISOString().split("T")[0],
           premium: !!item.premium,
@@ -4188,9 +4596,12 @@ export default function ContentManagement() {
   const handleDeleteVideo = async (id: number) => {
     try {
       await deleteVideo(id);
-      loadData();
-    } catch (err) {
+      toast.success("Video deleted successfully.");
+      loadData(true);
+      loadShortsData(true);
+    } catch (err: any) {
       console.error("Failed to delete video:", err);
+      toast.error(err?.message || "Something went wrong while deleting video.");
     }
   };
 
@@ -4200,9 +4611,11 @@ export default function ContentManagement() {
       if (activePlaylist?.id === id) {
         setActivePlaylist(null);
       }
+      toast.success("Playlist deleted successfully.");
       loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete playlist:", err);
+      toast.error(err?.message || "Something went wrong while deleting playlist.");
     }
   };
 
@@ -4256,8 +4669,17 @@ export default function ContentManagement() {
       <UploadEditDialog open={uploadOpen} onClose={() => setUploadOpen(false)} playlists={playlists} onSaveSuccess={loadData} />
       <UploadShortDialog open={uploadShortOpen} onClose={() => setUploadShortOpen(false)} onSaveSuccess={loadShortsData} />
       <ShortPlayerDialog open={!!playingShort} onClose={() => setPlayingShort(null)} short={playingShort} />
-      <EditVideoDialog open={!!editContent} onClose={() => setEditContent(null)} content={editContent} playlists={playlists} onSaveSuccess={loadData} />
-      <ViewContentDialog open={!!viewContent} onClose={() => setViewContent(null)} content={viewContent} onPlay={(c) => setPlayingVideo(c)} />
+      <EditVideoDialog open={!!editContent} onClose={() => setEditContent(null)} content={editContent} playlists={playlists} onSaveSuccess={() => { loadData(true); loadShortsData(true); }} />
+      <ViewContentDialog open={!!viewContent} onClose={() => setViewContent(null)} content={viewContent} onPlay={(c) => {
+        if (c.type === "Short") {
+          const matchedShort = shorts.find((s) => s.id === c.id);
+          if (matchedShort) {
+            setPlayingShort(matchedShort);
+            return;
+          }
+        }
+        setPlayingVideo(c);
+      }} />
       <VideoPlayerDialog open={!!playingVideo} onClose={() => setPlayingVideo(null)} content={playingVideo} onPlaybackError={(msg) => showToast("Something went wrong", msg)} />
       <PlaylistMetaDialog open={newPlaylistOpen} onClose={() => setNewPlaylistOpen(false)} allVideos={contents} onSaveSuccess={loadData} />
       <PlaylistMetaDialog open={!!editPlaylistMeta} onClose={() => setEditPlaylistMeta(null)} playlist={editPlaylistMeta ?? undefined} allVideos={contents} onSaveSuccess={loadData} />
@@ -4588,14 +5010,24 @@ export default function ContentManagement() {
                               </DropdownMenuItem>
                               {content.status !== "Published" && content.status !== "published" && (
                                 <DropdownMenuItem onClick={() => {
-                                  publishVideo(content.id).then(() => loadData(true));
+                                  publishVideo(content.id)
+                                    .then(() => {
+                                      toast.success("Video published successfully.");
+                                      loadData(true);
+                                    })
+                                    .catch((err) => toast.error(err?.message || "Something went wrong while publishing video."));
                                 }} className="text-xs cursor-pointer text-emerald-700 font-medium">
                                   <CheckCircle className="mr-2 h-3.5 w-3.5 text-emerald-600" />Publish Immediately
                                 </DropdownMenuItem>
                               )}
                               {(content.status === "Published" || content.status === "published") && (
                                 <DropdownMenuItem onClick={() => {
-                                  unpublishVideo(content.id).then(() => loadData(true));
+                                  unpublishVideo(content.id)
+                                    .then(() => {
+                                      toast.success("Video unpublished and moved to drafts.");
+                                      loadData(true);
+                                    })
+                                    .catch((err) => toast.error(err?.message || "Something went wrong while unpublishing video."));
                                 }} className="text-xs cursor-pointer text-amber-700 font-medium">
                                   <Archive className="mr-2 h-3.5 w-3.5 text-amber-600" />Unpublish (Draft)
                                 </DropdownMenuItem>
@@ -4698,20 +5130,46 @@ export default function ContentManagement() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-white border border-slate-200 shadow-xl rounded-xl text-slate-700">
                               <DropdownMenuItem onClick={() => setPlayingShort(short)} className="text-xs cursor-pointer">
-                                <Play className="mr-2 h-3.5 w-3.5 fill-slate-700 text-slate-700" />Play Short
+                                <Play className="mr-2 h-3.5 w-3.5 fill-slate-700 text-slate-700" />Play Video
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                navigator.clipboard.writeText(window.location.href);
-                                showToast("Copied Link", "Short link copied to clipboard.");
-                              }} className="text-xs cursor-pointer">
-                                <Share2 className="mr-2 h-3.5 w-3.5 text-slate-500" />Copy Link
+                              <DropdownMenuItem onClick={() => setViewContent(convertShortToContent(short))} className="text-xs cursor-pointer">
+                                <Eye className="mr-2 h-3.5 w-3.5 text-slate-500" />View Details
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setEditContent(convertShortToContent(short))} className="text-xs cursor-pointer">
+                                <Edit className="mr-2 h-3.5 w-3.5 text-slate-500" />Edit Content
+                              </DropdownMenuItem>
+                              {short.status !== "Published" && short.status !== "published" && (
+                                <DropdownMenuItem onClick={() => {
+                                  publishVideo(short.id)
+                                    .then(() => {
+                                      toast.success("Short published successfully.");
+                                      loadShortsData(true);
+                                      loadData(true);
+                                    })
+                                    .catch((err) => toast.error(err?.message || "Something went wrong while publishing short."));
+                                }} className="text-xs cursor-pointer text-emerald-700 font-medium">
+                                  <CheckCircle className="mr-2 h-3.5 w-3.5 text-emerald-600" />Publish Immediately
+                                </DropdownMenuItem>
+                              )}
+                              {(short.status === "Published" || short.status === "published") && (
+                                <DropdownMenuItem onClick={() => {
+                                  unpublishVideo(short.id)
+                                    .then(() => {
+                                      toast.success("Short unpublished and moved to drafts.");
+                                      loadShortsData(true);
+                                      loadData(true);
+                                    })
+                                    .catch((err) => toast.error(err?.message || "Something went wrong while unpublishing short."));
+                                }} className="text-xs cursor-pointer text-amber-700 font-medium">
+                                  <Archive className="mr-2 h-3.5 w-3.5 text-amber-600" />Unpublish (Draft)
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-rose-600 text-xs cursor-pointer font-medium" onClick={() => {
                                 setShortToDelete(short);
                                 setDeleteShortDialogOpen(true);
                               }}>
-                                <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-500" />Delete
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />Delete Asset
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -4809,17 +5267,17 @@ export default function ContentManagement() {
       </Tabs>
 
       {/* ── Top-Right Floating Toast Notification ── */}
-      {toast.show && (
+      {toastState.show && (
         <div className="fixed top-5 right-5 z-[9999] max-w-sm w-full bg-slate-900 text-white border border-slate-800 shadow-2xl rounded-2xl p-4 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
           <div className="h-8 w-8 rounded-xl bg-red-900/60 border border-red-700 flex items-center justify-center flex-shrink-0 mt-0.5">
             <AlertCircle className="h-4 w-4 text-red-300" />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-xs text-white">{toast.title}</h4>
-            <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{toast.message}</p>
+            <h4 className="font-bold text-xs text-white">{toastState.title}</h4>
+            <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{toastState.message}</p>
           </div>
           <button
-            onClick={() => setToast((prev) => ({ ...prev, show: false }))}
+            onClick={() => setToastState((prev) => ({ ...prev, show: false }))}
             className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
           >
             <X className="h-3.5 w-3.5" />

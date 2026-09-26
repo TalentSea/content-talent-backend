@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -30,9 +31,13 @@ import {
   getTenantUsers,
   createTenantUser,
   toggleTenantUserActive,
+  changeAdminPassword,
+  getTenants,
+  getStoredAdmin,
   ApiProfile,
   ApiPayoutProfile,
   TenantUser,
+  ApiTenant,
 } from "../services/apiService";
 
 export default function Settings() {
@@ -41,6 +46,14 @@ export default function Settings() {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [savedSection, setSavedSection] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // In-Session Password Change State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
   // Form Fields
   const [firstName, setFirstName] = useState("");
@@ -73,8 +86,6 @@ export default function Settings() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
-  const [tenantError, setTenantError] = useState<string | null>(null);
-  const [tenantSuccess, setTenantSuccess] = useState<string | null>(null);
   const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
 
   const loadTenantUsers = async () => {
@@ -92,11 +103,9 @@ export default function Settings() {
   const handleAddTenantUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserEmail.trim() || !newUserPassword.trim() || !newUserFirstName.trim() || !newUserLastName.trim()) {
-      setTenantError("Please provide email, password, first name, and last name.");
+      toast.error("Please provide email, password, first name, and last name.");
       return;
     }
-    setTenantError(null);
-    setTenantSuccess(null);
     setAddingUser(true);
     try {
       const created = await createTenantUser({
@@ -110,11 +119,10 @@ export default function Settings() {
       setNewUserPassword("");
       setNewUserFirstName("");
       setNewUserLastName("");
-      setTenantSuccess(`User ${created.email} added successfully.`);
+      toast.success(`User ${created.email} added successfully.`);
       setIsAddUserOpen(false);
-      setTimeout(() => setTenantSuccess(null), 4000);
     } catch (err: any) {
-      setTenantError(err?.message || "Failed to create tenant user.");
+      toast.error(err?.message || "Failed to create tenant user.");
     } finally {
       setAddingUser(false);
     }
@@ -122,8 +130,6 @@ export default function Settings() {
 
   const handleToggleUserActive = async (user: TenantUser) => {
     setTogglingUserId(user.id);
-    setTenantError(null);
-    setTenantSuccess(null);
     const currentActive = user.is_active ?? user.isActive ?? true;
     try {
       const res = await toggleTenantUserActive(user.id, currentActive);
@@ -132,34 +138,91 @@ export default function Settings() {
           u.id === user.id ? { ...u, is_active: res.is_active, isActive: res.is_active } : u
         )
       );
-      setTenantSuccess(
-        `User ${user.email} ${res.is_active ? "activated" : "deactivated"} successfully.`
-      );
+      const actionText = res.is_active ? "activated" : "deactivated";
+      toast.success(`User ${user.email} ${actionText} successfully.`);
     } catch (err: any) {
-      setTenantError(err?.message || "Failed to update user status.");
+      toast.error(err?.message || "Failed to update user status.");
     } finally {
       setTogglingUserId(null);
     }
   };
 
+  const storedAdmin = getStoredAdmin();
+  const isSuperAdmin = storedAdmin?.role === "super_admin";
+
   // Load Profile, Payout Settings, and Tenant Users from API
-  useEffect(() => {
+  const loadSettingsData = async () => {
     setLoading(true);
-    Promise.all([
-      getCreatorProfile().catch((err) => {
-        console.warn("Failed to load creator profile from API", err);
-        return null;
-      }),
-      getPayoutSettings().catch((err) => {
-        console.warn("Failed to load payout settings from API", err);
-        return null;
-      }),
-      getTenantUsers().catch((err) => {
-        console.warn("Failed to load tenant users from API", err);
-        return [];
-      }),
-    ])
-      .then(([profile, payout, users]) => {
+    try {
+      const [profile, payout, users] = await Promise.all([
+        getCreatorProfile().catch((err) => {
+          console.warn("Failed to load creator profile from API", err);
+          return null;
+        }),
+        getPayoutSettings().catch((err) => {
+          console.warn("Failed to load payout settings from API", err);
+          return null;
+        }),
+        getTenantUsers().catch((err) => {
+          console.warn("Failed to load tenant users from API", err);
+          return [];
+        }),
+      ]);
+
+      if (Array.isArray(users)) {
+        setTenantUsers(users);
+      }
+
+      if (isSuperAdmin) {
+        // While in superadmin mode, display active tenant admin details in Settings profile
+        let tenantInfo: ApiTenant | null = null;
+        try {
+          const tenantList = await getTenants();
+          const currentId = localStorage.getItem("current_tenant_id");
+          tenantInfo = (currentId ? tenantList.find((t) => String(t.id) === currentId) : null) || tenantList[0] || null;
+        } catch (e) {
+          console.warn("Could not load tenant info for super admin:", e);
+        }
+
+        const tenantAdmin = Array.isArray(users) && users.length > 0 ? users[0] : null;
+        if (tenantAdmin) {
+          setFirstName(tenantAdmin.first_name || "");
+          setLastName(tenantAdmin.last_name || "");
+          setEmail(tenantAdmin.email || "");
+          setPhone((tenantAdmin as any).phone || "");
+          setAvatarUrl(tenantAdmin.avatar_url || tenantAdmin.avatarUrl || "");
+          setBio("");
+          setWebsite("");
+          setLocation("");
+          setTwitter("");
+          setYoutube("");
+          setInstagram("");
+        } else if (tenantInfo) {
+          setFirstName(tenantInfo.name || "Studio");
+          setLastName("Admin");
+          setEmail(tenantInfo.slug ? `admin@${tenantInfo.slug}.com` : "");
+          setPhone("");
+          setAvatarUrl("");
+          setBio("");
+          setWebsite("");
+          setLocation("");
+          setTwitter("");
+          setYoutube("");
+          setInstagram("");
+        } else {
+          setFirstName("");
+          setLastName("");
+          setEmail("");
+          setPhone("");
+          setAvatarUrl("");
+          setBio("");
+          setWebsite("");
+          setLocation("");
+          setTwitter("");
+          setYoutube("");
+          setInstagram("");
+        }
+      } else {
         if (profile) {
           if (profile.firstName) setFirstName(profile.firstName);
           if (profile.lastName) setLastName(profile.lastName);
@@ -175,16 +238,26 @@ export default function Settings() {
             setInstagram(profile.socialLinks.instagram || "");
           }
         }
-        if (payout) {
-          setBankProfile(payout);
-          if (payout.account_holder_name) setAccountHolderName(payout.account_holder_name);
-          if (payout.ifsc_code) setIfscCode(payout.ifsc_code);
-        }
-        if (Array.isArray(users)) {
-          setTenantUsers(users);
-        }
-      })
-      .finally(() => setLoading(false));
+      }
+
+      if (payout) {
+        setBankProfile(payout);
+        if (payout.account_holder_name) setAccountHolderName(payout.account_holder_name);
+        if (payout.ifsc_code) setIfscCode(payout.ifsc_code);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSettingsData();
+
+    const handleTenantSwitched = () => {
+      loadSettingsData();
+    };
+    window.addEventListener("tenant_switched", handleTenantSwitched);
+    return () => window.removeEventListener("tenant_switched", handleTenantSwitched);
   }, []);
 
   // Save Section Changes Handler
@@ -207,6 +280,7 @@ export default function Settings() {
             instagram,
           },
         });
+        toast.success("Profile settings saved successfully!");
       } else if (sectionKey === "billing") {
         if (!accountHolderName.trim() || accountHolderName.trim().length < 3) {
           throw new Error("Account holder name must be at least 3 characters.");
@@ -227,19 +301,46 @@ export default function Settings() {
         });
         setBankProfile(updated);
         setAccountNumber("");
-        setBankSuccess(`Bank details registered! Resolved Bank: ${updated.bank_name || "Verified"}`);
+        const msg = `Bank details registered! Resolved Bank: ${updated.bank_name || "Verified"}`;
+        setBankSuccess(msg);
+        toast.success(msg);
+      } else if (sectionKey === "password") {
+        if (!currentPassword) {
+          throw new Error("Please enter your current password.");
+        }
+        if (!newPassword || newPassword.length < 8) {
+          throw new Error("New password must be at least 8 characters long.");
+        }
+        if (newPassword === currentPassword) {
+          throw new Error("New password cannot be identical to your current password.");
+        }
+        if (newPassword !== confirmPassword) {
+          throw new Error("New password and confirm password do not match.");
+        }
+
+        await changeAdminPassword({
+          current_password: currentPassword,
+          new_password: newPassword,
+        });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        toast.success("Password changed successfully!");
       } else {
         // Minor async delay for other setting section triggers
         await new Promise((resolve) => setTimeout(resolve, 300));
+        toast.success(`${sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1)} settings updated.`);
       }
       setSavedSection(sectionKey);
       setTimeout(() => {
         setSavedSection((prev) => (prev === sectionKey ? null : prev));
       }, 3000);
     } catch (err: any) {
+      const errMsg = err?.message || `Failed to update ${sectionKey} settings.`;
       if (sectionKey === "billing") {
-        setBankError(err?.message || "Failed to update bank payout details.");
+        setBankError(errMsg);
       }
+      toast.error(errMsg);
       console.error(`Failed to update ${sectionKey} settings`, err);
     } finally {
       setSavingSection(null);
@@ -283,8 +384,10 @@ export default function Settings() {
       const res = await uploadAvatarPhoto(file);
       if (res.avatarUrl) {
         setAvatarUrl(res.avatarUrl);
+        toast.success("Profile photo updated successfully!");
       }
-    } catch (err) {
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload avatar photo.");
       console.error("Failed to upload avatar photo", err);
     } finally {
       setUploadingAvatar(false);
@@ -327,10 +430,7 @@ export default function Settings() {
             <Building2 className="h-4 w-4" />
             <span>Payouts</span>
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
-            <Globe className="h-4 w-4" />
-            <span>Preferences</span>
-          </TabsTrigger>
+
           <TabsTrigger value="advanced" className="gap-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
             <Shield className="h-4 w-4" />
             <span>Advanced</span>
@@ -447,48 +547,86 @@ export default function Settings() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100">
               <div>
                 <CardTitle className="text-lg font-bold text-slate-900 tracking-tight">Change Password</CardTitle>
+                <p className="text-xs text-slate-500 mt-1">
+                  Ensure your account uses a strong password with at least 8 characters.
+                </p>
               </div>
               {renderSaveButton("password", "Update Password")}
             </CardHeader>
             <CardContent className="space-y-4 pt-5">
               <div>
-                <Label htmlFor="current-password" className="text-sm font-semibold text-slate-800 block mb-1.5">Current Password</Label>
-                <Input id="current-password" type="password" className="rounded-xl border-slate-200" />
+                <Label htmlFor="current-password" className="text-sm font-semibold text-slate-800 block mb-1.5">
+                  Current Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="current-password"
+                    type={showCurrentPwd ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="rounded-xl border-slate-200 pr-10"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPwd((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    {showCurrentPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div>
-                <Label htmlFor="new-password" className="text-sm font-semibold text-slate-800 block mb-1.5">New Password</Label>
-                <Input id="new-password" type="password" className="rounded-xl border-slate-200" />
+                <Label htmlFor="new-password" className="text-sm font-semibold text-slate-800 block mb-1.5">
+                  New Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showNewPwd ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 8 characters (distinct from current)"
+                    className="rounded-xl border-slate-200 pr-10"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPwd((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    {showNewPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div>
-                <Label htmlFor="confirm-password" className="text-sm font-semibold text-slate-800 block mb-1.5">Confirm New Password</Label>
-                <Input id="confirm-password" type="password" className="rounded-xl border-slate-200" />
+                <Label htmlFor="confirm-password" className="text-sm font-semibold text-slate-800 block mb-1.5">
+                  Confirm New Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPwd ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="rounded-xl border-slate-200 pr-10"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPwd((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    {showConfirmPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-slate-200/80 shadow-xs rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100">
-              <div>
-                <CardTitle className="text-lg font-bold text-slate-900 tracking-tight">Two-Factor Authentication</CardTitle>
-              </div>
-              {renderSaveButton("2fa")}
-            </CardHeader>
-            <CardContent className="space-y-5 pt-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-sm text-slate-900">Enable 2FA</div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    Add an extra layer of security to your admin account
-                  </div>
-                </div>
-                <Switch />
-              </div>
-              <Separator />
-              <Button variant="outline" className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 shadow-xs text-sm font-semibold h-9 px-4">
-                Configure Authenticator App
-              </Button>
-            </CardContent>
-          </Card>
+
         </TabsContent>
 
         {/* Notification Settings */}
@@ -635,36 +773,6 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Preferences */}
-        <TabsContent value="preferences" className="space-y-6">
-          <Card className="bg-white border-slate-200/80 shadow-xs rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100">
-              <div>
-                <CardTitle className="text-base font-bold text-slate-900 tracking-tight">General Preferences</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">Customize your dashboard locale and regional formats</p>
-              </div>
-              {renderSaveButton("preferences")}
-            </CardHeader>
-            <CardContent className="space-y-4 pt-5">
-              <div>
-                <Label htmlFor="language" className="text-xs font-semibold text-slate-700">Language</Label>
-                <div className="mt-1.5">
-                  <Select defaultValue="en">
-                    <SelectTrigger id="language" className="rounded-xl border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200">
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Advanced Settings */}
         <TabsContent value="advanced" className="space-y-6">
           <Card className="bg-white border-slate-200/80 shadow-xs rounded-2xl">
@@ -673,7 +781,6 @@ export default function Settings() {
                 <CardTitle className="text-base font-bold text-slate-900 tracking-tight">Data & Privacy</CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">Export data and audit platform privacy compliance</p>
               </div>
-              {renderSaveButton("privacy")}
             </CardHeader>
             <CardContent className="space-y-4 pt-5">
               <Button variant="outline" className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 shadow-xs text-xs font-semibold">
@@ -696,20 +803,23 @@ export default function Settings() {
                   Users registered under this tenant workspace ({tenantUsers.length} total).
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadTenantUsers}
-                disabled={loadingTenantUsers}
-                className="rounded-xl border-slate-200 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingTenantUsers ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-slate-900 text-white"><UserPlus className="h-4 w-4 mr-2" /> Add User</Button>
-                </DialogTrigger>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadTenantUsers}
+                  disabled={loadingTenantUsers}
+                  className="rounded-xl border-slate-200 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer h-9 px-3"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loadingTenantUsers ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+                <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-semibold h-9 px-3.5 cursor-pointer">
+                      <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Add User
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add New Admin User</DialogTitle>
@@ -725,19 +835,6 @@ export default function Settings() {
                       </p>
                     </CardHeader>
                     <CardContent className="pt-5">
-                      {tenantError && (
-                        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4 shrink-0" />
-                          <span>{tenantError}</span>
-                        </div>
-                      )}
-                      {tenantSuccess && (
-                        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 shrink-0" />
-                          <span>{tenantSuccess}</span>
-                        </div>
-                      )}
-
                       <form onSubmit={handleAddTenantUser} className="grid gap-4 md:grid-cols-2 items-end">
                         <div>
                           <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
@@ -823,7 +920,8 @@ export default function Settings() {
                   </Card>
                 </DialogContent>
               </Dialog>
-            </CardHeader>
+            </div>
+          </CardHeader>
 
 
             <CardContent className="pt-0 p-0">

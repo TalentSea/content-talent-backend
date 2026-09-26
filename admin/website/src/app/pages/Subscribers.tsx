@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -305,12 +306,6 @@ export default function Subscribers() {
                         {availablePlans.map((p) => (
                           <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
                         ))}
-                        {availablePlans.length === 0 && (
-                          <>
-                            <SelectItem value="Premium">Premium</SelectItem>
-                            <SelectItem value="Basic">Basic</SelectItem>
-                          </>
-                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -417,9 +412,30 @@ export default function Subscribers() {
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"><MoreVertical className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-white border-slate-200 text-slate-700 shadow-xl rounded-xl">
-                          <DropdownMenuItem className="hover:bg-slate-50 focus:bg-slate-50 cursor-pointer"><Mail className="mr-2 h-4 w-4 text-slate-500" />Send Email</DropdownMenuItem>
-                          <DropdownMenuItem className="hover:bg-slate-50 focus:bg-slate-50 cursor-pointer"><Crown className="mr-2 h-4 w-4 text-slate-500" />Change Plan</DropdownMenuItem>
-                          <DropdownMenuItem className="text-rose-600 hover:bg-rose-50 focus:bg-rose-50 cursor-pointer"><UserX className="mr-2 h-4 w-4" />Suspend Account</DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="hover:bg-slate-50 focus:bg-slate-50 cursor-pointer"
+                            onClick={() => {
+                              if (subscriber.email && !subscriber.email.includes("No email")) {
+                                window.location.href = `mailto:${subscriber.email}`;
+                              } else {
+                                toast.info("No email address registered for this account.");
+                              }
+                            }}
+                          >
+                            <Mail className="mr-2 h-4 w-4 text-slate-500" />Send Email
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="hover:bg-slate-50 focus:bg-slate-50 cursor-pointer"
+                            onClick={() => toast.info("Navigate to Subscription Plans to manage subscriber tier entitlements.")}
+                          >
+                            <Crown className="mr-2 h-4 w-4 text-slate-500" />Change Plan
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-rose-600 hover:bg-rose-50 focus:bg-rose-50 cursor-pointer"
+                            onClick={() => toast.info(`Account status for ${subscriber.name} is managed in Security & Team Access settings.`)}
+                          >
+                            <UserX className="mr-2 h-4 w-4" />Suspend Account
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

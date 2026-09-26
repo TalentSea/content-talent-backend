@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -259,40 +260,52 @@ export default function Categories() {
   }, []);
 
   const handleCreateCategory = async (data: { name: string; description: string; color: string; file?: File | null }) => {
-    const created = await createCategory({
-      name: data.name,
-      description: data.description,
-      color: data.color,
-    });
-    let finalCategory = created;
-    if (data.file) {
-      try {
-        const uploadRes = await uploadCategoryThumbnail(created.id, data.file);
-        finalCategory = { ...created, thumbnailUrl: uploadRes.thumbnailUrl };
-      } catch (err) {
-        console.error("Failed to upload category thumbnail:", err);
+    try {
+      const created = await createCategory({
+        name: data.name,
+        description: data.description,
+        color: data.color,
+      });
+      let finalCategory = created;
+      if (data.file) {
+        try {
+          const uploadRes = await uploadCategoryThumbnail(created.id, data.file);
+          finalCategory = { ...created, thumbnailUrl: uploadRes.thumbnailUrl };
+        } catch (err) {
+          console.error("Failed to upload category thumbnail:", err);
+        }
       }
+      setCategories((prev) => [...prev, finalCategory]);
+      toast.success(`Category "${finalCategory.name}" created successfully.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong while creating category.");
+      throw err;
     }
-    setCategories((prev) => [...prev, finalCategory]);
   };
 
   const handleUpdateCategory = async (data: { name: string; description: string; color: string; file?: File | null }) => {
     if (!editCategory) return;
-    const updated = await updateCategory(editCategory.id, {
-      name: data.name,
-      description: data.description,
-      color: data.color,
-    });
-    let finalCategory = updated;
-    if (data.file) {
-      try {
-        const uploadRes = await uploadCategoryThumbnail(editCategory.id, data.file);
-        finalCategory = { ...updated, thumbnailUrl: uploadRes.thumbnailUrl };
-      } catch (err) {
-        console.error("Failed to upload category thumbnail:", err);
+    try {
+      const updated = await updateCategory(editCategory.id, {
+        name: data.name,
+        description: data.description,
+        color: data.color,
+      });
+      let finalCategory = updated;
+      if (data.file) {
+        try {
+          const uploadRes = await uploadCategoryThumbnail(editCategory.id, data.file);
+          finalCategory = { ...updated, thumbnailUrl: uploadRes.thumbnailUrl };
+        } catch (err) {
+          console.error("Failed to upload category thumbnail:", err);
+        }
       }
+      setCategories((prev) => prev.map((c) => (c.id === finalCategory.id ? finalCategory : c)));
+      toast.success(`Category "${finalCategory.name}" updated successfully.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong while updating category.");
+      throw err;
     }
-    setCategories((prev) => prev.map((c) => (c.id === finalCategory.id ? finalCategory : c)));
   };
 
   const handleDeleteCategory = async () => {
@@ -301,9 +314,10 @@ export default function Categories() {
     try {
       await deleteCategory(deleteTarget.id);
       setCategories((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      toast.success(`Category "${deleteTarget.name}" deleted successfully.`);
       setDeleteTarget(null);
     } catch (err: any) {
-      alert(err?.message || "Failed to delete category");
+      toast.error(err?.message || "Something went wrong while deleting category.");
     } finally {
       setActionLoading(false);
     }
@@ -323,8 +337,9 @@ export default function Categories() {
     try {
       const ids = newCategories.map((c) => c.id);
       await reorderCategories(ids);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Failed to persist category order", err);
+      toast.error(err?.message || "Failed to persist category order.");
       // Revert if API fails
       fetchCategoriesList();
     }

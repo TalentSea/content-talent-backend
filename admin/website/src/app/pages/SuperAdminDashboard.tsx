@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { getTenants, createTenant, updateTenantStatus, ApiTenant } from "../services/apiService";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -49,6 +50,7 @@ export default function SuperAdminDashboard() {
         adminFirstName: newAdminFirst,
         adminLastName: newAdminLast
       });
+      toast.success(`Tenant "${newTenantName}" created successfully!`);
       setNewTenantName("");
       setNewAdminEmail("");
       setNewAdminPassword("");
@@ -56,8 +58,9 @@ export default function SuperAdminDashboard() {
       setNewAdminLast("");
       setActiveTab("tenants");
       await loadTenants();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      toast.error(err?.message || "Failed to create tenant.");
     } finally {
       setAdding(false);
     }
@@ -67,13 +70,16 @@ export default function SuperAdminDashboard() {
     try {
       await updateTenantStatus(tenant.id, !tenant.isActive);
       await loadTenants();
-    } catch (err) {
+      toast.success(`Tenant "${tenant.name}" ${tenant.isActive ? "deactivated" : "activated"} successfully.`);
+    } catch (err: any) {
       console.error(err);
+      toast.error(err?.message || "Failed to update tenant status.");
     }
   };
 
   const confirmImpersonate = () => {
     if (impersonateTenant) {
+      toast.success(`Switching context to ${impersonateTenant.name}...`);
       localStorage.setItem("impersonating_tenant_id", impersonateTenant.id);
       localStorage.setItem("impersonating_tenant_name", impersonateTenant.name);
       window.location.reload();

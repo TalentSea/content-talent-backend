@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import {
   getTenants,
   createTenant,
@@ -7,6 +8,8 @@ import {
   getCreatorProfile,
   updateCreatorProfile,
   getStoredAdmin,
+  changeAdminPassword,
+  uploadAvatarPhoto,
   generateReconciliationDraft,
   publishReconciliation,
   markStatementPaid,
@@ -22,15 +25,36 @@ import { Label } from "../components/ui/label";
 import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../components/ui/dialog";
+import {
   Loader2, Plus, RefreshCw, Building2, User,
   DollarSign, Check, Search, ExternalLink, ArrowRight,
   Tv, Sliders, Shield, Zap, Sparkles, CheckCircle2,
   FileText, Calendar, CreditCard, AlertCircle, Receipt,
+  Eye, EyeOff, Lock, Upload,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 export default function SuperAdminCenter() {
   const navigate = useNavigate();
+  const storedAdmin = getStoredAdmin();
+  const isSuper = storedAdmin?.role === "super_admin";
+
+  useEffect(() => {
+    if (!isSuper) {
+      navigate("/", { replace: true });
+    }
+  }, [isSuper, navigate]);
+
+  if (!isSuper) {
+    return null;
+  }
+
   const [activeTab, setActiveTab] = useState<"tenants" | "add-tenant" | "profile" | "monetization">("tenants");
 
   // Tenants state
@@ -45,6 +69,7 @@ export default function SuperAdminCenter() {
   const [provisionLast, setProvisionLast] = useState("");
   const [provisionEmail, setProvisionEmail] = useState("");
   const [provisionPassword, setProvisionPassword] = useState("");
+  const [showProvisionPassword, setShowProvisionPassword] = useState(false);
   const [provisionTagline, setProvisionTagline] = useState("");
   const [provisionDescription, setProvisionDescription] = useState("");
   const [isProvisioning, setIsProvisioning] = useState(false);
@@ -56,21 +81,47 @@ export default function SuperAdminCenter() {
     firstName: string;
     lastName: string;
     email: string;
-    phone: string;
-    location: string;
-    bio: string;
     avatarUrl: string;
   }>({
     firstName: "Super",
     lastName: "Admin",
     email: "superadmin@gmail.com",
-    phone: "+1 (555) 019-2834",
-    location: "Global Platform Core",
-    bio: "Head platform owner governing white-label studios, infrastructure & platform monetization.",
     avatarUrl: "",
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+
+  // Super Admin Password Change State
+  const [saCurrentPassword, setSaCurrentPassword] = useState("");
+  const [saNewPassword, setSaNewPassword] = useState("");
+  const [saConfirmPassword, setSaConfirmPassword] = useState("");
+  const [showSaCurrentPwd, setShowSaCurrentPwd] = useState(false);
+  const [showSaNewPwd, setShowSaNewPwd] = useState(false);
+  const [showSaConfirmPwd, setShowSaConfirmPwd] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Avatar upload & URL state for Super Admin
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [tempAvatarUrl, setTempAvatarUrl] = useState("");
+
+  const handleSuperAdminAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    setIsUploadingAvatar(true);
+    try {
+      const res = await uploadAvatarPhoto(file);
+      if (res.avatarUrl) {
+        setAdminProfile((prev) => ({ ...prev, avatarUrl: res.avatarUrl }));
+        toast.success("Super admin avatar uploaded successfully!");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload avatar photo.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   // Ads & Monetization state
   const [adSettings, setAdSettings] = useState(() => {
@@ -81,9 +132,9 @@ export default function SuperAdminCenter() {
     return {
       globalAdsEnabled: true,
       adNetwork: "google_ad_manager",
-      googlePublisherId: "pub-8492049182049182",
-      googleAdUnitPath: "/1234567/talentsea_preroll_video",
-      bunnyVastUrl: "https://video.bunnycdn.com/vast/sample-talentsea",
+      googlePublisherId: "",
+      googleAdUnitPath: "",
+      bunnyVastUrl: "",
       customVastUrl: "",
       enablePreRoll: true,
       enableMidRoll: true,
@@ -124,9 +175,6 @@ export default function SuperAdminCenter() {
             firstName: p.firstName || "Super",
             lastName: p.lastName || "Admin",
             email: p.email || prev.email,
-            phone: p.phone || prev.phone,
-            location: p.location || prev.location,
-            bio: p.bio || prev.bio,
             avatarUrl: p.avatarUrl || prev.avatarUrl,
           }));
         }
@@ -158,8 +206,10 @@ export default function SuperAdminCenter() {
     try {
       await updateTenantStatus(tenant.id, !tenant.isActive);
       await fetchTenants();
-    } catch (err) {
+      toast.success(`Tenant "${tenant.name}" ${tenant.isActive ? "deactivated" : "activated"} successfully.`);
+    } catch (err: any) {
       console.error("Failed to toggle tenant status:", err);
+      toast.error(err?.message || "Something went wrong while updating tenant status.");
     }
   };
 
@@ -182,6 +232,7 @@ export default function SuperAdminCenter() {
       });
 
       setProvisionSuccess(`Tenant "${provisionName}" was provisioned successfully!`);
+      toast.success(`Tenant "${provisionName}" provisioned successfully!`);
       setProvisionName("");
       setProvisionFirst("");
       setProvisionLast("");
@@ -196,7 +247,9 @@ export default function SuperAdminCenter() {
         setProvisionSuccess(null);
       }, 1500);
     } catch (err: any) {
-      setProvisionError(err?.message || "Failed to provision new tenant. Please check credentials.");
+      const msg = err?.message || "Failed to provision new tenant. Please check credentials.";
+      setProvisionError(msg);
+      toast.error(msg);
     } finally {
       setIsProvisioning(false);
     }
@@ -210,18 +263,55 @@ export default function SuperAdminCenter() {
       await updateCreatorProfile({
         first_name: adminProfile.firstName,
         last_name: adminProfile.lastName,
-        phone: adminProfile.phone,
-        location: adminProfile.location,
-        bio: adminProfile.bio,
+        avatar_url: adminProfile.avatarUrl,
       });
       setProfileSaved(true);
+      toast.success("Super admin profile updated successfully.");
       setTimeout(() => setProfileSaved(false), 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Could not save super admin profile to API, saving locally:", err);
+      toast.error(err?.message || "Something went wrong while saving profile.");
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2000);
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  // Super Admin Password Change Handler
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!saCurrentPassword) {
+      toast.error("Please enter your current password.");
+      return;
+    }
+    if (!saNewPassword || saNewPassword.length < 8) {
+      toast.error("New password must be at least 8 characters long.");
+      return;
+    }
+    if (saNewPassword === saCurrentPassword) {
+      toast.error("New password cannot be identical to your current password.");
+      return;
+    }
+    if (saNewPassword !== saConfirmPassword) {
+      toast.error("New password and confirm password do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changeAdminPassword({
+        current_password: saCurrentPassword,
+        new_password: saNewPassword,
+      });
+      setSaCurrentPassword("");
+      setSaNewPassword("");
+      setSaConfirmPassword("");
+      toast.success("Super admin password changed successfully!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to change password. Please check your current password.");
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -232,6 +322,7 @@ export default function SuperAdminCenter() {
       localStorage.setItem("platform_ads_config", JSON.stringify(adSettings));
       window.dispatchEvent(new CustomEvent("platform_ads_updated", { detail: adSettings }));
       setAdsSaved(true);
+      toast.success("Platform ad configuration saved successfully.");
       setTimeout(() => setAdsSaved(false), 2500);
     } finally {
       setIsSavingAds(false);
@@ -290,10 +381,14 @@ export default function SuperAdminCenter() {
         notes: reconNotes || undefined,
       });
       setActiveDraft(draft);
-      setReconActionMessage({ type: "success", text: `Reconciliation draft generated for ${draft.month} with ${draft.statements?.length || 0} tenant statements.` });
+      const msg = `Reconciliation draft generated for ${draft.month} with ${draft.statements?.length || 0} tenant statements.`;
+      setReconActionMessage({ type: "success", text: msg });
+      toast.success(msg);
       fetchLedger();
     } catch (err: any) {
-      setReconActionMessage({ type: "error", text: err.message || "Failed to generate reconciliation draft." });
+      const msg = err.message || "Failed to generate reconciliation draft.";
+      setReconActionMessage({ type: "error", text: msg });
+      toast.error(msg);
     } finally {
       setIsGeneratingDraft(false);
     }
@@ -307,10 +402,14 @@ export default function SuperAdminCenter() {
       const res = await publishReconciliation(activeDraft.month);
       setPublishedData(res);
       setActiveDraft(null);
-      setReconActionMessage({ type: "success", text: `Successfully published statements for ${res.month}! Tenants can now review their monthly settlement.` });
+      const msg = `Successfully published statements for ${res.month}! Tenants can now review their monthly settlement.`;
+      setReconActionMessage({ type: "success", text: msg });
+      toast.success(msg);
       fetchLedger();
     } catch (err: any) {
-      setReconActionMessage({ type: "error", text: err.message || "Failed to publish reconciliation statements." });
+      const msg = err.message || "Failed to publish reconciliation statements.";
+      setReconActionMessage({ type: "error", text: msg });
+      toast.error(msg);
     } finally {
       setIsPublishing(false);
     }
@@ -318,14 +417,18 @@ export default function SuperAdminCenter() {
 
   const handleMarkPaid = async (statementId: string) => {
     if (!bankUtr.trim()) {
-      setReconActionMessage({ type: "error", text: "Please enter a bank transaction reference / UTR code." });
+      const msg = "Please enter a bank transaction reference / UTR code.";
+      setReconActionMessage({ type: "error", text: msg });
+      toast.error(msg);
       return;
     }
     setIsSettling(true);
     setReconActionMessage(null);
     try {
       const res = await markStatementPaid(statementId, { transaction_reference: bankUtr.trim() });
-      setReconActionMessage({ type: "success", text: `Statement #${res.statement_id} marked as SETTLED (Ref: ${res.transaction_reference}).` });
+      const msg = `Statement #${res.statement_id} marked as SETTLED (Ref: ${res.transaction_reference}).`;
+      setReconActionMessage({ type: "success", text: msg });
+      toast.success(msg);
       setSettlingStatementId(null);
       setBankUtr("");
       if (publishedData) {
@@ -336,7 +439,9 @@ export default function SuperAdminCenter() {
       }
       fetchLedger();
     } catch (err: any) {
-      setReconActionMessage({ type: "error", text: err.message || "Failed to record payment for statement." });
+      const msg = err.message || "Failed to record payment for statement.";
+      setReconActionMessage({ type: "error", text: msg });
+      toast.error(msg);
     } finally {
       setIsSettling(false);
     }
@@ -660,14 +765,24 @@ export default function SuperAdminCenter() {
 
                 <div>
                   <Label className="text-xs font-bold text-slate-800 block mb-1.5">Initial Password *</Label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••••••"
-                    value={provisionPassword}
-                    onChange={(e) => setProvisionPassword(e.target.value)}
-                    required
-                    className="h-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showProvisionPassword ? "text" : "password"}
+                      placeholder="••••••••••••"
+                      value={provisionPassword}
+                      onChange={(e) => setProvisionPassword(e.target.value)}
+                      required
+                      className="h-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowProvisionPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showProvisionPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <p className="text-[11px] text-slate-400 mt-1">
                     The tenant creator can reset this password anytime from their studio settings.
                   </p>
@@ -726,23 +841,89 @@ export default function SuperAdminCenter() {
                 </div>
               )}
 
+              <input
+                type="file"
+                ref={avatarInputRef}
+                onChange={handleSuperAdminAvatarUpload}
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+              />
+
               <form onSubmit={handleSaveProfile} className="space-y-5">
-                <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
-                  <div className="h-16 w-16 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-bold text-xl shadow-md">
-                    {adminProfile.avatarUrl ? (
-                      <img src={adminProfile.avatarUrl} alt="Avatar" className="h-full w-full object-cover rounded-2xl" />
-                    ) : (
-                      "SA"
-                    )}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-bold text-xl shadow-md overflow-hidden relative shrink-0">
+                      {adminProfile.avatarUrl ? (
+                        <img src={adminProfile.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                      ) : (
+                        `${adminProfile.firstName ? adminProfile.firstName.charAt(0) : "S"}${adminProfile.lastName ? adminProfile.lastName.charAt(0) : "A"}`
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base text-slate-900">
+                        {adminProfile.firstName} {adminProfile.lastName}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-mono">{adminProfile.email}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 text-[10px] font-bold uppercase tracking-wider">
+                        Global Platform Owner
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base text-slate-900">
-                      {adminProfile.firstName} {adminProfile.lastName}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-mono">{adminProfile.email}</p>
-                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 text-[10px] font-bold uppercase tracking-wider">
-                      Global Platform Owner
-                    </span>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploadingAvatar}
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="gap-2 rounded-xl border-slate-200 text-xs font-semibold h-9 px-3.5 cursor-pointer hover:bg-slate-50"
+                    >
+                      {isUploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      {isUploadingAvatar ? "Uploading..." : "Upload Avatar"}
+                    </Button>
+
+                    <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-slate-600 hover:text-slate-900 h-9 px-3 cursor-pointer"
+                        >
+                          Link Image URL
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md bg-white border border-slate-200">
+                        <DialogHeader>
+                          <DialogTitle className="text-slate-900">Set Avatar Image URL</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 pt-2">
+                          <div>
+                            <Label className="text-xs font-semibold text-slate-700 block mb-1.5">Direct Image URL</Label>
+                            <Input
+                              placeholder="https://example.com/avatar.jpg"
+                              value={tempAvatarUrl}
+                              onChange={(e) => setTempAvatarUrl(e.target.value)}
+                              className="h-10 rounded-xl border-slate-200"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              if (tempAvatarUrl.trim()) {
+                                setAdminProfile((prev) => ({ ...prev, avatarUrl: tempAvatarUrl.trim() }));
+                                toast.success("Avatar image URL linked!");
+                              }
+                              setUrlDialogOpen(false);
+                            }}
+                            className="w-full bg-slate-900 text-white rounded-xl h-10 font-bold"
+                          >
+                            Apply URL
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
 
@@ -765,42 +946,13 @@ export default function SuperAdminCenter() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1">Super Admin Email</Label>
-                    <Input
-                      type="email"
-                      value={adminProfile.email}
-                      disabled
-                      className="h-10 rounded-xl border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1">Direct Phone</Label>
-                    <Input
-                      value={adminProfile.phone}
-                      onChange={(e) => setAdminProfile({ ...adminProfile, phone: e.target.value })}
-                      className="h-10 rounded-xl border-slate-200"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <Label className="text-xs font-semibold text-slate-700 block mb-1">Location / Timezone</Label>
+                  <Label className="text-xs font-semibold text-slate-700 block mb-1">Super Admin Email</Label>
                   <Input
-                    value={adminProfile.location}
-                    onChange={(e) => setAdminProfile({ ...adminProfile, location: e.target.value })}
-                    className="h-10 rounded-xl border-slate-200"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-slate-700 block mb-1">Administrator Bio</Label>
-                  <textarea
-                    rows={3}
-                    value={adminProfile.bio}
-                    onChange={(e) => setAdminProfile({ ...adminProfile, bio: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-900 bg-white focus:border-slate-900 focus:outline-none"
+                    type="email"
+                    value={adminProfile.email}
+                    disabled
+                    className="h-10 rounded-xl border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"
                   />
                 </div>
 
@@ -813,6 +965,97 @@ export default function SuperAdminCenter() {
                   Save Profile Details
                 </Button>
               </form>
+
+              <div className="pt-6 mt-6 border-t border-slate-100">
+                <div className="mb-4">
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-slate-700" />
+                    Change Super Admin Password
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Update your master administrative password. Must be at least 8 characters long.
+                  </p>
+                </div>
+
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">Current Password *</Label>
+                    <div className="relative">
+                      <Input
+                        type={showSaCurrentPwd ? "text" : "password"}
+                        value={saCurrentPassword}
+                        onChange={(e) => setSaCurrentPassword(e.target.value)}
+                        placeholder="Enter current master password"
+                        className="h-10 rounded-xl border-slate-200 pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSaCurrentPwd((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        tabIndex={-1}
+                      >
+                        {showSaCurrentPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-semibold text-slate-700 block mb-1">New Password *</Label>
+                      <div className="relative">
+                        <Input
+                          type={showSaNewPwd ? "text" : "password"}
+                          value={saNewPassword}
+                          onChange={(e) => setSaNewPassword(e.target.value)}
+                          placeholder="Min 8 characters"
+                          className="h-10 rounded-xl border-slate-200 pr-10"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSaNewPwd((p) => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showSaNewPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs font-semibold text-slate-700 block mb-1">Confirm New Password *</Label>
+                      <div className="relative">
+                        <Input
+                          type={showSaConfirmPwd ? "text" : "password"}
+                          value={saConfirmPassword}
+                          onChange={(e) => setSaConfirmPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className="h-10 rounded-xl border-slate-200 pr-10"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSaConfirmPwd((p) => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showSaConfirmPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-10 px-6 font-bold shadow-xs cursor-pointer"
+                  >
+                    {isChangingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Update Password
+                  </Button>
+                </form>
+              </div>
             </CardContent>
           </Card>
         </div>

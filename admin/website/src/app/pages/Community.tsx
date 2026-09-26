@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -200,6 +201,7 @@ export default function Community() {
     setNewAnnouncementTitle("");
     setNewAnnouncementContent("");
     setAnnouncementOpen(false);
+    toast.success("Announcement published successfully.");
   };
 
   const handleSaveEditAnnouncement = (updatedData: { title: string; content: string }) => {
@@ -212,6 +214,7 @@ export default function Community() {
       localStorage.setItem("admin_announcements", JSON.stringify(updated));
     } catch {}
     setEditAnnouncement(null);
+    toast.success("Announcement updated successfully.");
   };
 
   const handleDeleteAnnouncement = (id: number) => {
@@ -220,6 +223,7 @@ export default function Community() {
     try {
       localStorage.setItem("admin_announcements", JSON.stringify(updated));
     } catch {}
+    toast.success("Announcement deleted successfully.");
   };
 
   // Filters
@@ -333,9 +337,11 @@ export default function Community() {
     if (!confirm("Are you sure you want to delete this comment?")) return;
     try {
       await deleteComment(commentId);
+      toast.success("Comment deleted successfully.");
       fetchComments();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete comment", err);
+      toast.error(err?.message || "Something went wrong while deleting comment.");
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     }
   };
@@ -391,8 +397,10 @@ export default function Community() {
       setOpenRepliesId(parentCommentId);
       setReplyText("");
       setReplyOpenId(null);
-    } catch (err) {
+      toast.success("Reply posted successfully.");
+    } catch (err: any) {
       console.error("Failed to post reply", err);
+      toast.error(err?.message || "Something went wrong while posting reply.");
     } finally {
       setSubmittingReply(false);
     }

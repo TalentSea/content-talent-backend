@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
-import { Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, AlertCircle, KeyRound, Loader2 } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, KeyRound, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { adminLogin, adminGetMe, getStoredToken, clearStoredAuth } from "../services/apiService";
+import { toast } from "sonner";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,9 +13,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [checkingSession, setCheckingSession] = useState(() => !!getStoredToken());
 
   useEffect(() => {
@@ -48,14 +47,26 @@ export default function Login() {
     if (!email.trim() || !password) return;
 
     setLoading(true);
-    setErrorMsg(null);
 
     try {
       await adminLogin({ email: email.trim(), password });
+      toast.success("Signed in successfully! Redirecting...");
       const from = (location.state as any)?.from || "/";
       navigate(from, { replace: true });
     } catch (err: any) {
-      setErrorMsg(err?.message || "Invalid email or password. Please try again.");
+      const msg = err?.message || "";
+      if (
+        msg.includes("<!DOCTYPE") ||
+        msg.includes("<html") ||
+        msg.includes("<body") ||
+        msg.includes("offline") ||
+        msg.includes("unreachable") ||
+        msg.includes("ERR_NGROK")
+      ) {
+        toast.error("Backend server is offline or unreachable.");
+      } else {
+        toast.error("Invalid email or password");
+      }
     } finally {
       setLoading(false);
     }
@@ -85,7 +96,7 @@ export default function Login() {
         {/* Header Badge & Title */}
         <div className="text-center mb-6">
           <div className="h-11 w-11 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-lg mx-auto mb-3 shadow-xs">
-            T
+            CT
           </div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200/80 text-slate-700 text-[11px] font-semibold mb-3">
             <Sparkles className="w-3 h-3 text-slate-700" />
@@ -94,14 +105,6 @@ export default function Login() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1.5">Welcome Back</h1>
           <p className="text-xs text-slate-500 font-normal">Sign in to manage your OTT platform, videos & revenue</p>
         </div>
-
-        {/* Error Notification Banner */}
-        {errorMsg && (
-          <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2.5 font-medium">
-            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-            <div className="flex-1">{errorMsg}</div>
-          </div>
-        )}
 
         {/* Credentials Form */}
         <form onSubmit={handleStandardLogin} className="space-y-4">
@@ -150,18 +153,6 @@ export default function Login() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-950/10 cursor-pointer"
-              />
-              <span className="text-xs text-slate-600 font-medium">Remember me</span>
-            </label>
-          </div>
-
           <Button
             type="submit"
             disabled={loading}
@@ -180,17 +171,6 @@ export default function Login() {
             )}
           </Button>
         </form>
-
-        {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-          <span className="flex items-center gap-1.5 text-slate-500 font-medium text-[11px]">
-            <KeyRound className="w-3 h-3 text-slate-400" />
-            Creator Studio
-          </span>
-          <span className="text-slate-400 font-medium text-[11px]">
-            Secure Connection
-          </span>
-        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -121,10 +122,13 @@ function EditPlanDialog({
       const numericId = parseInt(plan.id, 10);
       const res = await updateSubscriptionPlan(numericId, payload);
       onSave(transformApiPlanToLocalPlan(res));
+      toast.success(`Subscription plan "${res.name}" updated successfully.`);
       onClose();
     } catch (err: any) {
       console.error("[SubscriptionPlans] Update failed:", err);
-      setError(err?.message || "Failed to update subscription plan pricing.");
+      const msg = err?.message || "Failed to update subscription plan pricing.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

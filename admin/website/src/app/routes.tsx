@@ -45,6 +45,24 @@ function RouteErrorBoundary() {
 }
 
 import SuperAdminCenter from "./pages/SuperAdminCenter";
+import RequireSuperAdmin from "./components/RequireSuperAdmin";
+import RequireAuth from "./components/RequireAuth";
+
+function GuardedAdminLayout() {
+  return (
+    <RequireAuth>
+      <AdminLayout />
+    </RequireAuth>
+  );
+}
+
+function GuardedSuperAdminCenter() {
+  return (
+    <RequireSuperAdmin>
+      <SuperAdminCenter />
+    </RequireSuperAdmin>
+  );
+}
 
 export const router = createBrowserRouter([
   {
@@ -53,7 +71,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
-    Component: AdminLayout,
+    Component: GuardedAdminLayout,
     ErrorBoundary: RouteErrorBoundary,
     children: [
       { index: true, Component: Dashboard },
@@ -66,7 +84,7 @@ export const router = createBrowserRouter([
       { path: "branding", Component: Branding },
       { path: "categories", Component: Categories },
       { path: "settings", Component: Settings },
-      { path: "super-admin", Component: SuperAdminCenter },
+      { path: "super-admin", Component: GuardedSuperAdminCenter },
     ],
   },
 ]);

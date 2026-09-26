@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -235,42 +236,69 @@ export default function Branding() {
 
   // Load mobile theme configuration from backend API
   useEffect(() => {
-    getMobileAppTheme()
-      .then((theme) => {
-        if (theme) {
+    let isMounted = true;
+    const fetchTheme = (retryCount = 0) => {
+      getMobileAppTheme()
+        .then((theme) => {
+          if (!isMounted || !theme) return;
           if (theme.primaryColor) setManualBrandColor(theme.primaryColor);
           if (theme.secondaryColor) setManualAccentColor(theme.secondaryColor);
-        }
-      })
-      .catch((err) => {
-        console.warn("Failed to load mobile theme from API:", err);
-      });
+          if (theme.mainBackgroundColor) setManualBgColor(theme.mainBackgroundColor);
+
+          // Attempt to match against known theme presets
+          const match = Object.entries(THEME_PRESETS).find(
+            ([_, p]) =>
+              p.primaryColor.toLowerCase() === theme.primaryColor?.toLowerCase() &&
+              p.mainBackgroundColor.toLowerCase() === theme.mainBackgroundColor?.toLowerCase()
+          );
+          if (match) {
+            setSelectedPreset(match[0]);
+            setThemeMode("preset");
+          } else {
+            setThemeMode("manual");
+          }
+        })
+        .catch((err) => {
+          console.warn("Failed to load mobile theme from API:", err);
+          if (isMounted && retryCount < 2) {
+            setTimeout(() => fetchTheme(retryCount + 1), 3000);
+          }
+        });
+    };
+    fetchTheme();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSaveTheme = async () => {
     setThemeError(null);
     setIsSavingTheme(true);
     try {
-      await updateMobileAppTheme({
-        ...currentThemeAttributes,
-        backgroundStyle: themeMode === "preset" ? "dark_slate" : (contrastMode === "dark" ? "pure_black" : "clean_white"),
-      });
+      await updateMobileAppTheme(currentThemeAttributes);
       setSaveThemeSuccess(true);
+      toast.success("Studio theme updated successfully!");
       setTimeout(() => {
         setSaveThemeSuccess(false);
       }, 3000);
     } catch (err: any) {
       console.error("Failed to save mobile app theme:", err);
-      setThemeError(err?.message || "Failed to save mobile app theme.");
+      const msg = err?.message || "Failed to save mobile app theme.";
+      setThemeError(msg);
+      toast.error(msg);
     } finally {
       setIsSavingTheme(false);
     }
   };
 
   const handleResetThemeDefaults = () => {
-    setPrimaryColor("#6366F1");
-    setAccentColor("#EC4899");
-    setBackgroundStyle("dark_slate");
+    setSelectedPreset("Cinematic Black");
+    setThemeMode("preset");
+    setManualBrandColor("#E50914");
+    setManualAccentColor("#FFD700");
+    setManualBgColor("#000000");
+    setContrastMode("dark");
+    toast.success("Theme reset to Cinematic Black preset defaults.");
   };
 
   // Hidden File Inputs
@@ -372,9 +400,11 @@ export default function Branding() {
         const res = await uploadCreatorBanner(file);
         if (res.bannerUrl) {
           setBannerPreview(res.bannerUrl);
+          toast.success("Studio banner uploaded successfully.");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Failed to upload creator banner to backend:", err);
+        toast.error(err?.message || "Failed to upload creator banner.");
       }
     }
   };
@@ -388,9 +418,11 @@ export default function Branding() {
         if (res.logoUrl) {
           setLogoPreview(res.logoUrl);
           window.dispatchEvent(new CustomEvent("branding_updated", { detail: { logoUrl: res.logoUrl } }));
+          toast.success("Studio logo uploaded successfully.");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Failed to upload creator logo to backend:", err);
+        toast.error(err?.message || "Failed to upload creator logo.");
       }
     }
   };
@@ -486,6 +518,7 @@ export default function Branding() {
     if (selectedBannerId === id && updated.length > 0) {
       setSelectedBannerId(updated[0].id);
     }
+    toast.info("Banner removed from list. Click 'Save Banners' to persist changes.");
   };
 
   // Move banner up locally
@@ -524,15 +557,13 @@ export default function Branding() {
       const videoIds = featuredBanners.map((b) => b.videoId).filter(Boolean);
       await updateFeaturedVideos(videoIds);
       setSaveFeaturedBannersSuccess(true);
+      toast.success("Featured video banners saved successfully.");
       setTimeout(() => {
         setSaveFeaturedBannersSuccess(false);
       }, 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Failed to save featured videos changes to backend:", err);
-      setSaveFeaturedBannersSuccess(true);
-      setTimeout(() => {
-        setSaveFeaturedBannersSuccess(false);
-      }, 3000);
+      toast.error(err?.message || "Something went wrong while saving featured banners.");
     } finally {
       setIsSavingFeaturedBanners(false);
     }
@@ -571,12 +602,15 @@ export default function Branding() {
         window.dispatchEvent(new CustomEvent("branding_updated", { detail: updated }));
       }
       setSaveSuccess(true);
+      toast.success("Studio identity updated successfully.");
       setTimeout(() => {
         setSaveSuccess(false);
       }, 3000);
     } catch (err: any) {
       console.error("Failed to save creator branding changes:", err);
-      setIdentityError(err?.message || "Failed to save creator studio branding.");
+      const msg = err?.message || "Failed to save creator studio branding.";
+      setIdentityError(msg);
+      toast.error(msg);
     } finally {
       setIsSavingIdentity(false);
     }

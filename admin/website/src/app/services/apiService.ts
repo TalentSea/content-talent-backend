@@ -277,7 +277,13 @@ export function clearStoredAuth() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("access_token");
     localStorage.removeItem("admin_profile");
+    localStorage.removeItem("current_tenant_id");
   }
+}
+
+export function isUserSuperAdmin(): boolean {
+  const admin = getStoredAdmin();
+  return admin?.role === "super_admin";
 }
 
 export function getStoredToken(): string {
@@ -347,17 +353,27 @@ export async function fetchWithAuth(input: string, init?: RequestInit): Promise<
             },
             credentials: "include",
           });
-          if (!res.ok) throw new Error("Refresh failed");
+          if (!res.ok) {
+            if (res.status === 401 || res.status === 403) {
+              clearStoredAuth();
+              if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+                window.location.href = "/login";
+              }
+            }
+            throw new Error(`Refresh failed with status ${res.status}`);
+          }
           const data = await res.json();
           if (data.access_token) {
             setStoredAuth({ access_token: data.access_token });
             return data.access_token as string;
           }
           return null;
-        } catch {
-          clearStoredAuth();
-          if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-            window.location.href = "/login";
+        } catch (err: any) {
+          if (err?.message?.includes("401") || err?.message?.includes("403")) {
+            clearStoredAuth();
+            if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+              window.location.href = "/login";
+            }
           }
           return null;
         } finally {
@@ -381,18 +397,55 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const errorText = await response.text();
     let parsedMessage = errorText || response.statusText;
-    try {
-      const parsed = JSON.parse(errorText);
-      if (typeof parsed.detail === "string") {
-        parsedMessage = parsed.detail;
-      } else if (Array.isArray(parsed.detail)) {
-        parsedMessage = parsed.detail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
-      } else if (parsed.message) {
-        parsedMessage = parsed.message;
+
+    // Detect if response is a raw HTML error page (e.g. ngrok offline page, 502/503/504 gateway errors)
+    const isHtml =
+      errorText.includes("<!DOCTYPE") ||
+      errorText.includes("<html") ||
+      errorText.includes("<body") ||
+      (response.headers.get("content-type") || "").includes("text/html");
+
+    if (isHtml) {
+      if (
+        errorText.includes("ERR_NGROK_3200") ||
+        (errorText.toLowerCase().includes("endpoint") && errorText.toLowerCase().includes("offline"))
+      ) {
+        parsedMessage = "Something went wrong. Backend server is offline (Ngrok tunnel offline - ERR_NGROK_3200).";
+      } else if (response.status === 502) {
+        parsedMessage = "Something went wrong. Backend service is currently unreachable (502 Bad Gateway).";
+      } else if (response.status === 504) {
+        parsedMessage = "Something went wrong. Backend request timed out (504 Gateway Timeout).";
+      } else if (response.status === 503) {
+        parsedMessage = "Something went wrong. Backend service is temporarily unavailable (503 Service Unavailable).";
+      } else {
+        parsedMessage = `Something went wrong. Server returned an error page (Status ${response.status}).`;
       }
-    } catch {
-      // Use raw errorText
+    } else {
+      try {
+        const parsed = JSON.parse(errorText);
+        if (typeof parsed.error === "string") {
+          parsedMessage = parsed.error;
+        } else if (typeof parsed.detail === "string") {
+          parsedMessage = parsed.detail;
+        } else if (Array.isArray(parsed.detail)) {
+          parsedMessage = parsed.detail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join(", ");
+        } else if (typeof parsed.message === "string") {
+          parsedMessage = parsed.message;
+        } else if (typeof parsed.msg === "string") {
+          parsedMessage = parsed.msg;
+        } else if (parsed.detail && typeof parsed.detail === "object" && typeof parsed.detail.message === "string") {
+          parsedMessage = parsed.detail.message;
+        } else if (parsed.error && typeof parsed.error === "object" && typeof parsed.error.message === "string") {
+          parsedMessage = parsed.error.message;
+        }
+      } catch {
+        // If not JSON and error string contains tags or is very long, format cleanly
+        if (errorText.includes("<") || errorText.length > 200) {
+          parsedMessage = "Something went wrong. Please check your backend connection.";
+        }
+      }
     }
+
     apiMonitorStore.addLog({
       url: response.url,
       method: "API",
@@ -577,9 +630,7 @@ export async function getVideos(params?: {
     if (params?.page) query.append("page", params.page.toString());
     if (params?.limit) query.append("limit", params.limit.toString());
 
-    const res = await fetch(`${BASE_URL}/api/v1/admin/videos?${query.toString()}`, {
-      headers: getAuthHeaders(),
-    });
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos?${query.toString()}`);
     const json = await handleResponse<any>(res);
     return {
       data: (json.data || json.items || json || []).map(transformVideo),
@@ -597,11 +648,9 @@ export async function getVideos(params?: {
 }
 
 export async function getVideoDetails(id: number): Promise<ApiVideo> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${id}`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${id}`);
   const json = await handleResponse<any>(res);
-  return transformVideo(json);
+  return transformVideo(json.data || json);
 }
 
 export async function initiateVideoUpload(data: {
@@ -652,9 +701,8 @@ export async function initiateVideoUpload(data: {
   if (schedDate) payload.scheduled_date = schedDate;
   if (schedTime) payload.scheduled_time = schedTime;
 
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/initiate`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/initiate`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
   const json = await handleResponse<any>(res);
@@ -673,7 +721,7 @@ export async function initiateVideoUpload(data: {
 
 export async function updateVideo(
   id: number,
-  data: Partial<ApiVideo>
+  data: Partial<ApiVideo> & { video_type?: string }
 ): Promise<ApiVideo> {
   const payload: any = {};
   if (data.title !== undefined) payload.title = data.title;
@@ -681,11 +729,11 @@ export async function updateVideo(
   if (data.category !== undefined) payload.category = data.category;
   if (data.tags !== undefined) payload.tags = data.tags;
   if (data.premium !== undefined) payload.is_premium = data.premium;
+  if ((data as any).video_type !== undefined) payload.video_type = (data as any).video_type;
 
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${id}`, {
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${id}`, {
       method: "PATCH",
-      headers: getAuthHeaders(),
       body: JSON.stringify(payload),
     });
     const json = await handleResponse<any>(res);
@@ -701,35 +749,31 @@ export async function updateVideo(
 }
 
 export async function deleteVideo(id: number): Promise<{ success: boolean; message?: string }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${id}`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${id}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
   });
   return handleResponse(res);
 }
 
 export async function bulkDeleteVideos(videoIds: number[]): Promise<{ status?: string; success?: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/bulk-delete`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/bulk-delete`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   return handleResponse(res);
 }
 
 export async function publishVideo(id: number): Promise<ApiVideo> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${id}/publish`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${id}/publish`, {
     method: "POST",
-    headers: getAuthHeaders(),
   });
   const json = await handleResponse<any>(res);
   return transformVideo(json);
 }
 
 export async function unpublishVideo(id: number): Promise<ApiVideo> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${id}/unpublish`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${id}/unpublish`, {
     method: "POST",
-    headers: getAuthHeaders(),
   });
   const json = await handleResponse<any>(res);
   return transformVideo(json);
@@ -739,9 +783,8 @@ export async function scheduleVideo(
   id: number,
   schedule: { date: string; time: string }
 ): Promise<ApiVideo> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${id}/schedule`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${id}/schedule`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({
       date: schedule.date,
       time: schedule.time,
@@ -893,8 +936,7 @@ const DEFAULT_MOBILE_THEME: MobileAppTheme = {
 export async function getMobileAppTheme(): Promise<MobileAppTheme> {
   try {
     const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/branding/theme`);
-    const data = await handleResponse<any>(res);
-    return {
+    const themeObj: MobileAppTheme = {
       primaryColor: data.primaryColor || data.primary_color || DEFAULT_MOBILE_THEME.primaryColor,
       secondaryColor: data.secondaryColor || data.secondary_color || DEFAULT_MOBILE_THEME.secondaryColor,
       activeStateColor: data.activeStateColor || data.active_state_color || DEFAULT_MOBILE_THEME.activeStateColor,
@@ -907,6 +949,10 @@ export async function getMobileAppTheme(): Promise<MobileAppTheme> {
       backgroundStyle: data.backgroundStyle || data.background_style || DEFAULT_MOBILE_THEME.backgroundStyle,
       updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
     };
+    try {
+      localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(themeObj));
+    } catch {}
+    return themeObj;
   } catch (err) {
     console.warn("Backend theme endpoint error:", err);
     try {
@@ -933,7 +979,20 @@ export async function updateMobileAppTheme(theme: Partial<MobileAppTheme>): Prom
     method: "PUT",
     body: JSON.stringify(payload),
   });
-  const updated = await handleResponse<any>(res);
+  const data = await handleResponse<any>(res);
+  const updated: MobileAppTheme = {
+    primaryColor: data.primaryColor || data.primary_color || theme.primaryColor || DEFAULT_MOBILE_THEME.primaryColor,
+    secondaryColor: data.secondaryColor || data.secondary_color || theme.secondaryColor || DEFAULT_MOBILE_THEME.secondaryColor,
+    activeStateColor: data.activeStateColor || data.active_state_color || theme.activeStateColor || DEFAULT_MOBILE_THEME.activeStateColor,
+    mainBackgroundColor: data.mainBackgroundColor || data.main_background_color || theme.mainBackgroundColor || DEFAULT_MOBILE_THEME.mainBackgroundColor,
+    cardBackgroundColor: data.cardBackgroundColor || data.card_background_color || theme.cardBackgroundColor || DEFAULT_MOBILE_THEME.cardBackgroundColor,
+    primaryTextColor: data.primaryTextColor || data.primary_text_color || theme.primaryTextColor || DEFAULT_MOBILE_THEME.primaryTextColor,
+    secondaryTextColor: data.secondaryTextColor || data.secondary_text_color || theme.secondaryTextColor || DEFAULT_MOBILE_THEME.secondaryTextColor,
+    mutedTextColor: data.mutedTextColor || data.muted_text_color || theme.mutedTextColor || DEFAULT_MOBILE_THEME.mutedTextColor,
+    buttonTextColor: data.buttonTextColor || data.button_text_color || theme.buttonTextColor || DEFAULT_MOBILE_THEME.buttonTextColor,
+    backgroundStyle: data.backgroundStyle || data.background_style || DEFAULT_MOBILE_THEME.backgroundStyle,
+    updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
+  };
   try {
     localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(updated));
   } catch {}
@@ -1606,6 +1665,7 @@ export async function updateCreatorProfile(
   data: Partial<{
     first_name: string;
     last_name: string;
+    avatar_url: string;
     bio: string;
     website: string;
     phone: string;
@@ -1613,9 +1673,8 @@ export async function updateCreatorProfile(
     social_links: ApiSocialLinks;
   }>
 ): Promise<{ status?: string; success?: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/profile`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/profile`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   return handleResponse(res);
@@ -1627,10 +1686,8 @@ export async function uploadAvatarPhoto(
   const formData = new FormData();
   formData.append("photo", file);
 
-  const token = getAuthToken();
-  const res = await fetch(`${BASE_URL}/api/v1/admin/profile/photo`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/profile/photo`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
   const json = await handleResponse<any>(res);
@@ -1802,6 +1859,9 @@ export async function reorderCategories(ids: number[]): Promise<{ message: strin
 // ── Admin Authentication API Endpoints ─────────────────────────────────────
 
 export async function adminLogin(payload: { email: string; password: string }): Promise<AdminLoginResponse> {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("user_logged_out");
+  }
   const res = await fetch(`${BASE_URL}/api/v1/admin/auth/login`, {
     method: "POST",
     headers: {
@@ -1812,11 +1872,18 @@ export async function adminLogin(payload: { email: string; password: string }): 
     body: JSON.stringify(payload),
   });
   const data = await handleResponse<AdminLoginResponse>(res);
+  clearStoredAuth();
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("user_logged_out");
+  }
   setStoredAuth({ access_token: data.access_token, admin: data.admin });
   return data;
 }
 
 export async function adminRefresh(): Promise<AdminTokenResponse> {
+  if (typeof window !== "undefined" && localStorage.getItem("user_logged_out") === "true") {
+    throw new Error("Session terminated: user explicitly logged out.");
+  }
   const res = await fetch(`${BASE_URL}/api/v1/admin/auth/refresh`, {
     method: "POST",
     headers: {
@@ -1842,15 +1909,38 @@ export async function adminGetMe(): Promise<AdminSummary> {
 }
 
 export async function adminLogout(): Promise<void> {
+  const token = getStoredToken();
+  if (typeof window !== "undefined") {
+    localStorage.setItem("user_logged_out", "true");
+  }
+  clearStoredAuth();
+
   try {
-    await fetchWithAuth(`${BASE_URL}/api/v1/admin/auth/logout`, {
+    await fetch(`${BASE_URL}/api/v1/admin/auth/logout`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "ngrok-skip-browser-warning": "true",
+      },
+      credentials: "include",
     });
   } catch (err) {
     console.warn("Logout request failed", err);
-  } finally {
-    clearStoredAuth();
   }
+}
+
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
+export async function changeAdminPassword(payload: ChangePasswordPayload): Promise<{ status: string }> {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/auth/change-password`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return await handleResponse<{ status: string }>(res);
 }
 
 // ── Subscription Plans API Endpoints ────────────────────────────────────────
@@ -2260,6 +2350,8 @@ export interface TenantUser {
   last_name?: string;
   is_active?: boolean;
   isActive?: boolean;
+  avatar_url?: string | null;
+  avatarUrl?: string | null;
   created_at?: string;
   createdAt?: string;
 }
@@ -2276,6 +2368,8 @@ export async function getTenantUsers(): Promise<TenantUser[]> {
       last_name: u.last_name || u.lastName || "",
       is_active: u.is_active ?? u.isActive ?? true,
       isActive: u.is_active ?? u.isActive ?? true,
+      avatar_url: u.avatar_url || u.avatarUrl || null,
+      avatarUrl: u.avatar_url || u.avatarUrl || null,
       created_at: u.created_at || u.createdAt || "",
     }));
   } catch (err) {

@@ -17,6 +17,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
 } from "./ui/dialog";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import ApiResponseMonitor from "./ApiResponseMonitor";
 import {
   getCreatorProfile,
@@ -202,7 +203,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => !getStoredToken());
 
   const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string; role: string }>(() => {
     const stored = getStoredAdmin();
@@ -214,7 +215,7 @@ export default function AdminLayout() {
     };
   });
 
-  const isSuperAdmin = profile.role === "super_admin" || profile.email === "superadmin@gmail.com";
+  const isSuperAdmin = profile.role === "super_admin";
 
   // Static Creator / Studio Branding State
   const [branding, setBranding] = useState<{
@@ -351,6 +352,15 @@ export default function AdminLayout() {
   useEffect(() => {
     let isMounted = true;
 
+    const applyAdminSession = (admin: any) => {
+      setProfile({
+        name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
+        email: admin.email || "",
+        avatarUrl: admin.avatar_url || "",
+        role: admin.role || "",
+      });
+    };
+
     const verifySession = async () => {
       const storedToken = getStoredToken();
       if (!storedToken) {
@@ -363,19 +373,14 @@ export default function AdminLayout() {
           const admin = await adminGetMe();
           if (!isMounted) return;
           if (admin) {
-            setProfile({
-              name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
-              email: admin.email || "",
-              avatarUrl: admin.avatar_url || "",
-              role: admin.role || "",
-            });
+            applyAdminSession(admin);
           }
           setIsCheckingAuth(false);
           return;
         } catch {
           if (!isMounted) return;
           clearStoredAuth();
-          navigate("/login", { replace: true, state: { from: location.pathname } });
+          window.location.href = "/login";
           return;
         }
       }
@@ -385,33 +390,39 @@ export default function AdminLayout() {
         const admin = await adminGetMe();
         if (!isMounted) return;
         if (admin) {
-          setProfile({
-            name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
-            email: admin.email || "",
-            avatarUrl: admin.avatar_url || "",
-            role: admin.role || "",
-          });
+          applyAdminSession(admin);
         }
         setIsCheckingAuth(false);
-      } catch {
+      } catch (err: any) {
         // Token may have expired, attempt refresh
         try {
           await adminRefresh();
           const admin = await adminGetMe();
           if (!isMounted) return;
           if (admin) {
-            setProfile({
-              name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim() || admin.studio_name || admin.email || "Admin",
-              email: admin.email || "",
-              avatarUrl: admin.avatar_url || "",
-              role: admin.role || "",
-            });
+            applyAdminSession(admin);
           }
           setIsCheckingAuth(false);
-        } catch {
+        } catch (refreshErr: any) {
           if (!isMounted) return;
-          clearStoredAuth();
-          navigate("/login", { replace: true, state: { from: location.pathname } });
+          // Check if failure is an explicit auth rejection (401/403)
+          const msg = (refreshErr?.message || "").toLowerCase();
+          const isExplicitAuthFailure =
+            msg.includes("401") ||
+            msg.includes("403") ||
+            msg.includes("unauthorized") ||
+            msg.includes("invalid token") ||
+            msg.includes("credentials");
+
+          if (isExplicitAuthFailure) {
+            clearStoredAuth();
+            window.location.href = "/login";
+          } else {
+            // Server might be sleeping (cold start), 502/504, or network hiccup.
+            // Do NOT kick the user out! Keep cached credentials and stop blocking spinner.
+            console.warn("Session re-verification encountered server delay/error:", refreshErr);
+            setIsCheckingAuth(false);
+          }
         }
       }
     };
@@ -421,11 +432,25 @@ export default function AdminLayout() {
     return () => {
       isMounted = false;
     };
-  }, [navigate, location.pathname]);
+  }, [navigate]);
+
+  // Synchronous route access check for super admin
+  useEffect(() => {
+    if (location.pathname.startsWith("/super-admin") && profile.role && profile.role !== "super_admin") {
+      toast.error("Access Denied.");
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, profile.role, navigate]);
 
   const handleLogout = async () => {
-    await adminLogout();
-    navigate("/login", { replace: true });
+    try {
+      await adminLogout();
+      toast.success("Signed out successfully.");
+    } catch {
+      toast.error("Something went wrong while signing out.");
+    } finally {
+      navigate("/login", { replace: true });
+    }
   };
 
   const NavLinks = ({ onLinkClick }: { onLinkClick?: () => void }) => {
@@ -736,11 +761,11 @@ export default function AdminLayout() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="gap-2.5 text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-full pl-1.5 pr-4 py-1.5 shadow-2xs h-10 transition-colors"
-                  style={{ borderRadius: "50px" }}
+                  className="gap-3 bg-white text-slate-900 hover:bg-slate-50 border border-slate-800 rounded-full pl-1 pr-4.5 py-1 shadow-xs h-[42px] transition-all cursor-pointer"
+                  style={{ borderRadius: "9999px" }}
                 >
                   <Avatar
-                    className="h-7.5 w-7.5 rounded-full border border-slate-200 shrink-0 overflow-hidden"
+                    className="h-[34px] w-[34px] rounded-full shrink-0 overflow-hidden"
                     style={{ borderRadius: "50%" }}
                   >
                     <AvatarImage
@@ -755,7 +780,7 @@ export default function AdminLayout() {
                       {(profile.name || "TS").slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden md:inline text-sm font-semibold text-slate-800">{profile.name}</span>
+                  <span className="hidden md:inline text-xs font-semibold text-slate-900 whitespace-nowrap">{profile.name}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-white border-slate-200 text-slate-800 shadow-xl rounded-xl">
