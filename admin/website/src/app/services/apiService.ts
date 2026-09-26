@@ -1998,9 +1998,7 @@ export async function getDashboardStats(params?: {
   if (params?.startDate) query.append("start_date", params.startDate);
   if (params?.endDate) query.append("end_date", params.endDate);
 
-  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/stats?${query.toString()}`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/dashboard/stats?${query.toString()}`);
   const json = await handleResponse<any>(res);
   return {
     startDate: json.start_date,
@@ -2032,9 +2030,7 @@ export async function getDashboardAnalytics(params?: {
   if (params?.endDate) query.append("end_date", params.endDate);
   if (params?.interval) query.append("interval", params.interval);
 
-  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/analytics?${query.toString()}`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/dashboard/analytics?${query.toString()}`);
   const json = await handleResponse<any>(res);
   return {
     startDate: json.start_date,
