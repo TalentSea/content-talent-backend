@@ -11,6 +11,7 @@ import Categories from "./pages/Categories";
 import Settings from "./pages/Settings";
 import AdminLayout from "./components/AdminLayout";
 import Login from "./pages/Login";
+import AppPublishing from "./pages/AppPublishing";
 
 function RouteErrorBoundary() {
   const error: any = useRouteError();
@@ -84,6 +85,7 @@ export const router = createBrowserRouter([
       { path: "branding", Component: Branding },
       { path: "categories", Component: Categories },
       { path: "settings", Component: Settings },
+      { path: "mobile-apps", Component: AppPublishing },
       { path: "super-admin", Component: GuardedSuperAdminCenter },
     ],
   },

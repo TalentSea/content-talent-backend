@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useBlocker } from "react-router";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -26,7 +27,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "../components/ui/
 import { ColorPicker } from "../components/ui/color-picker";
 import {
   Upload, Save, Play, CheckCircle, Video, Star, ImagePlus, Check, Plus, Trash2, Search, ChevronUp, ChevronDown, Eye, Loader2,
-  Smartphone, Palette, RotateCcw, Sparkles, Layers, Wifi, Battery, Signal, Home, Compass, Film, User, Bell
+  Smartphone, Palette, RotateCcw, Sparkles, Layers, Wifi, Battery, Signal, Home, Compass, Film, User, Bell, AlertCircle
 } from "lucide-react";
 import {
   getCreatorBranding,
@@ -220,6 +221,18 @@ export default function Branding() {
   const [saveThemeSuccess, setSaveThemeSuccess] = useState(false);
   const [themeError, setThemeError] = useState<string | null>(null);
 
+  const [initialThemeConfig, setInitialThemeConfig] = useState<{
+    mode: "preset" | "manual";
+    preset: string;
+    primaryColor: string;
+    secondaryColor: string;
+    mainBackgroundColor: string;
+    contrastMode: "dark" | "light";
+  } | null>(null);
+
+  const [isResetThemeModalOpen, setIsResetThemeModalOpen] = useState(false);
+  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState(false);
+
   const currentThemeAttributes = themeMode === "preset"
     ? THEME_PRESETS[selectedPreset] || THEME_PRESETS["Cinematic Black"]
     : {
@@ -234,6 +247,39 @@ export default function Branding() {
         buttonTextColor: getContrastYIQ(manualBrandColor),
       };
 
+  const hasUnsavedThemeChanges = useMemo(() => {
+    if (!initialThemeConfig) return false;
+    if (themeMode !== initialThemeConfig.mode) return true;
+    if (themeMode === "preset") {
+      return selectedPreset !== initialThemeConfig.preset;
+    }
+    return (
+      (manualBrandColor || "").toLowerCase() !== (initialThemeConfig.primaryColor || "").toLowerCase() ||
+      (manualAccentColor || "").toLowerCase() !== (initialThemeConfig.secondaryColor || "").toLowerCase() ||
+      (manualBgColor || "").toLowerCase() !== (initialThemeConfig.mainBackgroundColor || "").toLowerCase() ||
+      contrastMode !== initialThemeConfig.contrastMode
+    );
+  }, [initialThemeConfig, themeMode, selectedPreset, manualBrandColor, manualAccentColor, manualBgColor, contrastMode]);
+
+  // Block route navigation if user has unsaved branding theme changes
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      Boolean(hasUnsavedThemeChanges && currentLocation.pathname !== nextLocation.pathname)
+  );
+
+  // Warn on browser tab close or refresh if unsaved theme changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedThemeChanges) {
+        e.preventDefault();
+        e.returnValue = "Do you want to leave without saving your branding theme?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedThemeChanges]);
+
   // Load mobile theme configuration from backend API
   useEffect(() => {
     let isMounted = true;
@@ -245,6 +291,10 @@ export default function Branding() {
           if (theme.secondaryColor) setManualAccentColor(theme.secondaryColor);
           if (theme.mainBackgroundColor) setManualBgColor(theme.mainBackgroundColor);
 
+          const isDark = (theme.mainBackgroundColor?.toLowerCase() === "#000000" || theme.mainBackgroundColor?.toLowerCase() === "#0a0a0c" || !theme.mainBackgroundColor);
+          const cMode = isDark ? "dark" : "light";
+          setContrastMode(cMode);
+
           // Attempt to match against known theme presets
           const match = Object.entries(THEME_PRESETS).find(
             ([_, p]) =>
@@ -254,8 +304,24 @@ export default function Branding() {
           if (match) {
             setSelectedPreset(match[0]);
             setThemeMode("preset");
+            setInitialThemeConfig({
+              mode: "preset",
+              preset: match[0],
+              primaryColor: theme.primaryColor || "",
+              secondaryColor: theme.secondaryColor || "",
+              mainBackgroundColor: theme.mainBackgroundColor || "",
+              contrastMode: cMode,
+            });
           } else {
             setThemeMode("manual");
+            setInitialThemeConfig({
+              mode: "manual",
+              preset: "",
+              primaryColor: theme.primaryColor || "",
+              secondaryColor: theme.secondaryColor || "",
+              mainBackgroundColor: theme.mainBackgroundColor || "",
+              contrastMode: cMode,
+            });
           }
         })
         .catch((err) => {
@@ -276,6 +342,14 @@ export default function Branding() {
     setIsSavingTheme(true);
     try {
       await updateMobileAppTheme(currentThemeAttributes);
+      setInitialThemeConfig({
+        mode: themeMode,
+        preset: selectedPreset,
+        primaryColor: currentThemeAttributes.primaryColor,
+        secondaryColor: currentThemeAttributes.secondaryColor,
+        mainBackgroundColor: currentThemeAttributes.mainBackgroundColor,
+        contrastMode,
+      });
       setSaveThemeSuccess(true);
       toast.success("Studio theme updated successfully!");
       setTimeout(() => {
@@ -291,14 +365,66 @@ export default function Branding() {
     }
   };
 
-  const handleResetThemeDefaults = () => {
+  const confirmResetThemeDefaults = () => {
     setSelectedPreset("Cinematic Black");
     setThemeMode("preset");
     setManualBrandColor("#E50914");
     setManualAccentColor("#FFD700");
     setManualBgColor("#000000");
     setContrastMode("dark");
+    setIsResetThemeModalOpen(false);
     toast.success("Theme reset to Cinematic Black preset defaults.");
+  };
+
+  const confirmDiscardThemeChanges = () => {
+    if (initialThemeConfig) {
+      setThemeMode(initialThemeConfig.mode);
+      if (initialThemeConfig.preset) setSelectedPreset(initialThemeConfig.preset);
+      if (initialThemeConfig.primaryColor) setManualBrandColor(initialThemeConfig.primaryColor);
+      if (initialThemeConfig.secondaryColor) setManualAccentColor(initialThemeConfig.secondaryColor);
+      if (initialThemeConfig.mainBackgroundColor) setManualBgColor(initialThemeConfig.mainBackgroundColor);
+      setContrastMode(initialThemeConfig.contrastMode);
+    }
+    setIsDiscardModalOpen(false);
+    toast.info("Branding theme changes discarded.");
+  };
+
+  const handleResetThemeDefaults = () => {
+    setIsResetThemeModalOpen(true);
+  };
+
+  const handleKeepEditing = () => {
+    blocker.reset?.();
+  };
+
+  const handleDiscardAndProceed = () => {
+    confirmDiscardThemeChanges();
+    blocker.proceed?.();
+  };
+
+  const handleSaveAndProceed = async () => {
+    setThemeError(null);
+    setIsSavingTheme(true);
+    try {
+      await updateMobileAppTheme(currentThemeAttributes);
+      setInitialThemeConfig({
+        mode: themeMode,
+        preset: selectedPreset,
+        primaryColor: currentThemeAttributes.primaryColor,
+        secondaryColor: currentThemeAttributes.secondaryColor,
+        mainBackgroundColor: currentThemeAttributes.mainBackgroundColor,
+        contrastMode,
+      });
+      toast.success("Studio theme updated successfully!");
+      blocker.proceed?.();
+    } catch (err: any) {
+      console.error("Failed to save mobile app theme:", err);
+      const msg = err?.message || "Failed to save mobile app theme.";
+      setThemeError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSavingTheme(false);
+    }
   };
 
   // Hidden File Inputs
@@ -815,6 +941,104 @@ export default function Branding() {
         </DialogContent>
       </Dialog>
 
+      {/* Confirmation Dialog for Leaving with Unsaved Theme Changes (Router Navigation) */}
+      <Dialog
+        open={blocker.state === "blocked"}
+        onOpenChange={(open) => {
+          if (!open && blocker.state === "blocked") {
+            blocker.reset();
+          }
+        }}
+      >
+        <DialogContent className="max-w-[420px] p-5 bg-white rounded-2xl shadow-xl border border-slate-100">
+          <DialogHeader>
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-amber-600 mb-1.5">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <DialogTitle className="text-base font-bold text-center text-slate-900">
+              Unsaved Branding Theme Changes
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-slate-500 mt-0.5">
+              You have unsaved changes in your branding theme. Do you want to save them before leaving, or discard?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 mt-5">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={isSavingTheme}
+              onClick={handleKeepEditing}
+              className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs cursor-pointer"
+            >
+              Keep Editing
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={isSavingTheme}
+              onClick={handleDiscardAndProceed}
+              className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 font-semibold text-xs cursor-pointer"
+            >
+              Discard
+            </Button>
+            <Button
+              size="sm"
+              type="button"
+              disabled={isSavingTheme}
+              onClick={handleSaveAndProceed}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl text-xs px-3 shadow-xs cursor-pointer"
+            >
+              {isSavingTheme ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for Resetting Branding Theme */}
+      <Dialog open={isResetThemeModalOpen} onOpenChange={setIsResetThemeModalOpen}>
+        <DialogContent className="max-w-md p-6 bg-white rounded-2xl shadow-xl border border-slate-100">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600 mb-2">
+              <RotateCcw className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-lg font-bold text-center text-slate-900">
+              Reset Branding Theme
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm text-slate-500 mt-1">
+              Do you want to reset the branding theme to defaults? Any unsaved changes will be lost.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsResetThemeModalOpen(false)}
+              className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmResetThemeDefaults}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl text-xs px-4 shadow-xs cursor-pointer"
+            >
+              Reset to Defaults
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Branding & Customization</h1>
@@ -1070,12 +1294,7 @@ export default function Branding() {
                   <Smartphone className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg font-bold text-slate-900">Mobile App Appearance & Theme</CardTitle>
-                   {/* <Badge variant="outline" className="text-xs px-2.5 py-0.5 border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold">
-                      iOS & Android
-                    </Badge>*/}
-                  </div>
+                  <CardTitle className="text-lg font-bold text-slate-900">Mobile App Appearance & Theme</CardTitle>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Customize brand colors, accent badges, and background styles for your white-labeled mobile applications.
                   </p>
@@ -1087,7 +1306,7 @@ export default function Branding() {
                   size="sm"
                   onClick={handleResetThemeDefaults}
                   disabled={isSavingTheme}
-                  className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border-slate-200 h-9 rounded-xl font-medium"
+                  className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border-slate-200 h-9 rounded-xl font-medium cursor-pointer"
                 >
                   <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
                   Reset Defaults

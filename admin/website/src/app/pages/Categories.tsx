@@ -85,8 +85,12 @@ function CategoryDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-white border border-slate-200/80 text-slate-900 max-w-md rounded-2xl shadow-xl">
+    <Dialog open={open} onOpenChange={(v) => !submitting && !v && onClose()}>
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        className="bg-white border border-slate-200/80 text-slate-900 max-w-md rounded-2xl shadow-xl"
+      >
         <DialogHeader>
           <DialogTitle className="text-slate-900 text-lg font-bold tracking-tight">
             {isEdit ? `Edit "${category?.name}"` : "Create New Category"}

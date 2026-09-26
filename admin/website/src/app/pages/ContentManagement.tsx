@@ -6,7 +6,7 @@ import * as tus from "tus-js-client";
 import {
   getVideos, getVideoDetails, initiateVideoUpload, updateVideo,
   deleteVideo, bulkDeleteVideos, publishVideo, unpublishVideo, scheduleVideo,
-  uploadThumbnail, selectMainThumbnail, getPlaylists, getPlaylistDetails, createPlaylist, updatePlaylist,
+  uploadThumbnail, selectMainThumbnail, getPlaylists, createPlaylist, updatePlaylist,
   deletePlaylist, addVideosToPlaylist, removeVideoFromPlaylist,
   bulkRemoveVideosFromPlaylist, uploadPlaylistBanner, getPlaylistVideos,
   getAvailableVideosForPlaylist, reorderPlaylistVideos, getCategories,
@@ -1761,7 +1761,7 @@ function UploadShortDialog({
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center font-bold">
+            <div className="h-9 w-9 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center font-bold">
               <Smartphone className="h-5 w-5" />
             </div>
             <div>
@@ -1851,8 +1851,8 @@ function UploadShortDialog({
                 </div>
               ) : (
                 <div className="p-4 text-center flex flex-col items-center gap-2 text-slate-500">
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-700">
-                    <Smartphone className="h-6 w-6 text-pink-500" />
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-900">
+                    <Smartphone className="h-6 w-6 text-slate-900" />
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-800">Drop vertical video here</p>
@@ -2345,7 +2345,7 @@ function ShortPlayerDialog({
           {/* Top Controls Overlay */}
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20 pointer-events-none">
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-bold pointer-events-auto">
-              <Flame className="h-3.5 w-3.5 text-pink-500" />
+              <Flame className="h-3.5 w-3.5 text-white" />
               <span>Shorts Reel</span>
             </div>
 
@@ -2384,7 +2384,7 @@ function ShortPlayerDialog({
           {/* Header Bar */}
           <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 bg-white border-b border-slate-200">
             <div className="flex items-center gap-2.5 min-w-0 pr-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-xs">
                 <Smartphone className="h-4 w-4" />
               </div>
               <div className="min-w-0">
@@ -3444,7 +3444,7 @@ function VideoPlayerDialog({ open, onClose, content, onPlaybackError }: {
             {[
               { label: "Total Views", value: activeContent.views || "0" },
               { label: "Duration", value: dynamicDuration || formatDuration(activeContent.duration, activeContent.id) },
-              { label: "Access Tier", value: activeContent.premium ? "Premium" : "Free" },
+              { label: "Total Likes", value: activeContent.likes || "0" },
             ].map((s) => (
               <div key={s.label} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
                 <div className="font-bold text-base text-slate-900">{s.value}</div>
@@ -3857,30 +3857,6 @@ function PlaylistDetailScreen({
     setCurrentPlaylist(playlist);
     setCurrentThumbnail(playlist.thumbnailUrl);
   }, [playlist]);
-
-  const fetchPlaylistDetails = useCallback(async () => {
-    try {
-      const detailsRes = await getPlaylistDetails(playlist.id);
-      if (detailsRes) {
-        setCurrentPlaylist((prev) => ({
-          ...prev,
-          title: detailsRes.title || prev.title,
-          description: detailsRes.description || (detailsRes as any).desc || (detailsRes as any).summary || (detailsRes as any).details || prev.description,
-          thumbnailUrl: detailsRes.thumbnailUrl || prev.thumbnailUrl,
-          videoIds: detailsRes.videoIds && detailsRes.videoIds.length > 0 ? detailsRes.videoIds : prev.videoIds,
-        }));
-        if (detailsRes.thumbnailUrl) {
-          setCurrentThumbnail(detailsRes.thumbnailUrl);
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to fetch details for playlist screen:", err);
-    }
-  }, [playlist.id]);
-
-  useEffect(() => {
-    fetchPlaylistDetails();
-  }, [fetchPlaylistDetails]);
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -4764,7 +4740,7 @@ export default function ContentManagement() {
               value="shorts"
               className="gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs text-slate-600 hover:text-slate-900"
             >
-              <Smartphone className="h-4 w-4 text-pink-500" />Shorts
+              <Smartphone className="h-4 w-4" />Shorts
               <span className={`ml-1 text-[11px] px-2 py-0.5 rounded-full font-bold ${activeTab === "shorts" ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-600"}`}>
                 {shorts.length}
               </span>
@@ -4950,8 +4926,13 @@ export default function ContentManagement() {
                               </div>
                               <span className="absolute bottom-1 right-1 bg-slate-900/80 text-white text-[10px] px-1 rounded font-mono">{content.duration}</span>
                             </div>
-                            <div>
-                              <div className="font-semibold text-slate-900 text-sm group-hover:text-slate-700 transition-colors">{content.title}</div>
+                            <div className="min-w-0">
+                              <div
+                                title={content.title}
+                                className="font-semibold text-slate-900 text-sm group-hover:text-slate-700 transition-colors truncate max-w-[260px] sm:max-w-[320px]"
+                              >
+                                {content.title}
+                              </div>
                               {((content.encodeProgress !== undefined && content.encodeProgress < 100) ||
                                 ["Pending", "pending", "Processing", "processing", "Encoding", "encoding", "Uploading", "uploading"].includes(content.status)) ? (
                                 <div className="mt-1 space-y-1">
@@ -5059,7 +5040,7 @@ export default function ContentManagement() {
                 </div>
               ) : filteredShorts.length === 0 ? (
                 <div className="text-center py-20 text-slate-400">
-                  <div className="w-14 h-14 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center mx-auto mb-3">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-900 flex items-center justify-center mx-auto mb-3">
                     <Smartphone className="h-7 w-7" />
                   </div>
                   <p className="font-bold text-slate-900 text-base">No Short Videos Found</p>
@@ -5102,8 +5083,13 @@ export default function ContentManagement() {
                                 <Play className="h-6 w-6 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity fill-white" />
                               </div>
                             </div>
-                            <div>
-                              <div className="font-semibold text-slate-900 text-sm group-hover:text-slate-700 transition-colors line-clamp-1 max-w-[150px] sm:max-w-[200px]">{short.title}</div>
+                            <div className="min-w-0">
+                              <div
+                                title={short.title}
+                                className="font-semibold text-slate-900 text-sm group-hover:text-slate-700 transition-colors truncate max-w-[150px] sm:max-w-[220px]"
+                              >
+                                {short.title}
+                              </div>
                             </div>
                           </div>
                         </TableCell>

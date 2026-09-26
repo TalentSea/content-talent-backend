@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Video, Users, CreditCard, BarChart3, DollarSign,
   MessageSquare, Palette, FolderTree, Settings, Menu, Bell,
   Search, User, LogOut, Camera, Mail, Phone, MapPin, Loader2,
-  PanelLeftClose, PanelLeftOpen, ShieldCheck, ChevronsUpDown, Check, Building2,
+  PanelLeftClose, PanelLeftOpen, ShieldCheck, ChevronsUpDown, Smartphone, Check, Building2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -46,6 +46,7 @@ const navigation = [
   { name: "Branding", path: "/branding", icon: Palette },
   { name: "Categories", path: "/categories", icon: FolderTree },
   { name: "Settings", path: "/settings", icon: Settings },
+  { name: "Mobile App", path: "/mobile-apps", icon: Smartphone },
 ];
 
 function ProfileDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -442,14 +443,20 @@ export default function AdminLayout() {
     }
   }, [location.pathname, profile.role, navigate]);
 
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await adminLogout();
       toast.success("Signed out successfully.");
+      setIsLogoutModalOpen(false);
+      navigate("/login", { replace: true });
     } catch {
       toast.error("Something went wrong while signing out.");
     } finally {
-      navigate("/login", { replace: true });
+      setIsLoggingOut(false);
     }
   };
 
@@ -761,7 +768,7 @@ export default function AdminLayout() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="gap-3 bg-white text-slate-900 hover:bg-slate-50 border border-slate-800 rounded-full pl-1 pr-4.5 py-1 shadow-xs h-[42px] transition-all cursor-pointer"
+                  className="gap-1.5 bg-white text-slate-900 hover:bg-slate-50 border border-slate-800 rounded-full pl-1 pr-3 py-1 shadow-xs h-[42px] transition-all cursor-pointer"
                   style={{ borderRadius: "9999px" }}
                 >
                   <Avatar
@@ -798,7 +805,7 @@ export default function AdminLayout() {
                   <Settings className="mr-2 h-4 w-4 text-slate-500" />Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-slate-100" />
-                <DropdownMenuItem className="text-rose-600 hover:bg-rose-50 focus:bg-rose-50 cursor-pointer" onClick={handleLogout}>
+                <DropdownMenuItem className="text-rose-600 hover:bg-rose-50 focus:bg-rose-50 cursor-pointer" onClick={() => setIsLogoutModalOpen(true)}>
                   <LogOut className="mr-2 h-4 w-4 text-rose-500" />Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -811,6 +818,58 @@ export default function AdminLayout() {
         </main>
         <ApiResponseMonitor />
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog
+        open={isLogoutModalOpen}
+        onOpenChange={(open) => {
+          if (!isLoggingOut) setIsLogoutModalOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-md p-6 bg-white rounded-2xl shadow-xl border border-slate-100">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-600 mb-2">
+              <LogOut className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-lg font-bold text-center text-slate-900">
+              Log out
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm text-slate-500 mt-1">
+              Do you want to log out of your account?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              type="button"
+              disabled={isLoggingOut}
+              onClick={() => setIsLogoutModalOpen(false)}
+              className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={isLoggingOut}
+              onClick={handleLogout}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-xs px-4 shadow-xs cursor-pointer"
+            >
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Logging out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                  Log Out
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -303,7 +303,6 @@ function getTenantIdHeader(): string | null {
 function getAuthHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${getAuthToken()}`,
     "ngrok-skip-browser-warning": "true",
   };
   const tenantId = getTenantIdHeader();
@@ -318,13 +317,9 @@ import { apiMonitorStore } from "./apiMonitorService";
 let refreshPromise: Promise<string | null> | null = null;
 
 export async function fetchWithAuth(input: string, init?: RequestInit): Promise<Response> {
-  const token = getAuthToken();
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
-  }
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
   }
   const tenantId = getTenantIdHeader();
   if (tenantId && !headers.has("X-Tenant-Id")) {
@@ -384,9 +379,7 @@ export async function fetchWithAuth(input: string, init?: RequestInit): Promise<
 
     const newToken = await refreshPromise;
     if (newToken) {
-      const retryHeaders = new Headers(options.headers);
-      retryHeaders.set("Authorization", `Bearer ${newToken}`);
-      response = await fetch(input, { ...options, headers: retryHeaders });
+      response = await fetch(input, options);
     }
   }
 
@@ -802,10 +795,8 @@ export async function uploadThumbnail(
   const formData = new FormData();
   formData.append("file", file);
 
-  const token = getAuthToken();
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails/upload?slot=${slot}`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails/upload?slot=${slot}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   return handleResponse(res);
@@ -818,9 +809,8 @@ export async function selectMainThumbnail(
   const payload = typeof slotOrUrl === "string"
     ? { selected_main_thumbnail: slotOrUrl }
     : { selected_main_thumbnail: String(slotOrUrl), slot: slotOrUrl };
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails/select-main`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails/select-main`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
   return handleResponse(res);
@@ -830,9 +820,8 @@ export async function deleteThumbnail(
   videoId: number,
   thumbnailUrl: string
 ): Promise<{ status?: string; success?: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/videos/${videoId}/thumbnails`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ thumbnail_url: thumbnailUrl }),
   });
   return handleResponse(res);
@@ -1032,13 +1021,9 @@ export async function uploadCreatorBanner(file: File): Promise<{ bannerUrl: stri
 
 export async function getFeaturedVideos(): Promise<ApiFeaturedVideoItem[]> {
   try {
-    let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos`, {
-      headers: getAuthHeaders(),
-    });
+    let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos`);
     if (res.status === 404) {
-      res = await fetch(`${BASE_URL}/featured-videos`, {
-        headers: getAuthHeaders(),
-      });
+      res = await fetchWithAuth(`${BASE_URL}/featured-videos`);
     }
     const json = await handleResponse<any[]>(res);
     return (json || []).map((raw: any) => ({
@@ -1061,15 +1046,13 @@ export async function getFeaturedVideos(): Promise<ApiFeaturedVideoItem[]> {
 }
 
 export async function updateFeaturedVideos(videoIds: number[]): Promise<boolean> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/featured-videos`, {
+    res = await fetchWithAuth(`${BASE_URL}/featured-videos`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_ids: videoIds }),
     });
   }
@@ -1099,15 +1082,13 @@ export async function updateFeaturedVideos(videoIds: number[]): Promise<boolean>
 export const saveFeaturedVideos = updateFeaturedVideos;
 
 export async function addFeaturedVideos(videoIds: number[]): Promise<{ addedCount: number; totalFeatured: number }> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/featured-videos`, {
+    res = await fetchWithAuth(`${BASE_URL}/featured-videos`, {
       method: "POST",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_ids: videoIds }),
     });
   }
@@ -1119,15 +1100,13 @@ export async function addFeaturedVideos(videoIds: number[]): Promise<{ addedCoun
 }
 
 export async function reorderFeaturedVideos(videoIds: number[]): Promise<boolean> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos/reorder`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos/reorder`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/featured-videos/reorder`, {
+    res = await fetchWithAuth(`${BASE_URL}/featured-videos/reorder`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_ids: videoIds }),
     });
   }
@@ -1136,14 +1115,12 @@ export async function reorderFeaturedVideos(videoIds: number[]): Promise<boolean
 }
 
 export async function deleteFeaturedVideo(videoId: number): Promise<boolean> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos/${videoId}`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos/${videoId}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/featured-videos/${videoId}`, {
+    res = await fetchWithAuth(`${BASE_URL}/featured-videos/${videoId}`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
     });
   }
   await handleResponse<any>(res);
@@ -1151,15 +1128,13 @@ export async function deleteFeaturedVideo(videoId: number): Promise<boolean> {
 }
 
 export async function bulkDeleteFeaturedVideos(videoIds: number[]): Promise<boolean> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/featured-videos`, {
+    res = await fetchWithAuth(`${BASE_URL}/featured-videos`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_ids: videoIds }),
     });
   }
@@ -1182,13 +1157,9 @@ export async function getAvailableVideosForFeatured(params?: {
     if (params?.page) query.append("page", params.page.toString());
     if (params?.limit) query.append("limit", params.limit.toString());
 
-    let res = await fetch(`${BASE_URL}/api/v1/admin/featured-videos/available?${query.toString()}`, {
-      headers: getAuthHeaders(),
-    });
+    let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/featured-videos/available?${query.toString()}`);
     if (res.status === 404) {
-      res = await fetch(`${BASE_URL}/featured-videos/available?${query.toString()}`, {
-        headers: getAuthHeaders(),
-      });
+      res = await fetchWithAuth(`${BASE_URL}/featured-videos/available?${query.toString()}`);
     }
     if (res.ok) {
       const json = await handleResponse<any>(res);
@@ -1246,13 +1217,9 @@ export async function getPlaylists(params?: {
     if (params?.page) query.append("page", params.page.toString());
     if (params?.limit) query.append("limit", params.limit.toString());
 
-    let res = await fetch(`${BASE_URL}/api/v1/admin/playlists?${query.toString()}`, {
-      headers: getAuthHeaders(),
-    });
+    let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists?${query.toString()}`);
     if (res.status === 404) {
-      res = await fetch(`${BASE_URL}/playlists?${query.toString()}`, {
-        headers: getAuthHeaders(),
-      });
+      res = await fetchWithAuth(`${BASE_URL}/playlists?${query.toString()}`);
     }
     const json = await handleResponse<any>(res);
     const rawList = Array.isArray(json) ? json : (json.data || json.items || []);
@@ -1274,19 +1241,6 @@ export async function getPlaylists(params?: {
   }
 }
 
-export async function getPlaylistDetails(id: number): Promise<ApiPlaylist> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${id}`, {
-    headers: getAuthHeaders(),
-  });
-  if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${id}`, {
-      headers: getAuthHeaders(),
-    });
-  }
-  const json = await handleResponse<any>(res);
-  return transformPlaylist(json);
-}
-
 
 export async function createPlaylist(data: {
   name?: string;
@@ -1299,9 +1253,8 @@ export async function createPlaylist(data: {
   const descVal = data.description || "";
   const videoIds = data.video_ids || data.videoIds || [];
 
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({
       name: nameVal,
       description: descVal,
@@ -1309,9 +1262,8 @@ export async function createPlaylist(data: {
     }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists`, {
       method: "POST",
-      headers: getAuthHeaders(),
       body: JSON.stringify({
         name: nameVal,
         description: descVal,
@@ -1333,15 +1285,13 @@ export async function updatePlaylist(
   if (nameVal) payload.name = nameVal;
   if (descVal !== undefined) payload.description = descVal;
 
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${id}`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${id}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${id}`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${id}`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify(payload),
     });
   }
@@ -1350,14 +1300,12 @@ export async function updatePlaylist(
 }
 
 export async function deletePlaylist(id: number): Promise<{ status?: string; success?: boolean }> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${id}`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${id}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${id}`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${id}`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
     });
   }
   return handleResponse(res);
@@ -1370,16 +1318,13 @@ export async function uploadPlaylistBanner(
   const formData = new FormData();
   formData.append("file", file);
 
-  const token = getAuthToken();
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/thumbnail/upload`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/thumbnail/upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${playlistId}/thumbnail/upload`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${playlistId}/thumbnail/upload`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
       body: formData,
     });
   }
@@ -1395,13 +1340,9 @@ export async function getPlaylistVideos(
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
 
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos?${query.toString()}`, {
-    headers: getAuthHeaders(),
-  });
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos?${query.toString()}`);
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${playlistId}/videos?${query.toString()}`, {
-      headers: getAuthHeaders(),
-    });
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${playlistId}/videos?${query.toString()}`);
   }
   const json = await handleResponse<any>(res);
   return {
@@ -1419,15 +1360,13 @@ export async function addVideosToPlaylist(
   playlistId: number,
   videoIds: number[]
 ): Promise<{ status?: string; success?: boolean }> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${playlistId}/videos`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${playlistId}/videos`, {
       method: "POST",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_ids: videoIds }),
     });
   }
@@ -1438,19 +1377,17 @@ export async function removeVideoFromPlaylist(
   playlistId: number,
   videoId: number
 ): Promise<{ status?: string; success?: boolean }> {
-  let res = await fetch(
+  let res = await fetchWithAuth(
     `${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos/${videoId}`,
     {
       method: "DELETE",
-      headers: getAuthHeaders(),
     }
   );
   if (res.status === 404) {
-    res = await fetch(
+    res = await fetchWithAuth(
       `${BASE_URL}/playlists/${playlistId}/videos/${videoId}`,
       {
         method: "DELETE",
-        headers: getAuthHeaders(),
       }
     );
   }
@@ -1461,15 +1398,13 @@ export async function bulkRemoveVideosFromPlaylist(
   playlistId: number,
   videoIds: number[]
 ): Promise<{ status?: string; success?: boolean }> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_ids: videoIds }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${playlistId}/videos`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${playlistId}/videos`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_ids: videoIds }),
     });
   }
@@ -1487,14 +1422,12 @@ export async function getAvailableVideosForPlaylist(
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
 
-  let res = await fetch(
-    `${BASE_URL}/api/v1/admin/playlists/${playlistId}/available_videos?${query.toString()}`,
-    { headers: getAuthHeaders() }
+  let res = await fetchWithAuth(
+    `${BASE_URL}/api/v1/admin/playlists/${playlistId}/available_videos?${query.toString()}`
   );
   if (res.status === 404) {
-    res = await fetch(
-      `${BASE_URL}/playlists/${playlistId}/available_videos?${query.toString()}`,
-      { headers: getAuthHeaders() }
+    res = await fetchWithAuth(
+      `${BASE_URL}/playlists/${playlistId}/available_videos?${query.toString()}`
     );
   }
   const json = await handleResponse<any>(res);
@@ -1513,15 +1446,13 @@ export async function reorderPlaylistVideos(
   playlistId: number,
   videoOrders: { video_id: number; order: number }[]
 ): Promise<{ status?: string; success?: boolean }> {
-  let res = await fetch(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos/reorder`, {
+  let res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/playlists/${playlistId}/videos/reorder`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ video_orders: videoOrders }),
   });
   if (res.status === 404) {
-    res = await fetch(`${BASE_URL}/playlists/${playlistId}/videos/reorder`, {
+    res = await fetchWithAuth(`${BASE_URL}/playlists/${playlistId}/videos/reorder`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify({ video_orders: videoOrders }),
     });
   }
@@ -1551,9 +1482,7 @@ export async function getAdminComments(params?: {
     if (params?.page) query.append("page", params.page.toString());
     if (params?.limit) query.append("limit", params.limit.toString());
 
-    const res = await fetch(`${BASE_URL}/api/v1/admin/comments?${query.toString()}`, {
-      headers: getAuthHeaders(),
-    });
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/comments?${query.toString()}`);
     const json = await handleResponse<any>(res);
     return {
       data: (json.data || json.items || json || []).map(transformComment),
@@ -1574,9 +1503,8 @@ export async function postAdminVideoComment(
   videoId: number,
   text: string
 ): Promise<ApiComment> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/comments/videos/${videoId}/comments`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/comments/videos/${videoId}/comments`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ text }),
   });
   const json = await handleResponse<any>(res);
@@ -1592,9 +1520,8 @@ export async function getCommentReplies(
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
 
-  const res = await fetch(
-    `${BASE_URL}/api/v1/admin/comments/${commentId}/replies?${query.toString()}`,
-    { headers: getAuthHeaders() }
+  const res = await fetchWithAuth(
+    `${BASE_URL}/api/v1/admin/comments/${commentId}/replies?${query.toString()}`
   );
   const json = await handleResponse<any>(res);
   return {
@@ -1612,9 +1539,8 @@ export async function postCommentReply(
   commentId: number,
   text: string
 ): Promise<ApiReply> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/comments/${commentId}/reply`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/comments/${commentId}/reply`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ text }),
   });
   const json = await handleResponse<any>(res);
@@ -1624,9 +1550,8 @@ export async function postCommentReply(
 export async function toggleCommentLike(
   commentId: number
 ): Promise<{ status: string; isLiked: boolean; likes: number }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/comments/${commentId}/like`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/comments/${commentId}/like`, {
     method: "POST",
-    headers: getAuthHeaders(),
   });
   const json = await handleResponse<any>(res);
   return {
@@ -1639,9 +1564,8 @@ export async function toggleCommentLike(
 export async function deleteComment(
   commentId: number
 ): Promise<{ status?: string; success?: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/comments/${commentId}`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/comments/${commentId}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
   });
   return handleResponse(res);
 }
@@ -1650,9 +1574,7 @@ export async function deleteComment(
 
 export async function getCreatorProfile(): Promise<ApiProfile> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/admin/profile`, {
-      headers: getAuthHeaders(),
-    });
+    const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/profile`);
     const json = await handleResponse<any>(res);
     return transformProfile(json);
   } catch (err) {
@@ -1788,9 +1710,7 @@ export async function getCategories(params?: { simple?: boolean }): Promise<ApiC
       ? `${BASE_URL}/api/v1/admin/categories?${queryString}`
       : `${BASE_URL}/api/v1/admin/categories`;
 
-    const res = await fetch(url, {
-      headers: getAuthHeaders(),
-    });
+    const res = await fetchWithAuth(url);
     const json = await handleResponse<any>(res);
     const list = json.data || json.items || (Array.isArray(json) ? json : []);
     return list.map(transformCategory);
@@ -1801,9 +1721,8 @@ export async function getCategories(params?: { simple?: boolean }): Promise<ApiC
 }
 
 export async function createCategory(data: CreateCategoryPayload): Promise<ApiCategory> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/categories`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/categories`, {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   const json = await handleResponse<any>(res);
@@ -1811,9 +1730,8 @@ export async function createCategory(data: CreateCategoryPayload): Promise<ApiCa
 }
 
 export async function updateCategory(id: number, data: UpdateCategoryPayload): Promise<ApiCategory> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/categories/${id}`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/categories/${id}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   const json = await handleResponse<any>(res);
@@ -1827,10 +1745,8 @@ export async function uploadCategoryThumbnail(
   const formData = new FormData();
   formData.append("file", file);
 
-  const token = getAuthToken();
-  const res = await fetch(`${BASE_URL}/api/v1/admin/categories/${categoryId}/thumbnail/upload`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/categories/${categoryId}/thumbnail/upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
     body: formData,
   });
   const json = await handleResponse<any>(res);
@@ -1840,17 +1756,15 @@ export async function uploadCategoryThumbnail(
 }
 
 export async function deleteCategory(id: number): Promise<{ message: string }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/categories/${id}`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/categories/${id}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
   });
   return handleResponse(res);
 }
 
 export async function reorderCategories(ids: number[]): Promise<{ message: string }> {
-  const res = await fetch(`${BASE_URL}/api/v1/admin/categories/reorder`, {
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/categories/reorder`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ ids }),
   });
   return handleResponse(res);
@@ -1909,7 +1823,6 @@ export async function adminGetMe(): Promise<AdminSummary> {
 }
 
 export async function adminLogout(): Promise<void> {
-  const token = getStoredToken();
   if (typeof window !== "undefined") {
     localStorage.setItem("user_logged_out", "true");
   }
@@ -1920,7 +1833,6 @@ export async function adminLogout(): Promise<void> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         "ngrok-skip-browser-warning": "true",
       },
       credentials: "include",
@@ -2150,9 +2062,7 @@ export async function getDashboardSubscriptionBreakdown(params?: {
   if (params?.startDate) query.append("start_date", params.startDate);
   if (params?.endDate) query.append("end_date", params.endDate);
 
-  const res = await fetch(`${BASE_URL}/api/v1/admin/dashboard/subscription-breakdown?${query.toString()}`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await fetchWithAuth(`${BASE_URL}/api/v1/admin/dashboard/subscription-breakdown?${query.toString()}`);
   const json = await handleResponse<any>(res);
   const palette = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#6366f1"];
   return {
@@ -2350,6 +2260,9 @@ export interface TenantUser {
   last_name?: string;
   is_active?: boolean;
   isActive?: boolean;
+  is_owner?: boolean;
+  isOwner?: boolean;
+  role?: string;
   avatar_url?: string | null;
   avatarUrl?: string | null;
   created_at?: string;
@@ -2368,6 +2281,9 @@ export async function getTenantUsers(): Promise<TenantUser[]> {
       last_name: u.last_name || u.lastName || "",
       is_active: u.is_active ?? u.isActive ?? true,
       isActive: u.is_active ?? u.isActive ?? true,
+      is_owner: !!(u.is_owner ?? u.isOwner ?? false),
+      isOwner: !!(u.is_owner ?? u.isOwner ?? false),
+      role: u.role || (u.is_owner || u.isOwner ? "Owner" : "Admin"),
       avatar_url: u.avatar_url || u.avatarUrl || null,
       avatarUrl: u.avatar_url || u.avatarUrl || null,
       created_at: u.created_at || u.createdAt || "",

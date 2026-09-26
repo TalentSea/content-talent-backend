@@ -8,7 +8,7 @@ import { Switch } from "../components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
   User, Lock, Bell, CreditCard, Globe, Shield, Save, Loader2, Upload, Check,
-  Building2, AlertCircle, CheckCircle2, UserCheck, UserPlus, Eye, EyeOff, Power, RefreshCw
+  Building2, AlertCircle, CheckCircle2, UserCheck, UserPlus, Eye, EyeOff, Power, RefreshCw, Trash2
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "../components/ui/dialog";
 import {
@@ -30,6 +31,7 @@ import {
   updatePayoutSettings,
   getTenantUsers,
   createTenantUser,
+  deleteTenantUser,
   toggleTenantUserActive,
   changeAdminPassword,
   getTenants,
@@ -87,6 +89,9 @@ export default function Settings() {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
   const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+  const [userToDelete, setUserToDelete] = useState<TenantUser | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const loadTenantUsers = async () => {
     setLoadingTenantUsers(true);
@@ -125,6 +130,23 @@ export default function Settings() {
       toast.error(err?.message || "Failed to create tenant user.");
     } finally {
       setAddingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    const target = userToDelete;
+    setDeletingUserId(target.id);
+    try {
+      await deleteTenantUser(target.id);
+      setTenantUsers((prev) => prev.filter((u) => u.id !== target.id));
+      toast.success(`User ${target.email} deleted successfully.`);
+      setIsDeleteModalOpen(false);
+      setUserToDelete(null);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete user.");
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -949,6 +971,8 @@ export default function Settings() {
                       {tenantUsers.map((u) => {
                         const isActive = u.is_active !== false && u.isActive !== false;
                         const isToggling = togglingUserId === u.id;
+                        const isOwner = !!(u.is_owner ?? u.isOwner ?? false);
+                        const isDeleting = deletingUserId === u.id;
                         return (
                           <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
                             <td className="p-4 pl-6">
@@ -957,7 +981,14 @@ export default function Settings() {
                                   {(u.email || "U").charAt(0).toUpperCase()}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-slate-900 text-xs">{u.email}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-slate-900 text-xs">{u.email}</p>
+                                    {isOwner && (
+                                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 font-semibold">
+                                        Owner
+                                      </Badge>
+                                    )}
+                                  </div>
                                   {(u.first_name || u.last_name) && (
                                     <p className="text-[11px] text-slate-400">
                                       {[u.first_name, u.last_name].filter(Boolean).join(" ")}
@@ -982,24 +1013,47 @@ export default function Settings() {
                               {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
                             </td>
                             <td className="p-4 text-right pr-6">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isToggling}
-                                onClick={() => handleToggleUserActive(u)}
-                                className={`rounded-xl text-xs font-semibold cursor-pointer ${
-                                  isActive
-                                    ? "border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-                                    : "border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-                                }`}
-                              >
-                                {isToggling ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                                ) : (
-                                  <Power className="h-3.5 w-3.5 mr-1" />
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isToggling || isDeleting}
+                                  onClick={() => handleToggleUserActive(u)}
+                                  className={`rounded-xl text-xs font-semibold cursor-pointer ${
+                                    isActive
+                                      ? "border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                                      : "border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                                  }`}
+                                >
+                                  {isToggling ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                  ) : (
+                                    <Power className="h-3.5 w-3.5 mr-1" />
+                                  )}
+                                  {isActive ? "Deactivate" : "Activate"}
+                                </Button>
+
+                                {!isOwner && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isDeleting || isToggling}
+                                    onClick={() => {
+                                      setUserToDelete(u);
+                                      setIsDeleteModalOpen(true);
+                                    }}
+                                    className="rounded-xl text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 cursor-pointer"
+                                    title="Delete user"
+                                  >
+                                    {isDeleting ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                    )}
+                                    Delete
+                                  </Button>
                                 )}
-                                {isActive ? "Deactivate" : "Activate"}
-                              </Button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1010,6 +1064,71 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
+
+          {/* Delete Tenant User Confirmation Dialog */}
+          <Dialog
+            open={isDeleteModalOpen}
+            onOpenChange={(open) => {
+              if (!deletingUserId) {
+                setIsDeleteModalOpen(open);
+                if (!open) setUserToDelete(null);
+              }
+            }}
+          >
+            <DialogContent
+              className="max-w-md p-6 bg-white rounded-2xl shadow-xl border border-slate-100"
+              onPointerDownOutside={(e) => {
+                if (deletingUserId) e.preventDefault();
+              }}
+            >
+              <DialogHeader>
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-600 mb-2">
+                  <Trash2 className="h-6 w-6" />
+                </div>
+                <DialogTitle className="text-lg font-bold text-center text-slate-900">
+                  Delete Tenant User
+                </DialogTitle>
+                <DialogDescription className="text-center text-sm text-slate-500 mt-1">
+                  Do you want to delete user{" "}
+                  <span className="font-semibold text-slate-800">{userToDelete?.email}</span>?
+                  This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex items-center justify-end gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={!!deletingUserId}
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setUserToDelete(null);
+                  }}
+                  className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!!deletingUserId}
+                  onClick={handleDeleteUser}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-xs px-4 shadow-xs cursor-pointer"
+                >
+                  {deletingUserId ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      Delete User
+                    </>
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>
