@@ -5,7 +5,8 @@
 ### Authentication Standard
 All endpoints in this specification require a valid JWT Bearer access token passed in the HTTP request header:
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 Identity and tenant context are strictly derived from the validated JWT token context (`get_current_admin`). Under no circumstances is `tenant_id` or `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities. For Platform Super Admins, the active tenant context can be selected via the `X-Tenant-Id` header (falling back to the first active tenant if omitted).
 
@@ -71,7 +72,8 @@ Retrieves current creator brand identity details, tagline, description, banner, 
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Request Query Parameters — None
@@ -96,7 +98,8 @@ Updates text attributes (**Studio Name**, **Tagline**, and **Description**) when
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -141,7 +144,8 @@ Uploads a new studio/app logo image (`PNG` or `SVG`, up to 512x512px) to Bunny S
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: multipart/form-data
 ```
 
@@ -167,7 +171,8 @@ Uploads a wide landscape cover banner image (`JPG`, `PNG`, or `WebP`) to Bunny S
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: multipart/form-data
 ```
 
@@ -193,7 +198,8 @@ Retrieves the active 9 white-label theme color tokens for rendering the **Theme 
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Request Query Parameters — None
@@ -221,7 +227,8 @@ Updates the white-label theme color tokens when the creator saves a selected pre
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 

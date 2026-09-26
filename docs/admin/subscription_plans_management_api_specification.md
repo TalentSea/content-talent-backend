@@ -87,7 +87,8 @@ Retrieves the 2 fixed subscription plans owned by the authenticated creator stud
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Response Envelope (`200 OK`)
@@ -154,7 +155,8 @@ Saves creator customizations for a plan tier from the Edit modal. The backend au
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 

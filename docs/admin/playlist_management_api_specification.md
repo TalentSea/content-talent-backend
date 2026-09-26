@@ -5,7 +5,8 @@
 ### Authentication Standard
 All endpoints require a valid JWT Bearer token passed in the HTTP request header:
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 The admin identity (`user_id`) and active studio context (`tenant_id`) are extracted directly from the session context via `get_current_admin`. Playlists are strictly scoped to the active tenant. For Platform Super Admins, the target tenant is resolved via the `X-Tenant-Id` header (falling back to the first active tenant).
 
@@ -70,7 +71,8 @@ Creates a new playlist container, links initial video IDs, and returns created p
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -103,7 +105,8 @@ Retrieves a paginated list of lightweight playlist summaries belonging to the au
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Request Query Parameters
@@ -147,7 +150,8 @@ Updates playlist textual metadata (`name`, `description`).
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -180,7 +184,8 @@ Uploads a playlist cover banner image (`assets/playlists/pl_{playlist_id}_{times
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: multipart/form-data
 ```
 
@@ -205,7 +210,8 @@ Deletes a playlist from the database and drops video link mappings (does NOT del
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -228,7 +234,8 @@ Retrieves a paginated list of videos attached to a specific playlist with orderi
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -272,7 +279,8 @@ Adds an array of video IDs to the specified playlist.
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -302,7 +310,8 @@ Removes a single video from a playlist without deleting the video asset itself.
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -324,7 +333,8 @@ Removes multiple videos from a playlist in a single batch request.
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -356,7 +366,8 @@ Fetches a paginated list of uploaded videos owned by the creator that are **not*
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -406,7 +417,8 @@ Persists updated sequence positions (`order`) of videos attached to a playlist f
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 

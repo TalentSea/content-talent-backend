@@ -5,7 +5,8 @@
 ### Authentication Standard
 All endpoints (excluding third-party webhooks) require a valid JWT Bearer token passed in the HTTP request header:
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 The admin identity (`user_id`), role, and active studio context (`tenant_id`) are extracted directly from the authenticated session context on the backend (`Depends(get_current_admin)`). No `user_id` or `tenant_id` parameter is accepted in request bodies or query strings, completely eliminating **Insecure Direct Object Reference (IDOR)** risks. For Platform Super Admins, the active tenant context can be selected dynamically via the `X-Tenant-Id` HTTP header (falling back to the first active tenant when omitted).
 
@@ -70,7 +71,8 @@ Initiates a video upload session by creating a video container on Bunny Stream, 
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -198,7 +200,8 @@ Video enters `"scheduled"` status upon encoding completion. The background worke
 * **Endpoint**: `/api/v1/admin/videos/{video_id}/thumbnails/upload?slot=0`
 * **Headers**:
   ```http
-  Authorization: Bearer <creator_access_token>
+  Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
   Content-Type: multipart/form-data
   ```
 * **Request Body**: `[FormData with "file" image binary]`
@@ -337,7 +340,8 @@ Retrieves a paginated list of uploaded videos belonging to the authenticated cre
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Request Query Parameters
@@ -403,7 +407,8 @@ Retrieves detailed metadata for a single video. If the video is currently `ENCOD
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -535,7 +540,8 @@ Updates textual metadata fields (`title`, `description`, `category`, `tags`) for
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -578,7 +584,8 @@ Uploads a thumbnail image binary (`slot: 0` for main cover `thumb_1.{ext}`, `slo
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: multipart/form-data
 ```
 

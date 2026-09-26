@@ -7,7 +7,8 @@ This document details the RESTful API endpoints for Web Admin Creators to manage
 ## 1. Architecture & Design Principles
 
 * **Base Prefix**: `/api/v1/admin/featured-videos`
-* **Authentication**: **Admin Creator Protected** (`Authorization: Bearer <admin_access_token>`).
+* **Authentication**: **Admin Creator Protected** (`Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)`).
 * **Multi-Tenant Isolation**: Extracted `current_user["user_id"]` from JWT context guarantees creators can only feature, reorder, or delete their own videos.
 * **Full State Sync Pattern (`PUT`)**: A single `PUT` endpoint handles adding, reordering, single deletion, and bulk deletion by receiving the complete ordered array of active featured `video_ids`.
 * **Ordering Model**: Dedicated `featured_videos` table maintains 1-indexed `position` attributes corresponding to the index order in the request payload (`position = index + 1`).
@@ -34,7 +35,8 @@ Retrieves all videos currently featured by the authenticated creator, ordered by
 
 #### Headers
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Response Envelope (`200 OK`)
@@ -83,7 +85,8 @@ This single endpoint performs all mutation operations:
 
 #### Headers
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -146,7 +149,8 @@ Retrieves a paginated list of creator's published videos that are **not currentl
 
 #### Headers
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters

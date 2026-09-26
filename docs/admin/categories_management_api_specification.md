@@ -7,7 +7,8 @@
 All endpoints in this specification require a valid JWT Bearer access token passed in the HTTP request header:
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 Identity and tenant ownership are strictly derived from the validated JWT token (`get_current_admin`). Under no circumstances is `tenant_id` or `user_id` accepted as an HTTP query parameter or request body parameter, eliminating Insecure Direct Object Reference (IDOR) vulnerabilities. For Platform Super Admins, the active tenant studio context is resolved from the `X-Tenant-Id` request header (defaulting to the first active tenant if omitted).
@@ -149,7 +150,8 @@ Retrieves all categories owned by the authenticated creator account, ordered by 
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -243,7 +245,8 @@ Creates a new content category for the authenticated creator account.
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -297,7 +300,8 @@ Updates textual fields (`name`, `description`, `color`) for an existing category
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -341,7 +345,8 @@ Uploads a category logo/thumbnail image to Bunny Cloud Storage and associates th
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: multipart/form-data
 ```
 
@@ -380,7 +385,8 @@ Deletes a category asset, safely unassigns (`category = null`) videos linked to 
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -411,7 +417,8 @@ Persists new category display ordering after drag-and-drop actions in the Admin 
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 

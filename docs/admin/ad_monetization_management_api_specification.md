@@ -161,7 +161,8 @@ Retrieves high-level summary metrics for the Creator Admin Studio dashboard card
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Response Specification (`200 OK`)
@@ -240,7 +241,8 @@ Provides granular date-filtered time-series data to render interactive revenue a
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -314,7 +316,8 @@ Returns a paginated historical ledger of itemized monthly settlement statements,
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -396,7 +399,8 @@ Retrieves the creator's registered bank account details (with masked account num
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Response Specification (`200 OK`)
@@ -433,7 +437,8 @@ Registers or updates the creator's bank account details for receiving monthly ad
 #### Request Headers
 
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 

@@ -17,7 +17,8 @@ This document details the RESTful API endpoints for Web Admin Creators to view, 
 - All dashboard endpoints are protected and require a valid Admin Creator JWT Bearer token passed in the request header:
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 - **Strict Multi-Tenant Isolation**: The authenticated creator's `user_id` is extracted strictly from the JWT context via `CurrentAdmin`. Every metric, revenue calculation, view count, and subscriber listing is filtered by `tenant_id` to guarantee zero cross-tenant data leakage.
@@ -80,7 +81,8 @@ Retrieves high-level summary cards displayed across the top row of the studio da
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -187,7 +189,8 @@ Returns grouped time-series telemetry points powering visual line, area, or bar 
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -294,7 +297,8 @@ Returns subscriber distribution and actual captured revenue grouped by the creat
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -366,7 +370,8 @@ Powers the bottom-left feed widget showing latest member signups and paying subs
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -469,7 +474,8 @@ GET /api/v1/admin/videos?status=published&sort=views&limit=5
 #### Headers
 
 ```http
-Authorization: Bearer <admin_access_token>
+Cookie: admin_access_token=<admin_access_token>  (Primary: Browser)
+Authorization: Bearer <admin_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters for Dashboard Widget

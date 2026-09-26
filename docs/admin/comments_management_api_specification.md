@@ -5,7 +5,8 @@
 ### Authentication Standard
 All endpoints require a valid JWT Bearer token passed in the HTTP request header:
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 The creator identity (`user_id`) is extracted directly from the authenticated session context on the backend (`Depends(get_current_user)`). Creators can only access, reply to, like, and delete comments associated with their own content assets.
 
@@ -67,7 +68,8 @@ Retrieves a paginated list of top-level comments across the creator's videos wit
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Request Query Parameters
@@ -119,7 +121,8 @@ Posts an official top-level comment by the creator under a specific video (e.g. 
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -161,7 +164,8 @@ Retrieves a paginated list of child replies nested under a specific top-level co
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -223,7 +227,8 @@ Posts an official creator reply to a specific user comment.
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -263,7 +268,8 @@ Toggles authenticated user's like state in the `comment_likes` table, updating l
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters
@@ -299,7 +305,8 @@ Deletes a comment permanently from a creator's video.
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 ```
 
 #### Path Parameters

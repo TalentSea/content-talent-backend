@@ -74,7 +74,8 @@ Atomically creates a new Tenant studio, provisions its initial owner Admin accou
 #### Request Headers
 
 ```http
-Authorization: Bearer <super_admin_jwt>
+Cookie: admin_access_token=<super_admin_jwt>  (Primary: Browser)
+Authorization: Bearer <super_admin_jwt>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 
@@ -141,7 +142,8 @@ Returns a list of registered tenants on the platform for studio selection, switc
 #### Request Headers
 
 ```http
-Authorization: Bearer <super_admin_jwt>
+Cookie: admin_access_token=<super_admin_jwt>  (Primary: Browser)
+Authorization: Bearer <super_admin_jwt>       (Fallback: Testing/Tooling)
 ```
 
 #### Query Parameters
@@ -209,7 +211,8 @@ Retrieves full profile and telemetry metadata for a specific tenant.
 #### Request Headers
 
 ```http
-Authorization: Bearer <super_admin_jwt>
+Cookie: admin_access_token=<super_admin_jwt>  (Primary: Browser)
+Authorization: Bearer <super_admin_jwt>       (Fallback: Testing/Tooling)
 ```
 
 #### Response (`200 OK`)

@@ -294,7 +294,8 @@ Allows administrators (both Tenant Admins and Platform Super Admins) to securely
 
 #### Request Headers
 ```http
-Authorization: Bearer <creator_access_token>
+Cookie: admin_access_token=<creator_access_token>  (Primary: Browser)
+Authorization: Bearer <creator_access_token>       (Fallback: Testing/Tooling)
 Content-Type: application/json
 ```
 *(Or automatic browser `admin_access_token` HttpOnly cookie)*
