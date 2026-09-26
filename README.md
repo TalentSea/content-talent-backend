@@ -382,8 +382,8 @@ Every tenant creation runs inside a single ACID database transaction (`with db_p
 1. **`Tenant` Record**: Merges organization identity and branding attributes (`name`, `slug`, `tagline`, `description`, `is_active=True`).
 2. **Owner `Admin` Account**: Created with `role="admin"`, `is_owner=True`, `tenant_id=tenant.id`, and NIST SP 800-132 PBKDF2-HMAC-SHA256 password hashing (600,000 iterations).
 3. **Two Fixed Subscription Tiers (`SubscriptionPlan`)**: Automatically seeded with `tenant_id=tenant.id`:
-   - **Plan 1 (`Standard with Ads`)**: ₹99/month (`plan_type="with_ads"`, `display_order=1`, `features=["Full video catalog access", "Standard definition (720p) streaming", "Occasional short advertisements", "1 concurrent device stream"]`).
-   - **Plan 2 (`Premium Ad-Free`)**: ₹199/month (`plan_type="no_ads"`, `display_order=2`, `features=["100% Ad-free streaming", "Full HD (1080p) resolution", "Offline mobile video downloads", "Up to 3 concurrent device screens", "Early access to new releases"]`).
+   - **Plan 1 (`Standard with Ads`)**: ₹99/month (`plan_type="with_ads"`, `display_order=1`, `features=["Full access to all videos & shorts", "High-definition (HD) streaming", "Watch on Android phone & tablet", "Includes ads on videos (Shorts are ad-free)"]`).
+   - **Plan 2 (`Premium Ad-Free`)**: ₹199/month (`plan_type="no_ads"`, `display_order=2`, `features=["Full access to all videos & shorts", "High-definition (HD) streaming", "Watch on Android phone & tablet", "100% Ad-free on all videos & shorts"]`).
 
 ---
 

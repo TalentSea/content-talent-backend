@@ -159,7 +159,7 @@ class AuthRepository:
         Updates profile avatar or name if updated on social provider.
         """
         updated = False
-        if avatar_url and subscriber.avatar_url != avatar_url:
+        if avatar_url and not subscriber.avatar_url:
             subscriber.avatar_url = avatar_url
             updated = True
         if name and not subscriber.name:
@@ -190,7 +190,6 @@ class AuthRepository:
         subscriber.updated_at = datetime.now(timezone.utc)
         subscriber.save()
         return subscriber
-
 
     def create_refresh_token_record(
         self,

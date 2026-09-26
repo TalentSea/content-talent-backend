@@ -27,16 +27,15 @@ The platform enforces a standardized two-tier OTT subscription paywall provision
 Technical streaming entitlements (resolution, offline download availability, concurrent screens, and ad insertion policy) are maintained centrally in `app/constants/plans.py`. When mobile clients fetch the paywall feed, the backend dynamically injects the appropriate feature bullet list into the response:
 
 * **With-Ads Tier Features**:
-  * Full video catalog access
-  * Standard definition (720p) streaming
-  * Occasional short advertisements
-  * 1 concurrent device stream
+  * Full access to all videos & shorts
+  * High-definition (HD) streaming
+  * Watch on Android phone & tablet
+  * Includes ads on videos (Shorts are ad-free)
 * **No-Ads Tier Features**:
-  * 100% Ad-free streaming
-  * Full HD (1080p) crystal-clear resolution
-  * Offline mobile video downloads
-  * Up to 3 concurrent device screens
-  * Early access to new releases
+  * Full access to all videos & shorts
+  * High-definition (HD) streaming
+  * Watch on Android phone & tablet
+  * 100% Ad-free on all videos & shorts
 
 ---
 
@@ -66,10 +65,10 @@ Authorization: Bearer <subscriber_access_token>
     "billing_period_value": 1,
     "billing_period_unit": "months",
     "features": [
-      "Full video catalog access",
-      "Standard definition (720p) streaming",
-      "Occasional short advertisements",
-      "1 concurrent device stream"
+      "Full access to all videos & shorts",
+      "High-definition (HD) streaming",
+      "Watch on Android phone & tablet",
+      "Includes ads on videos (Shorts are ad-free)"
     ],
     "badge_text": null,
     "display_order": 1
@@ -78,7 +77,7 @@ Authorization: Bearer <subscriber_access_token>
     "id": 2,
     "plan_type": "no_ads",
     "name": "Premium Ad-Free",
-    "description": "Enjoy crystal-clear Full HD streaming without interruptions",
+    "description": "Enjoy crystal-clear streaming without interruptions",
     "base_price": 999.00,
     "discount_percentage": 10.0,
     "final_price": 899.10,
@@ -86,11 +85,10 @@ Authorization: Bearer <subscriber_access_token>
     "billing_period_value": 1,
     "billing_period_unit": "months",
     "features": [
-      "100% Ad-free streaming",
-      "Full HD (1080p) crystal-clear resolution",
-      "Offline mobile video downloads",
-      "Up to 3 concurrent device screens",
-      "Early access to new releases"
+      "Full access to all videos & shorts",
+      "High-definition (HD) streaming",
+      "Watch on Android phone & tablet",
+      "100% Ad-free on all videos & shorts"
     ],
     "badge_text": "POPULAR",
     "display_order": 2

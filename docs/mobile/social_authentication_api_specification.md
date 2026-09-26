@@ -175,6 +175,95 @@ sequenceDiagram
 
 ---
 
+### 2.4 Google OpenID Connect (OIDC) Sign-In Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Mobile Subscriber
+    participant App as Mobile App (Flutter/RN)
+    participant GoogleSDK as Google Sign-In SDK
+    participant API as FastAPI Backend
+    participant GoogleJWKS as Google OIDC Identity Server
+    participant DB as PostgreSQL Database
+
+    User->>App: Taps "Sign in with Google"
+    App->>GoogleSDK: Request Sign-In (scopes: profile, email)
+    GoogleSDK->>User: Displays native Google account chooser
+    User->>GoogleSDK: Selects Google Account & authorizes
+    GoogleSDK-->>App: Returns signed OIDC id_token (RS256 JWT)
+    App->>API: POST /api/v1/mobile/auth/google<br/>{tenant_id: 1, id_token: "eyJhbGciOi...", device_info: "..."}
+    
+    API->>API: verify_tenant_active(tenant_id)
+    API->>GoogleJWKS: Validate token signature against Google Public RSA Keys (google.oauth2.id_token)
+    GoogleJWKS-->>API: Cryptographic validation OK: {sub, email, name, picture}
+    
+    API->>DB: Query Subscriber by (tenant_id, provider='google', provider_id=sub) OR (tenant_id, email)
+    alt Existing Subscriber Found
+        alt Same Email, Previously Local/Password or Guest
+            Note over API,DB: Smart Linking: Attach provider="google" & provider_id=sub
+            API->>DB: Update Subscriber: provider="google", provider_id=sub, avatar_url=picture
+            Note over API,DB: Active Razorpay subscriptions & watch history 100% preserved!
+        else Regular Returning Google Subscriber
+            API->>DB: Update avatar_url & name if refreshed on Google
+        end
+    else Brand New Subscriber
+        API->>DB: Create Subscriber (tenant_id, email, name, avatar_url, provider='google', provider_id=sub)
+    end
+
+    API->>DB: Issue and store new RefreshToken record
+    API->>API: Generate 30-min JWT Access Token & 60-day Rotating Refresh Token
+    API-->>App: 200 OK (AuthTokenResponse with tokens & user profile)
+    App->>User: Instantly navigates to Home Screen with customized avatar & name!
+```
+
+---
+
+### 2.5 Facebook OAuth 2.0 Sign-In Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Mobile Subscriber
+    participant App as Mobile App (Flutter/RN)
+    participant FBSDK as Facebook Login SDK
+    participant API as FastAPI Backend
+    participant FBGraph as Facebook Graph API (v20.0)
+    participant DB as PostgreSQL Database
+
+    User->>App: Taps "Sign in with Facebook"
+    App->>FBSDK: Request Facebook Login (permissions: public_profile, email)
+    FBSDK->>User: Displays native Facebook permissions dialog
+    User->>FBSDK: Confirms permissions
+    FBSDK-->>App: Returns Facebook User access_token
+    App->>API: POST /api/v1/mobile/auth/facebook<br/>{tenant_id: 1, access_token: "EAABwz...", device_info: "..."}
+    
+    API->>API: verify_tenant_active(tenant_id)
+    API->>FBGraph: GET https://graph.facebook.com/v20.0/me?fields=id,name,email,picture.type(large)
+    FBGraph-->>API: 200 OK: {id: "123456789", name: "John Smith", email: "...", picture: {...}}
+    
+    API->>DB: Query Subscriber by (tenant_id, provider='facebook', provider_id=id) OR (tenant_id, email)
+    alt Existing Subscriber Found
+        alt Same Email, Previously Local/Password or Guest
+            Note over API,DB: Smart Linking: Attach provider="facebook" & provider_id=id
+            API->>DB: Update Subscriber: provider="facebook", provider_id=id, avatar_url=picture
+            Note over API,DB: Existing entitlements & playlists completely preserved!
+        else Regular Returning Facebook Subscriber
+            API->>DB: Update avatar_url & name if refreshed
+        end
+    else Brand New Subscriber
+        API->>DB: Create Subscriber (tenant_id, email, name, avatar_url, provider='facebook', provider_id=id)
+        Note over API,DB: Handles phone-only Facebook accounts cleanly with email=NULL
+    end
+
+    API->>DB: Issue and store new RefreshToken record
+    API->>API: Generate 30-min JWT Access Token & 60-day Rotating Refresh Token
+    API-->>App: 200 OK (AuthTokenResponse with tokens & user profile)
+    App->>User: Instantly navigates to Home Screen!
+```
+
+---
+
 ## 3. 🛡️ Security, Data Integrity & Cleanup Rules
 
 ### 3.1 Dual-Identity & Smart Account Linking
@@ -517,7 +606,7 @@ Content-Type: application/json
 
 ### 8. `POST /api/v1/mobile/auth/google` — Sign-In with Google (OIDC)
 
-Exchanges a Google OIDC `id_token` for application session JWT tokens.
+Exchanges a client-obtained Google OpenID Connect `id_token` (JWT) for platform application session tokens. The backend cryptographically validates the token against Google's public JWKS certificates, extracts subscriber identity attributes, performs smart account linking (if matching email exists), and returns fresh session tokens.
 
 #### Request Headers
 
@@ -525,7 +614,7 @@ Exchanges a Google OIDC `id_token` for application session JWT tokens.
 Content-Type: application/json
 ```
 
-#### Request Body
+#### Request Body Specification
 
 ```json
 {
@@ -534,6 +623,26 @@ Content-Type: application/json
   "device_info": "iPhone 15 Pro (iOS 17.4)"
 }
 ```
+
+| Field | Type | Required | Validation Rules | Description |
+| :--- | :--- | :---: | :--- | :--- |
+| `tenant_id` | `integer` | **Yes** | Existing active Tenant | Target creator studio context |
+| `id_token` | `string` | **Yes** | Valid Google OIDC JWT | RS256-signed identity token obtained via Google Sign-In SDK |
+| `device_info` | `string` | No | Max 255 chars | Client device metadata for active session logging |
+
+#### Cryptographic Verification Engine
+- **Library**: `google.oauth2.id_token.verify_oauth2_token` using official Google RSA certificates.
+- **Audience Enforcement**: Matches `aud` claim against `GOOGLE_CLIENT_ID` from `.env`.
+- **Claims Extracted**:
+  - `sub`: Unique, immutable Google Subject ID (persisted as `provider_id`).
+  - `email`: Normalized user email address.
+  - `name`: User display name.
+  - `picture`: High-resolution Google profile picture URL.
+
+#### Account Resolution & Smart Linking Logic
+1. **Existing Google Subscriber**: If `(tenant_id, provider='google', provider_id=sub)` matches, updates avatar and name if refreshed, and issues session tokens.
+2. **Smart Linking (Existing Email)**: If an account exists with the same email (e.g., registered via email/password or guest), attaches `provider='google'` and `provider_id=sub`. **Active Razorpay subscriptions, watch progress, and playlists are 100% preserved.**
+3. **New Subscriber**: If neither matches, provisions a new `Subscriber` with `role='subscriber'`, `provider='google'`, and issues session tokens.
 
 #### Response Specification (`200 OK`)
 
@@ -555,11 +664,22 @@ Content-Type: application/json
 }
 ```
 
+#### Error Responses
+
+- `400 Bad Request`: Missing `id_token` or invalid `tenant_id`.
+- `401 Unauthorized`: Token expired, invalid signature, or audience mismatch:
+  ```json
+  {
+    "detail": "Invalid or expired Google OIDC identity token: Token expired"
+  }
+  ```
+- `403 Forbidden`: Studio tenant is deactivated or suspended.
+
 ---
 
 ### 9. `POST /api/v1/mobile/auth/facebook` — Sign-In with Facebook (OAuth 2.0)
 
-Exchanges a Facebook OAuth `access_token` for application session JWT tokens.
+Exchanges a client-obtained Facebook OAuth `access_token` for application session tokens. The backend securely queries the official Facebook Graph API `/me` endpoint to verify token validity, extracts subscriber identity attributes, performs smart account linking, and returns fresh session tokens.
 
 #### Request Headers
 
@@ -567,7 +687,7 @@ Exchanges a Facebook OAuth `access_token` for application session JWT tokens.
 Content-Type: application/json
 ```
 
-#### Request Body
+#### Request Body Specification
 
 ```json
 {
@@ -576,6 +696,28 @@ Content-Type: application/json
   "device_info": "Samsung Galaxy S24 (Android 14)"
 }
 ```
+
+| Field | Type | Required | Validation Rules | Description |
+| :--- | :--- | :---: | :--- | :--- |
+| `tenant_id` | `integer` | **Yes** | Existing active Tenant | Target creator studio context |
+| `access_token` | `string` | **Yes** | Valid Facebook User Access Token | OAuth access token obtained via Facebook Login SDK |
+| `device_info` | `string` | No | Max 255 chars | Client device metadata for active session logging |
+
+#### Server-to-Server Verification Engine
+- **Endpoint Called**: `https://graph.facebook.com/v20.0/me`
+- **Query Parameters**: `fields=id,name,email,picture.type(large)&access_token={access_token}`
+- **Security**: 10-second timeout, strict non-200 HTTP code handling.
+- **Claims Extracted**:
+  - `id`: Immutable Facebook User ID (persisted as `provider_id`).
+  - `name`: Profile full name.
+  - `email`: User email (nullable if user registered on Facebook via mobile phone number).
+  - `picture.data.url`: High-resolution Facebook profile image URL.
+
+#### Account Resolution & Smart Linking Logic
+1. **Existing Facebook Subscriber**: Matches by `(tenant_id, provider='facebook', provider_id=id)`. Updates avatar and name, issues fresh session.
+2. **Smart Linking (Existing Email)**: If Facebook provides an email and an account exists with that email in the tenant, links `provider='facebook'` and `provider_id=id` to the existing subscriber.
+3. **Phone-Only / Email-less Facebook Users**: If Facebook returns no email, provisions a unique subscriber record with `email=NULL` identified strictly by their immutable Facebook `provider_id`.
+4. **New Subscriber**: Provisions new `Subscriber` with `role='subscriber'`, `provider='facebook'`.
 
 #### Response Specification (`200 OK`)
 
@@ -596,6 +738,17 @@ Content-Type: application/json
   }
 }
 ```
+
+#### Error Responses
+
+- `400 Bad Request`: Missing `access_token` or invalid `tenant_id`.
+- `401 Unauthorized`: Token rejected or expired by Facebook Graph API:
+  ```json
+  {
+    "detail": "Invalid or expired Facebook access token: Facebook Graph API responded with status 400"
+  }
+  ```
+- `403 Forbidden`: Studio tenant is deactivated or suspended.
 
 ---
 

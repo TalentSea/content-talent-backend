@@ -7,8 +7,8 @@ This document details the public API endpoint for Mobile Application subscribers
 ## 1. Overview & Access Control
 
 * **Base Endpoint**: `GET /api/v1/mobile/branding`
-* **Authentication**: **Subscriber Protected** (`Authorization: Bearer <subscriber_access_token>`).
-* **Multi-Tenant Isolation**: The backend extracts `current_subscriber["tenant_id"]` from the JWT token and fetches the matching `Branding` record (`Tenant.id == tenant_id`).
+* **Authentication**: **Unauthenticated / Public**. No authorization token is required, allowing the mobile app to fetch branding assets immediately on cold-boot before login.
+* **Multi-Tenant Isolation**: The client must provide the `X-Tenant-Id` HTTP header to specify which studio's branding to retrieve. The backend fetches the matching `Branding` record (`Tenant.id == X-Tenant-Id`).
 * **Caching Strategy**: HTTP Header `Cache-Control: public, max-age=3600` is returned to enable local mobile client caching for fast cold-boot times (< 50ms).
 * **Complete Initial Configuration**: Since tenant identity (`studio_name`, `tagline`, `description`) and default `theme` colors are fully configured upon tenant creation, mobile applications always receive complete brand text and color tokens on initial launch (only `logo_url` and `banner_url` remain `null` until uploaded).
 

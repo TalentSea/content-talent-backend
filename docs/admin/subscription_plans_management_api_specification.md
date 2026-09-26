@@ -18,16 +18,15 @@ The platform enforces a standardized, multi-tenant **Two-Tier Architecture** pro
 Feature checklists describe the platform's technical streaming capabilities and are maintained centrally in `app/constants/plans.py`. When API endpoints serve plan details to the web admin portal or mobile app, the backend dynamically attaches the corresponding feature list:
 
 - **Tier 1 (`with_ads`) Features**:
-  - Full video catalog access
-  - Standard definition (720p) streaming
-  - Occasional short advertisements
-  - 1 concurrent device stream
+  - Full access to all videos & shorts
+  - High-definition (HD) streaming
+  - Watch on Android phone & tablet
+  - Includes ads on videos (Shorts are ad-free)
 - **Tier 2 (`no_ads`) Features**:
-  - 100% Ad-free streaming
-  - Full HD (1080p) crystal-clear resolution
-  - Offline mobile video downloads
-  - Up to 3 concurrent device screens
-  - Early access to new releases
+  - Full access to all videos & shorts
+  - High-definition (HD) streaming
+  - Watch on Android phone & tablet
+  - 100% Ad-free on all videos & shorts
 
 > [!NOTE]
 > Creators **do not** create or edit technical feature bullets. Technical entitlements (ad-insertion, resolution, downloads, concurrent screen limits) are platform-governed.
@@ -107,10 +106,10 @@ Authorization: Bearer <admin_access_token>
     "billing_period_value": 1,
     "billing_period_unit": "months",
     "features": [
-      "Full video catalog access",
-      "Standard definition (720p) streaming",
-      "Occasional short advertisements",
-      "1 concurrent device stream"
+      "Full access to all videos & shorts",
+      "High-definition (HD) streaming",
+      "Watch on Android phone & tablet",
+      "Includes ads on videos (Shorts are ad-free)"
     ],
     "badge_text": "Popular",
     "display_order": 1,
@@ -131,11 +130,10 @@ Authorization: Bearer <admin_access_token>
     "billing_period_value": 1,
     "billing_period_unit": "months",
     "features": [
-      "100% Ad-free streaming",
-      "Full HD (1080p) crystal-clear resolution",
-      "Offline mobile video downloads",
-      "Up to 3 concurrent device screens",
-      "Early access to new releases"
+      "Full access to all videos & shorts",
+      "High-definition (HD) streaming",
+      "Watch on Android phone & tablet",
+      "100% Ad-free on all videos & shorts"
     ],
     "badge_text": "Best Value",
     "display_order": 2,
@@ -189,10 +187,10 @@ _(All fields are optional. Unsupplied fields retain their current database value
   "billing_period_value": 1,
   "billing_period_unit": "months",
   "features": [
-    "Full video catalog access",
-    "Standard definition (720p) streaming",
-    "Occasional short advertisements",
-    "1 concurrent device stream"
+    "Full access to all videos & shorts",
+    "High-definition (HD) streaming",
+    "Watch on Android phone & tablet",
+    "Includes ads on videos (Shorts are ad-free)"
   ],
   "badge_text": "MOST POPULAR",
   "display_order": 1,
